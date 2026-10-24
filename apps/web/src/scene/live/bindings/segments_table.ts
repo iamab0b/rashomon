@@ -21,4 +21,9 @@ export default __t.row({
   tEnd: __t.f64().name("t_end"),
   source: __t.string(),
   supersedes: __t.option(__t.string()),
+  extractModel: __t.option(__t.string()).name("extract_model"),
+  extractPromptHash: __t.option(__t.string()).name("extract_prompt_hash"),
+  extractUtteranceIds: __t.option(__t.array(__t.string())).name("extract_utterance_ids"),
+  extractedAt: __t.option(__t.timestamp()).name("extracted_at"),
+  extractError: __t.option(__t.string()).name("extract_error"),
 });

@@ -6,5 +6,8 @@
 import { type Infer as __Infer } from "spacetimedb";
 
 // Import all procedure arg schemas
+import * as ExtractSegmentProcedure from "../extract_segment_procedure";
 
+export type ExtractSegmentArgs = __Infer<typeof ExtractSegmentProcedure.params>;
+export type ExtractSegmentResult = __Infer<typeof ExtractSegmentProcedure.returnType>;
 
