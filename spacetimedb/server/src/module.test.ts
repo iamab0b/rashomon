@@ -690,20 +690,101 @@ describe("the module judges its own writes", () => {
     apply(patches, 1);
     const g = graph();
     expect(g.events.every((e) => e.status === "plausible")).toBe(true);
-    expect(g.events.flatMap((e) => e.flags.filter((f) => f.severity === "hard"))).toEqual([]);
+    expect(g.events.flatMap((e) => e.flags)).toEqual([]);
   });
 
-  test("retracting e3 makes it superseded and removes it from the contradictions", () => {
+  const namesE3 = (f: { eventId: string; conflictsWith?: string[] }) =>
+    f.eventId === "e3" || (f.conflictsWith ?? []).includes("e3");
+
+  test("retracting e3 makes it superseded and removes a real contradiction involving it", () => {
     robbery();
-    const before = graph().events.flatMap((e) => e.flags).filter((f) => f.check === "contradiction");
-    apply([{ op: "retract_event", id: "e3", sources: ["utt_20"] }], 1);
-    const g = graph();
-    const e3 = g.events.find((e) => e.id === "e3")!;
+    const { id: _i, status: _s, flags: _f, ...e3Fields } = robberyGraph.events.find((e) => e.id === "e3")!;
+    apply(
+      [
+        {
+          op: "add_event",
+          event: { ...e3Fields, id: "e3_conflict", at: { kind: "at", landmark: "counter" }, t: [0, 9], sources: ["utt_30"] } as never,
+        },
+      ],
+      1,
+    );
+    const contradictions = () => graph().events.flatMap((e) => e.flags).filter((f) => f.check === "contradiction");
+    expect(contradictions().some(namesE3)).toBe(true);
+    apply([{ op: "retract_event", id: "e3", sources: ["utt_20"] }], 2);
+    const e3 = graph().events.find((e) => e.id === "e3")!;
     expect(e3.status).toBe("superseded");
     expect(e3.supersededBy).toBe("utt_20");
-    const after = g.events.flatMap((e) => e.flags).filter((f) => f.check === "contradiction");
-    expect(after.every((f) => f.eventId !== "e3" && !(f.conflictsWith ?? []).includes("e3"))).toBe(true);
-    expect(before.length).toBeGreaterThanOrEqual(after.length);
+    expect(contradictions().some(namesE3)).toBe(false);
+  });
+
+  test("a row already superseded without a supersededBy stays superseded after an unrelated write", () => {
+    robbery();
+    const row = h.db.events.rowKey.find(`${SESSION}/e9`)!;
+    call((ctx) => ctx.db.events.rowKey.update({ ...row, status: "superseded", supersededBy: undefined }));
+    apply([{ op: "update_prop", id: "p_knife", changes: { notes: "a paring knife" }, sources: ["utt_13"] }], 1);
+    expect(eventRow("e9")?.status).toBe("superseded");
+    expect(() => apply([{ op: "update_event", id: "e9", changes: { confidence: 0.6 }, sources: ["utt_13"] }], 2)).toThrow(
+      /retracted/,
+    );
+  });
+
+  test("a retracted event rejects later edits and overrides in the same batch, in either order", () => {
+    robbery();
+    const retract: Patch = { op: "retract_event", id: "e3", sources: ["utt_20"] };
+    const edit: Patch = { op: "update_event", id: "e3", changes: { confidence: 0.6 }, sources: ["utt_21"] };
+    expect(() => apply([retract, edit], 1)).toThrow(/retracted/);
+    expect(graph().version).toBe(1);
+    expect(eventRow("e3")?.supersededBy).toBeUndefined();
+    apply([edit, retract], 1);
+    expect(graph().events.find((e) => e.id === "e3")).toMatchObject({ status: "superseded", supersededBy: "utt_20", confidence: 0.6 });
+    expect(() =>
+      apply([{ op: "retract_event", id: "e5", sources: ["utt_22"] }, { op: "override", id: "e5", reason: "a written reason here", by: "u1" }], 2),
+    ).toThrow(/retracted/);
+    expect(eventRow("e5")?.status).toBe("implausible");
+  });
+
+  test("update_event never accepts supersededBy, status, flags or override in its changes", () => {
+    robbery();
+    for (const changes of [{ supersededBy: null }, { supersededBy: "x" }, { status: "plausible" }, { flags: [] }, { override: null }]) {
+      expect(() => apply([{ op: "update_event", id: "e3", changes: changes as never, sources: ["utt_21"] }], 1)).toThrow(
+        /cannot change/,
+      );
+    }
+    expect(graph().version).toBe(1);
+  });
+
+  test("an override after an edit to the same event is checked against the fresh verdict", () => {
+    robbery();
+    const fix: Patch = { op: "update_event", id: "e5", changes: { at: { kind: "at", landmark: "window_front" } }, sources: ["utt_12"] };
+    const over: Patch = { op: "override", id: "e5", reason: "a written reason here", by: "u1" };
+    expect(() => apply([fix, over], 1)).toThrow(/only implausible/);
+    expect(graph().version).toBe(1);
+    expect(eventRow("e5")?.status).toBe("implausible");
+    expect(h.db.overrides.rowKey.find(`${SESSION}/e5`)).toBeNull();
+    apply([over], 1);
+    expect(eventRow("e5")?.status).toBe("overridden");
+  });
+
+  test("a resolve failure on a between anchor with an unknown landmark rolls the whole batch back", () => {
+    robbery();
+    const eventsBefore = [...h.db.events.iter()];
+    const flagsBefore = [...h.db.flags.iter()];
+    const { id: _i, status: _s, flags: _f, ...event } = robberyGraph.events[0]!;
+    expect(() =>
+      apply(
+        [
+          { op: "add_actor", actor: { id: "extra", label: "Extra", role: "other", rig: "mixamo_ybot" } },
+          { op: "add_event", event: { ...event, id: "e_bad", from: { kind: "between", a: "nowhere_a", b: "nowhere_b" } } },
+        ],
+        1,
+      ),
+    ).toThrow(/unknown landmark id/);
+    expect(h.db.sessions.id.find(SESSION)?.version).toBe(1);
+    expect(h.db.actors.rowKey.find(`${SESSION}/extra`)).toBeNull();
+    expect(h.db.events.rowKey.find(`${SESSION}/e_bad`)).toBeNull();
+    expect([...h.db.events.iter()]).toEqual(eventsBefore);
+    expect([...h.db.flags.iter()]).toEqual(flagsBefore);
+    expect([...h.db.patches.iter()]).toHaveLength(eventPatches().length);
   });
 
   test("a client that is neither the module nor the creator still cannot call setStatuses", () => {

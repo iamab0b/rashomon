@@ -38,6 +38,9 @@ function manifestFor(sceneId: string): SceneManifest {
   return MANIFESTS[sceneId] ?? fail(`unknown sceneId ${sceneId}; known scenes: ${Object.keys(MANIFESTS).join(", ")}`);
 }
 
+const isRetracted = (e: { status: string; supersededBy?: string | undefined }): boolean =>
+  e.status === "superseded" || e.supersededBy !== undefined;
+
 function regate(ctx: Ctx, sessionId: string): void {
   const session = requireSession(ctx, sessionId);
   const manifest = manifestFor(session.sceneId);
@@ -45,7 +48,7 @@ function regate(ctx: Ctx, sessionId: string): void {
   const graph = eventGraphFromRow(row);
   const judged = {
     ...graph,
-    events: graph.events.map((e) => ({ ...e, status: e.supersededBy !== undefined ? ("superseded" as const) : ("proposed" as const) })),
+    events: graph.events.map((e) => ({ ...e, status: isRetracted(e) ? ("superseded" as const) : ("proposed" as const) })),
   };
   const { statuses, flags } = gate(resolve(judged, manifest), manifest, { meshes: [] });
   for (const e of ctx.db.events.sessionId.filter(sessionId)) {
@@ -129,6 +132,7 @@ function applyOverride(ctx: Ctx, sessionId: string, eventId: string, reason: unk
     fail(`override reason must be at least ${MIN_OVERRIDE_REASON_CHARS} characters`);
   const who = nonEmptyString(by, "override.by");
   const event = requireEvent(ctx, sessionId, eventId);
+  if (isRetracted(event)) fail(`event ${eventId} was retracted and cannot be overridden`);
   if (event.status !== "implausible")
     fail(`event ${eventId} is ${event.status}; only implausible events can be overridden`);
   const flagIds = [...ctx.db.flags.eventId.filter(eventId)]
@@ -168,7 +172,7 @@ function applyPatch(ctx: Ctx, sessionId: string, patch: unknown): string[] {
       const id = idOf(patch.id, "update_event.id");
       const sources = sourcesOf(patch.sources, "update_event");
       const event = requireEvent(ctx, sessionId, id);
-      if (event.status === "superseded") return fail(`event ${id} was retracted and cannot be updated`);
+      if (isRetracted(event)) return fail(`event ${id} was retracted and cannot be updated`);
       const { keys, fields } = eventChangesFrom(patch.changes);
       const onlyTime = keys.every((k) => k === "t");
       if (!onlyTime) ctx.db.overrides.rowKey.delete(key(sessionId, id));
@@ -314,7 +318,19 @@ export const applyPatches = spacetimedb.reducer(
     }
     if (!Array.isArray(patches) || patches.length === 0) return fail("patchesJson must be a non-empty array of patches");
     const appliedVersion = session.version + 1;
+    const touched = new Set<string>();
     for (const patch of patches) {
+      if (isRecord(patch)) {
+        if (patch.op === "override" && typeof patch.id === "string" && touched.has(patch.id)) {
+          checkReferences(ctx, sessionId);
+          regate(ctx, sessionId);
+        }
+        if (patch.op === "update_event" || patch.op === "retract_event") {
+          if (typeof patch.id === "string") touched.add(patch.id);
+        } else if (patch.op === "add_event" && isRecord(patch.event) && typeof patch.event.id === "string") {
+          touched.add(patch.event.id);
+        }
+      }
       const sources = applyPatch(ctx, sessionId, patch);
       ctx.db.patches.insert({
         id: 0n,
