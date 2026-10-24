@@ -99,6 +99,12 @@ describe("time", () => {
     expect(durationFor("look", 0)).toBe(2);
     for (const a of ["shove", "fall", "pick_up"] as const) expect(durationFor(a, 0)).toBe(1);
   });
+  test("the nine new actions have fixed durations", () => {
+    for (const a of ["hands_up", "point", "reach", "jump", "dodge"] as const) expect(durationFor(a, 0)).toBe(1.5);
+    for (const a of ["kneel", "stumble"] as const) expect(durationFor(a, 0)).toBe(2);
+    expect(durationFor("drink", 0)).toBe(3);
+    expect(durationFor("phone", 0)).toBe(4);
+  });
   test("resolve starts an inferred event when the same actor's previous event ends", () => {
     const g = {
       sceneId: "store_v1",
@@ -511,5 +517,23 @@ describe("resolve edge cases", () => {
 
   test("every robbery event is reachable", () => {
     expect(resolve(robbery, store).events.every((e) => e.reachable)).toBe(true);
+  });
+
+  test("style, actionApproximated and verb pass through, and are absent when unset", () => {
+    const at = { kind: "xyz", position: [8, 0, 8] };
+    const r = resolve(
+      graphOf([
+        ev({ id: "a", actor: "suspect", action: "dodge", at, t: [0, 1.5], actionApproximated: true, verb: "ducked" }),
+        ev({ id: "b", actor: "suspect", action: "look", at, t: [2, 4], style: "behind" }),
+        ev({ id: "c", actor: "suspect", action: "stand", at, t: [4, 6], actionApproximated: false }),
+      ]),
+      synth,
+    );
+    expect(r.events[0]).toMatchObject({ actionApproximated: true, verb: "ducked" });
+    expect(r.events[0]).not.toHaveProperty("style");
+    expect(r.events[1]).toMatchObject({ style: "behind" });
+    expect(r.events[1]).not.toHaveProperty("actionApproximated");
+    expect(r.events[2]).not.toHaveProperty("actionApproximated");
+    expect(r.events[2]).not.toHaveProperty("verb");
   });
 });

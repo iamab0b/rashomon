@@ -1,4 +1,4 @@
-import type { Action, Flag, Override, Status, Witness } from "@rashomon/schema";
+import type { Action, ActionStyle, Flag, Override, Status, Witness } from "@rashomon/schema";
 
 export type Vec3 = [number, number, number];
 
@@ -20,6 +20,9 @@ export type ResolvedEvent = {
   facing?: Vec3;
   target?: string;
   prop?: string;
+  style?: ActionStyle;
+  actionApproximated?: boolean;
+  verb?: string;
   sources: string[];
   override?: Override;
   supersededBy?: string;
