@@ -6,9 +6,10 @@ Rashomon turns witness testimony into a provenance-tracked event graph and then 
 
 | Folder | Owner | Contents |
 | --- | --- | --- |
-| `packages/schema` | Seat A (shared by all) | Data contracts, fixtures |
-| `packages/engine` | Seat A (Sahil) | Resolver and plausibility gate |
-| `spacetimedb/` | Seat A (Eric) | SpacetimeDB module |
+| `packages/schema` | Shared (Sahil merges) | Data contracts, fixtures |
+| `packages/engine` | Seat B (Sahil) | Resolver and plausibility gate |
+| `spacetimedb/` | Seat B (Sahil) | SpacetimeDB module: tables, reducers, views, publishing |
+| `spacetimedb/server/src/procedures/`, `spacetimedb/server/src/http/` | Seat C (Eric) | extractSegment procedure and the Cartesia webhook |
 | `apps/web/src/scene` | Seat B (Sahil) | 3D workspace |
 | `apps/web/src/ui` | Seat D (Hazel) | Panels, forms, copy |
 | `packages/props` | Seat D (Hazel) | Props library JSON |
