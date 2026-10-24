@@ -14,6 +14,7 @@ import {
   buildRows,
   implausibleStarts,
   neighborFlag,
+  playheadHitAreas,
   rowHeight,
   fillOpacityFor,
   rowTops,
@@ -28,8 +29,7 @@ export type TimelineProps = { onOpen?: (id: string) => void };
 
 const SPEEDS = [0.5, 1, 2];
 const AMBER = "#ffb020";
-const PLAYHEAD_HIT_W = 14;
-const BOTTOM_PAD_PX = 10;
+const BOTTOM_PAD_PX = 14;
 
 const CSS = `
 .rtl-root, .rtl-root * { -webkit-user-select: none; user-select: none; }
@@ -40,17 +40,25 @@ const CSS = `
 .rtl-playhead:focus-visible .rtl-ring { visibility: visible; }
 .rtl-root[data-scrubbing], .rtl-root[data-scrubbing] * { cursor: ew-resize !important; }
 .rtl-block[data-event]:hover .rtl-fill { filter: brightness(1.35); }
+.rtl-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 0; padding: 6px 8px; }
+.rtl-toolbar button { font: 12px system-ui, sans-serif; cursor: pointer; }
+.rtl-toolbar button:disabled { cursor: default; opacity: .4; }
+.rtl-play { display: grid; place-items: center; width: 34px; height: 28px; margin-right: 14px; color: #0e121a; background: #e6ebf5; border: 0; border-radius: 4px; }
+.rtl-play:hover { background: #ffffff; }
+.rtl-group { display: inline-flex; align-items: center; padding: 0 14px; border-left: 1px solid #263044; }
+.rtl-speed { display: inline-flex; border: 1px solid #34405a; border-radius: 4px; overflow: hidden; }
+.rtl-speed button { padding: 3px 9px; color: #9aa7bd; background: transparent; border: 0; }
+.rtl-speed button + button { border-left: 1px solid #34405a; }
+.rtl-speed button[aria-pressed="true"] { color: #e6ebf5; background: #2f3b52; font-weight: 600; }
+.rtl-flags { gap: 2px; }
+.rtl-flags button { display: inline-flex; align-items: center; gap: 5px; padding: 3px 6px; color: #9aa7bd; background: transparent; border: 0; border-radius: 4px; }
+.rtl-flags button:not(:disabled):hover { color: #e6ebf5; background: #1a2130; }
+.rtl-time { margin-left: auto; padding-left: 14px; color: #9aa7bd; font-size: 12px; font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) { .rtl-flag-text { display: none; } }
 `;
 
-const btn = (active = false) => ({
-  background: active ? "#2f3b52" : "#1a2130",
-  color: "#e6ebf5",
-  border: "1px solid #34405a",
-  borderRadius: 4,
-  padding: "3px 10px",
-  fontSize: 12,
-  cursor: "pointer",
-});
+const PLAY_ICON = "M4 2.5v11l9-5.5z";
+const PAUSE_ICON = "M4 2.5h3v11H4zM9 2.5h3v11H9z";
 
 export function Timeline({ onOpen }: TimelineProps) {
   const { resolved, statuses } = useGraph();
@@ -105,22 +113,51 @@ export function Timeline({ onOpen }: TimelineProps) {
       }}
     >
       <style>{CSS}</style>
-      <div style={{ display: "flex", gap: 6, padding: "6px 8px", alignItems: "center" }}>
-        <button type="button" style={btn()} onClick={toggle}>
-          {playing ? "Pause" : "Play"}
+      <div className="rtl-toolbar">
+        <button
+          type="button"
+          className="rtl-play"
+          aria-label={playing ? "Pause" : "Play"}
+          title={playing ? "Pause (Space)" : "Play (Space)"}
+          aria-keyshortcuts="Space"
+          onClick={toggle}
+        >
+          <svg width={16} height={16} viewBox="0 0 16 16" aria-hidden>
+            <path d={playing ? PAUSE_ICON : PLAY_ICON} fill="currentColor" />
+          </svg>
         </button>
-        {SPEEDS.map((s) => (
-          <button key={s} type="button" style={btn(speed === s)} onClick={() => setSpeed(s)}>
-            {s}x
+        <div className="rtl-group" role="group" aria-label="Playback speed">
+          <div className="rtl-speed">
+            {SPEEDS.map((s) => (
+              <button key={s} type="button" aria-pressed={speed === s} title={`${s}× speed`} onClick={() => setSpeed(s)}>
+                {s}×
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="rtl-group rtl-flags" role="group" aria-label="Flag navigation">
+          <button
+            type="button"
+            aria-label="Previous flag"
+            title="Previous flag"
+            onClick={() => jump(-1)}
+            disabled={!neighborFlag(flags, t, -1)}
+          >
+            <span aria-hidden>←</span>
+            <span className="rtl-flag-text">Previous flag</span>
           </button>
-        ))}
-        <button type="button" style={btn()} onClick={() => jump(-1)} disabled={!neighborFlag(flags, t, -1)}>
-          Prev flag
-        </button>
-        <button type="button" style={btn()} onClick={() => jump(1)} disabled={!neighborFlag(flags, t, 1)}>
-          Next flag
-        </button>
-        <span style={{ marginLeft: "auto", fontSize: 12, color: "#9aa7bd" }}>
+          <button
+            type="button"
+            aria-label="Next flag"
+            title="Next flag"
+            onClick={() => jump(1)}
+            disabled={!neighborFlag(flags, t, 1)}
+          >
+            <span className="rtl-flag-text">Next flag</span>
+            <span aria-hidden>→</span>
+          </button>
+        </div>
+        <span className="rtl-time">
           {t.toFixed(1)} / {duration.toFixed(1)} s
         </span>
       </div>
@@ -221,7 +258,9 @@ export function Timeline({ onOpen }: TimelineProps) {
           onPointerCancel={endDrag}
           onLostPointerCapture={endDrag}
         >
-          <rect x={xOf(t, duration) - PLAYHEAD_HIT_W / 2} y={TOP - 10} width={PLAYHEAD_HIT_W} height={height - TOP + 10} fill="transparent" />
+          {playheadHitAreas(xOf(t, duration), height).map((r, i) => (
+            <rect key={i} data-playhead-hit x={r.x} y={r.y} width={r.width} height={r.height} fill="transparent" />
+          ))}
           <rect
             className="rtl-ring"
             x={xOf(t, duration) - 9}
@@ -234,8 +273,8 @@ export function Timeline({ onOpen }: TimelineProps) {
             strokeWidth={2}
             visibility="hidden"
           />
-          <line x1={xOf(t, duration)} x2={xOf(t, duration)} y1={TOP - 6} y2={height} stroke="#ff5d73" strokeWidth={2} />
-          <rect x={xOf(t, duration) - 6} y={TOP - 10} width={12} height={10} rx={2} fill="#ff5d73" />
+          <line x1={xOf(t, duration)} x2={xOf(t, duration)} y1={TOP - 6} y2={height} stroke="#ff5d73" strokeWidth={2} pointerEvents="none" />
+          <rect x={xOf(t, duration) - 6} y={TOP - 10} width={12} height={10} rx={2} fill="#ff5d73" pointerEvents="none" />
         </g>
       </svg>
     </div>

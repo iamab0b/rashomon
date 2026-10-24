@@ -7,6 +7,21 @@ export const LABEL_W = 120;
 export const ROW_H = 34;
 export const TOP = 22;
 export const TRACK_W = W - LABEL_W - 10;
+export const PLAYHEAD_HIT_W = 14;
+export const PLAYHEAD_LINE_W = 2;
+
+export type HitRect = { x: number; y: number; width: number; height: number };
+
+export function playheadHitAreas(x: number, height: number): HitRect[] {
+  return [
+    { x: x - PLAYHEAD_HIT_W / 2, y: 0, width: PLAYHEAD_HIT_W, height: TOP },
+    { x: x - PLAYHEAD_LINE_W / 2, y: TOP, width: PLAYHEAD_LINE_W, height: Math.max(height - TOP, 0) },
+  ];
+}
+
+export function hits(rect: HitRect, px: number, py: number): boolean {
+  return px >= rect.x && px <= rect.x + rect.width && py >= rect.y && py <= rect.y + rect.height;
+}
 export const LANE_H = ROW_H - 8;
 
 export type Block = {

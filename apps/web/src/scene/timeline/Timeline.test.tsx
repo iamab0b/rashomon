@@ -6,7 +6,21 @@ import { gatedSnapshot } from "../playback/graphSource";
 import { useSceneStore, type SceneState } from "../store";
 import { Timeline, createDrag, makeJump, makeKeyHandler } from "./Timeline";
 import { callHook, findElement } from "../testing/hookHost";
-import { assignLanes, buildRows, fillOpacityFor, implausibleStarts, rowHeight, ROW_H, strokeFor } from "./layout";
+import { isValidElement, type ReactNode } from "react";
+import {
+  assignLanes,
+  buildRows,
+  fillOpacityFor,
+  hits,
+  implausibleStarts,
+  LANE_H,
+  rowHeight,
+  rowTops,
+  ROW_H,
+  strokeFor,
+  TOP,
+  xOf,
+} from "./layout";
 
 const initial = useSceneStore.getState();
 const pristine = { ...useSceneStore.getInitialState() };
@@ -215,12 +229,106 @@ describe("event state styling (regression)", () => {
     expect(fill(e5)).toMatch(new RegExp(`fill="${WITNESS}" fill-opacity="0.24"`));
   });
 
+  test("non-overlapping events from one actor share a lane", () => {
+    const { blocks, lanes } = assignLanes([
+      { key: "a", id: "a", tStart: 0, tEnd: 3, color: WITNESS, label: "a" },
+      { key: "b", id: "b", tStart: 3, tEnd: 5, color: WITNESS, label: "b" },
+      { key: "c", id: "c", tStart: 6, tEnd: 8, color: WITNESS, label: "c" },
+    ]);
+    expect(blocks.map((b) => b.lane)).toEqual([0, 0, 0]);
+    expect(lanes).toBe(1);
+  });
+
+  test("the timeline keeps 14px below the last row and its text is not selectable", () => {
+    const html = render();
+    expect(html).toMatch(/class="rtl-root"[^>]*style="[^"]*padding-bottom:14px/);
+    expect(html).toContain("user-select: none");
+    expect(html).toMatch(/\.rtl-root \{ cursor: default; \}/);
+    expect(html).toMatch(/data-playhead="true"[^>]*style="cursor:ew-resize"/);
+    expect(block(html, "e3")).toContain('style="cursor:pointer"');
+  });
+
   test("overridden keeps its amber corner while playing, with only a restrained tint", () => {
     const e2 = block(render(), "e2");
     expect(e2).toContain('data-status="overridden"');
     expect(e2).toMatch(/<polygon [^>]*fill="#ffb020"/);
     expect(fill(e2)).toMatch(new RegExp(`fill="${CLERK}" fill-opacity="0.24"`));
     expect(border(e2)).toMatch(new RegExp(`stroke="${CLERK}"`));
+  });
+});
+
+function collect(node: ReactNode, matches: (props: Record<string, unknown>) => boolean): Record<string, unknown>[] {
+  if (Array.isArray(node)) return node.flatMap((child) => collect(child, matches));
+  if (!isValidElement(node)) return [];
+  const props = node.props as Record<string, unknown>;
+  return [...(matches(props) ? [props] : []), ...collect(props.children as ReactNode, matches)];
+}
+
+describe("playhead hit area", () => {
+  test("after Next flag sets t = 10, a click just inside e5's left edge selects e5 instead of scrubbing", () => {
+    const { api, jump } = drive();
+    api().clear();
+    api().setT(0);
+    jump(1);
+    expect(api().t).toBe(10);
+    api().clear();
+
+    const { resolved, statuses } = snap();
+    const rows = buildRows(resolved, statuses);
+    const witness = rows.findIndex((r) => r.blocks.some((b) => b.id === "e5"));
+    const lane = rows[witness]!.blocks.find((b) => b.id === "e5")!.lane;
+    const duration = api().duration;
+    const px = xOf(10, duration) + 2;
+    const py = rowTops(rows)[witness]! + lane * LANE_H + ROW_H / 2;
+    expect(px).toBeLessThan(xOf(12, duration));
+
+    const tree = callHook(() => Timeline({}));
+    const hitRects = collect(tree, (props) => props["data-playhead-hit"] === true) as unknown as {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }[];
+    expect(hitRects.length).toBe(2);
+    expect(hitRects.some((r) => hits(r, px, py))).toBe(false);
+    expect(hitRects.some((r) => hits(r, xOf(10, duration), TOP / 2))).toBe(true);
+    for (const r of hitRects) if (r.y + r.height > TOP) expect(r.width).toBeLessThanOrEqual(2);
+
+    const e5 = findElement(tree, (props) => props["data-block"] === "e5")!;
+    (e5.props as { onClick: () => void }).onClick();
+    expect(api().selectedEventId).toBe("e5");
+  });
+});
+
+describe("toolbar", () => {
+  const toolbar = (patch: Partial<SceneState>) => {
+    const { resolved, statuses } = snap();
+    const html = renderWith({ resolved, statuses, duration: resolved!.durationS, ...patch });
+    return html.slice(html.indexOf('class="rtl-toolbar"'), html.indexOf("<svg", html.indexOf('class="rtl-time"')));
+  };
+
+  test("play/pause is one labelled icon button that follows the playing state", () => {
+    expect(toolbar({ playing: false })).toMatch(/class="rtl-play" aria-label="Play" title="Play \(Space\)" aria-keyshortcuts="Space"/);
+    expect(toolbar({ playing: true })).toMatch(/class="rtl-play" aria-label="Pause" title="Pause \(Space\)"/);
+  });
+
+  test("speeds are one labelled group with exactly one pressed", () => {
+    const html = toolbar({ speed: 2 });
+    expect(html).toContain('role="group" aria-label="Playback speed"');
+    const pressed = [...html.matchAll(/aria-pressed="(true|false)"[^>]*>([^<]+)</g)].map((m) => `${m[2]}:${m[1]}`);
+    expect(pressed).toEqual(["0.5×:false", "1×:false", "2×:true"]);
+  });
+
+  test("flag navigation is its own group with arrows, text and disabled ends", () => {
+    const start = toolbar({ t: 0 });
+    expect(start).toContain('role="group" aria-label="Flag navigation"');
+    expect(start).toMatch(/aria-label="Previous flag" title="Previous flag" disabled=""/);
+    expect(start).toMatch(/aria-label="Next flag" title="Next flag">/);
+    expect(start).toContain("Previous flag</span>");
+    expect(start).toContain("→");
+    const after = toolbar({ t: 11 });
+    expect(after).toMatch(/aria-label="Previous flag" title="Previous flag">/);
+    expect(after).toMatch(/aria-label="Next flag" title="Next flag" disabled=""/);
   });
 });
 
