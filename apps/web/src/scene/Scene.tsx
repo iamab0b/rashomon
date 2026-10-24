@@ -34,6 +34,7 @@ export type SceneProps = {
   fixture?: string;
   debug?: string;
   t?: number;
+  scrubBar?: boolean;
 };
 
 const RIG_DEBUG = "rig";
@@ -112,7 +113,7 @@ function useDebugPreset(debug: string | undefined): void {
   }, [debug, setPreset]);
 }
 
-export function Scene({ fixture, debug, t }: SceneProps) {
+export function Scene({ fixture, debug, t, scrubBar = true }: SceneProps) {
   useSceneKeys();
   useDebugPreset(debug);
   useInitialTime(t, debug);
@@ -159,7 +160,7 @@ export function Scene({ fixture, debug, t }: SceneProps) {
       </Canvas>
       {loaded ? <LabelLayer landmarks={loaded.manifest.landmarks} /> : null}
       {isRigDebug ? <RigReportPanel /> : null}
-      <ScrubBar />
+      {scrubBar ? <ScrubBar /> : null}
       <DebugOverlay />
     </div>
   );
