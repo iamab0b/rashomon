@@ -95,4 +95,21 @@ describe("stepPlayhead", () => {
 
     expect(clock.tick(5).t).toBe(0);
   });
+
+  test("speed scales how fast t advances, and a speed change re-anchors without a jump", () => {
+    let memo: PlayheadMemo | null = null;
+    const step = (t: number, clockS: number, speed: number) => {
+      const next = stepPlayhead(memo, { t, playing: true, duration: 24, clockS, speed });
+      memo = next.memo;
+      return next.t;
+    };
+    let t = step(0, 0, 2);
+    t = step(t, 1, 2);
+    expect(t).toBeCloseTo(2);
+
+    t = step(t, 2, 0.5);
+    expect(t).toBeCloseTo(2);
+    t = step(t, 4, 0.5);
+    expect(t).toBeCloseTo(3);
+  });
 });
