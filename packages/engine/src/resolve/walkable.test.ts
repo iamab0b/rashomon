@@ -225,3 +225,44 @@ describe("performance", () => {
     expect(elapsed).toBeLessThan(200);
   });
 });
+
+describe("routes the landmark pairs alone would miss", () => {
+  test("a walk from one side of a lone shelf to the other goes around it", () => {
+    const manifest = manifestOf([landmark("shelf", "furniture", [4, 3], [6, 7])], [10, 10]);
+    const graph = graphOf([
+      {
+        ...walk("m", "shelf", "shelf"),
+        from: { kind: "near", landmark: "shelf", radiusM: 0.6 },
+        to: { kind: "behind", landmark: "shelf" },
+      },
+    ]);
+    const m = resolve(graph, manifest).events[0]!;
+    expect(m.from).toBeDefined();
+    expect(m.to).toBeDefined();
+    expect(m.reachable).toBe(true);
+    const shelf = manifest.landmarks[0]!.bounds;
+    for (let i = 1; i < m.path.length; i++) {
+      const a: Point2 = { x: m.path[i - 1]![0], z: m.path[i - 1]![2] };
+      const b: Point2 = { x: m.path[i]![0], z: m.path[i]![2] };
+      expect(segmentHitsBox(a, b, shelf)).toBe(false);
+    }
+  });
+
+  test("a free strip at the upper edge of the room is not lost to the grid rounding", () => {
+    const manifest = manifestOf(
+      [landmark("wall", "furniture", [4.5, 0], [5.5, 6.5]), zone("west", 2, 1), zone("east", 8, 1)],
+      [10, 7.2],
+    );
+    const m = resolve(graphOf([walk("m", "west", "east")]), manifest).events[0]!;
+    expect(m.reachable).toBe(true);
+    expect(Math.max(...m.path.map((p) => p[2]))).toBeGreaterThan(6.5);
+  });
+
+  test("the grid covers a partial last row and column, so a landmark there gets its access point there", () => {
+    const manifest = manifestOf([zone("corner", 9.9, 7.15), zone("start", 1, 1)], [10, 7.2]);
+    const portals = generatePortals(manifest, { cellM: 0.25 });
+    expect(portals.waypoints[0]).toMatchObject({ x: 9.875, z: 7.125 });
+    const odd = manifestOf([zone("corner", 9.95, 7.15), zone("start", 1, 1)], [10.1, 7.2]);
+    expect(generatePortals(odd).waypoints[0]).toMatchObject({ x: 9.875, z: 7.125 });
+  });
+});

@@ -50,8 +50,8 @@ function extentOf(manifest: SceneManifest): { min: [number, number, number]; max
 function buildGrid(extent: NonNullable<ReturnType<typeof extentOf>>, cell: number, grown: Box[]): Grid {
   const [x0, , z0] = extent.min;
   const [x1, , z1] = extent.max;
-  const cols = Math.max(1, Math.floor((x1 - x0) / cell + 1e-9));
-  const rows = Math.max(1, Math.floor((z1 - z0) / cell + 1e-9));
+  const cols = Math.max(1, Math.ceil((x1 - x0) / cell - 1e-9));
+  const rows = Math.max(1, Math.ceil((z1 - z0) / cell - 1e-9));
   const blocked = new Uint8Array(cols * rows);
   const grid: Grid = { cols, rows, cell, x0, z0, blocked };
   for (let i = 0; i < cols * rows; i++) {
@@ -216,6 +216,19 @@ export function generatePortals(manifest: SceneManifest, options: WalkableOption
 
   const search = searchFor(grid.blocked.length);
   const points: Point2[] = access.map((i) => centerOf(grid, i));
+  const within = (p: Point2): boolean =>
+    p.x >= extent.min[0] && p.x <= extent.max[0] && p.z >= extent.min[2] && p.z <= extent.max[2];
+  for (const box of grown) {
+    for (const [x, z] of [
+      [box.min[0], box.min[2]],
+      [box.max[0], box.min[2]],
+      [box.max[0], box.max[2]],
+      [box.min[0], box.max[2]],
+    ] as const) {
+      const corner: Point2 = { x: round6(x), z: round6(z) };
+      if (within(corner) && !grown.some((other) => insideBox(corner, other))) points.push(corner);
+    }
+  }
   for (let i = 0; i < access.length; i++) {
     for (let j = i + 1; j < access.length; j++) {
       const path = astar(grid, search, access[i]!, access[j]!);
