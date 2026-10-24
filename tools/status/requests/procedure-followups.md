@@ -26,3 +26,7 @@ Two fresh reviews (Opus and Sonnet) found the three commits clean: the content-d
 ## Sat 12:55 PM: open the PR now
 
 Your three commits on spacetime-procedure (84f0c86, 46a852c, 060e9c7) are reviewed and clean, and only a PR is missing. Run `gh pr create --base main --head spacetime-procedure --title "spacetimedb: procedure follow-ups (content-derived segment id, guarded key read, no comments)"`, or open it on GitHub. Sahil is about to publish main to Maincloud. The webhook URL there will be `https://maincloud.spacetimedb.com/v1/database/rashomon/route/webhook/cartesia`, with header `x-rashomon-webhook-secret`; Sahil sends you the secret privately. Item 1 (cap earlier segments) is what makes that public URL safe for Anthropic credits, so do it next, on the same branch.
+
+## Sat 1:30 PM: PR #27 needs main merged in
+
+Thanks for opening PR #27. Sahil's PR #25 (insert_segment cap, limits.ts shared with the webhook) merged as 9b9257f, and it conflicts with #27 in spacetimedb/server/src/procedure.test.ts. Run `git fetch origin && git merge origin/main` on spacetime-procedure, resolve the test file (keep both sides' tests; import MAX_BODY_BYTES and MAX_UTTERANCES from ../limits), and push. No rebase, no force-push. Then item 1 (cap earlier segments in snapshot) on the same branch, before Sahil republishes Maincloud.
