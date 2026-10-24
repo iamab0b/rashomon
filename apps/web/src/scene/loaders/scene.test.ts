@@ -13,6 +13,11 @@ describe("loadManifest", () => {
   test("throws on an unknown fixture", () => {
     expect(() => loadManifest("nope")).toThrow(/unknown scene fixture "nope"/);
   });
+
+  test("throws on inherited object keys", () => {
+    expect(() => loadManifest("constructor")).toThrow(/unknown scene fixture/);
+    expect(() => loadManifest("toString")).toThrow(/unknown scene fixture/);
+  });
 });
 
 describe("tagCollision", () => {

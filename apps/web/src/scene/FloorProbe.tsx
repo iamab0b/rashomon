@@ -1,4 +1,4 @@
-import type { Interior } from "./loaders/scene";
+import type { Interior } from "@rashomon/schema";
 import { useSceneStore } from "./store";
 
 const FALLBACK_SPAN = 40;

@@ -9,28 +9,21 @@ import {
 } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { SceneManifest } from "@rashomon/schema";
-import storeManifest from "../../../../../packages/schema/fixtures/store.scene.json";
-
-export type Interior = {
-  min: [number, number, number];
-  max: [number, number, number];
-};
-
-export type LoadedManifest = SceneManifest & { interior?: Interior };
+import { storeScene } from "@rashomon/schema/fixtures";
 
 export type LoadedScene = {
-  manifest: LoadedManifest;
+  manifest: SceneManifest;
   model: Object3D;
   isPlaceholder: boolean;
 };
 
 const DRESS_PREFIX = "dress_";
-const FIXTURES: Readonly<Record<string, LoadedManifest>> = {
-  store: storeManifest as unknown as LoadedManifest,
+const FIXTURES: Readonly<Record<string, SceneManifest>> = {
+  store: storeScene,
 };
 
-export function loadManifest(fixture: string): LoadedManifest {
-  const manifest = FIXTURES[fixture];
+export function loadManifest(fixture: string): SceneManifest {
+  const manifest = Object.hasOwn(FIXTURES, fixture) ? FIXTURES[fixture] : undefined;
   if (!manifest) throw new Error(`unknown scene fixture "${fixture}"`);
   return manifest;
 }
@@ -50,7 +43,7 @@ function enableShadows(root: Object3D): void {
   });
 }
 
-export function buildPlaceholder(manifest: LoadedManifest): Group {
+export function buildPlaceholder(manifest: SceneManifest): Group {
   const group = new Group();
   group.name = "placeholder_scene";
 
