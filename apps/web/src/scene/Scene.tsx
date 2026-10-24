@@ -1,5 +1,7 @@
 import { Canvas } from "@react-three/fiber";
 import { useEffect, useMemo, useState } from "react";
+import { Box3 } from "three";
+import type { SceneManifest } from "@rashomon/schema";
 import { CameraRig } from "./cameras/CameraRig";
 import { PovRayLine } from "./cameras/PovRayLine";
 import { WitnessView } from "./cameras/WitnessView";
@@ -15,7 +17,12 @@ import { FpsProbe } from "./FpsProbe";
 import { LabelLayer } from "./landmarks/LabelLayer";
 import { LabelProjector } from "./landmarks/LabelProjector";
 import { LandmarkMarkers } from "./landmarks/LandmarkMarkers";
-import { isKnownFixture, loadScene, type LoadedScene } from "./loaders/scene";
+import { EditorLayer } from "./labeling/EditorLayer";
+import { LabelingPanel } from "./labeling/LabelingPanel";
+import { interiorFromBounds } from "./labeling/interior";
+import { useLabelingStore } from "./labeling/labelingStore";
+import { isLandmarkEditing, manifestSourceFromSearch } from "./labeling/storage";
+import { isKnownFixture, loadManifest, loadScene, loadSceneFromManifest, type LoadedScene } from "./loaders/scene";
 import { Actors } from "./playback/Actors";
 import { Playhead } from "./playback/Playhead";
 import { Props } from "./props/Props";
@@ -44,15 +51,19 @@ export type SceneProps = {
 const RIG_DEBUG = "rig";
 const STORE_FIXTURE = "store";
 
-function useLoadedScene(fixture: string | undefined): LoadedScene | null {
+function useLoadedScene(fixture: string | undefined, manifest: SceneManifest | null, editing: boolean): LoadedScene | null {
   const [loaded, setLoaded] = useState<LoadedScene | null>(null);
   const setStatus = useSceneStore((state) => state.setStatus);
+  const meshKey = manifest ? `${manifest.sceneId}|${manifest.meshUrl}` : null;
 
   useEffect(() => {
     if (!fixture) return;
     let cancelled = false;
     setStatus("loading");
-    loadScene(fixture)
+    const source = manifest
+      ? loadSceneFromManifest(editing ? { ...manifest, landmarks: [] } : manifest)
+      : loadScene(fixture);
+    source
       .then((result) => {
         if (!cancelled) setLoaded(result);
       })
@@ -65,9 +76,23 @@ function useLoadedScene(fixture: string | undefined): LoadedScene | null {
     return () => {
       cancelled = true;
     };
-  }, [fixture, setStatus]);
+  }, [fixture, meshKey, editing, setStatus]);
 
   return loaded;
+}
+
+function useEditorBounds(loaded: LoadedScene | null, editing: boolean): void {
+  const setInterior = useLabelingStore((state) => state.setInterior);
+  useEffect(() => {
+    if (!editing || !loaded) return;
+    const fallback = useLabelingStore.getState().base?.interior;
+    if (loaded.isPlaceholder) {
+      setInterior(fallback);
+      return;
+    }
+    const box = new Box3().setFromObject(loaded.model);
+    setInterior(interiorFromBounds(box.min.toArray(), box.max.toArray(), fallback));
+  }, [loaded, editing, setInterior]);
 }
 
 function useSceneFailure(fixture: string | undefined, skip: boolean, hasGraphSource: boolean): string | null {
@@ -137,13 +162,37 @@ export function Scene({ fixture, debug, t }: SceneProps) {
   useDebugPreset(debug);
   useInitialTime(t, debug);
   const isRigDebug = debug === RIG_DEBUG;
-  const loaded = useLoadedScene(isRigDebug ? undefined : fixture);
+  const editing = !isRigDebug && isLandmarkEditing(window.location.search);
+  const manifestSource = useMemo(() => manifestSourceFromSearch(window.location.search), []);
+  const manifestError = manifestSource.kind === "error" ? manifestSource.error : null;
+  const savedManifest = manifestSource.kind === "ok" ? manifestSource.manifest : null;
+  const editBase = useLabelingStore((state) => state.base);
+  const startManifest = useMemo(
+    () => savedManifest ?? (fixture && isKnownFixture(fixture) ? loadManifest(fixture) : null),
+    [savedManifest, fixture],
+  );
+  const sceneManifest = editing ? (editBase ?? startManifest) : savedManifest;
+  const graphless = editing || manifestSource.kind !== "none";
+  const loaded = useLoadedScene(
+    isRigDebug || manifestError !== null ? undefined : fixture,
+    sceneManifest,
+    editing,
+  );
+  useEffect(() => {
+    if (editing && startManifest) useLabelingStore.getState().begin(startManifest);
+  }, [editing, startManifest]);
+  useEffect(() => {
+    if (manifestError !== null) useSceneStore.getState().setStatus("error", manifestError);
+  }, [manifestError]);
+  useEditorBounds(loaded, editing);
+  const editLandmarks = useLabelingStore((state) => state.landmarks);
   const graphSource = useMemo(
-    () => (!isRigDebug && fixture ? selectSource(window.location.search, fixture) : null),
-    [isRigDebug, fixture],
+    () => (!isRigDebug && !graphless && fixture ? selectSource(window.location.search, fixture) : null),
+    [isRigDebug, graphless, fixture],
   );
   useGraphSource(graphSource);
-  const failure = useSceneFailure(fixture, isRigDebug, graphSource !== null);
+  const failure = useSceneFailure(fixture, isRigDebug || graphless, graphSource !== null);
+  const shownLandmarks = editing ? editLandmarks : (loaded?.manifest.landmarks ?? []);
   const hasGraph = useSceneStore((state) => state.resolved !== null);
   const actorsReady = useSceneStore((state) => state.actorsReady);
   const status = useSceneStore((state) => state.status);
@@ -163,27 +212,29 @@ export function Scene({ fixture, debug, t }: SceneProps) {
         <Lights />
         <CameraRig />
         <FpsProbe />
-        <Playhead />
+        {editing ? null : <Playhead />}
         {isRigDebug ? <RigDebug /> : null}
         {loaded ? (
           <>
             <primitive object={loaded.model} />
-            {loaded.isPlaceholder && fixture === STORE_FIXTURE ? (
+            {loaded.isPlaceholder && fixture === STORE_FIXTURE && !editing && savedManifest === null ? (
               <Dressing manifest={loaded.manifest} placeholder={loaded.model} />
             ) : null}
-            <LandmarkMarkers landmarks={loaded.manifest.landmarks} />
-            <LabelProjector landmarks={loaded.manifest.landmarks} occluders={loaded.model} />
+            <LandmarkMarkers landmarks={shownLandmarks} />
+            <LabelProjector landmarks={shownLandmarks} occluders={loaded.model} />
             <FloorProbe interior={loaded.manifest.interior} />
             <WitnessView model={loaded.model} manifest={loaded.manifest} />
             <PovRayLine />
             {hasGraph ? <Actors /> : null}
             {hasGraph ? <Props manifest={loaded.manifest} /> : null}
             {hasGraph ? <AnchorGizmo manifest={loaded.manifest} /> : null}
+            {editing ? <EditorLayer /> : null}
             {shouldSignalReady({ hasGraph, actorsReady, failure }) ? <ReadySignal /> : null}
           </>
         ) : null}
       </Canvas>
-      {loaded ? <LabelLayer landmarks={loaded.manifest.landmarks} /> : null}
+      {loaded ? <LabelLayer landmarks={shownLandmarks} /> : null}
+      {editing ? <LabelingPanel /> : null}
       {isRigDebug ? <RigReportPanel /> : null}
       <SceneErrorCard />
       <DebugOverlay />

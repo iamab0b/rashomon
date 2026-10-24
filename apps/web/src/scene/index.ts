@@ -31,3 +31,4 @@ export { useSelection } from "./playback/useSelection";
 export type { SelectionApi } from "./playback/useSelection";
 export { Timeline } from "./timeline";
 export type { TimelineProps } from "./timeline";
+export { isLandmarkEditing } from "./labeling/storage";
