@@ -9,6 +9,7 @@ import { RigReportPanel } from "./characters/RigReportPanel";
 import { DebugOverlay } from "./DebugOverlay";
 import { AnchorGizmo } from "./editing/AnchorGizmo";
 import { FloorProbe } from "./FloorProbe";
+import { ShotButton } from "./export/ShotButton";
 import { FpsProbe } from "./FpsProbe";
 import { LabelLayer } from "./landmarks/LabelLayer";
 import { LabelProjector } from "./landmarks/LabelProjector";
@@ -181,6 +182,7 @@ export function Scene({ fixture, debug, t }: SceneProps) {
       {isRigDebug ? <RigReportPanel /> : null}
       <SceneErrorCard />
       <DebugOverlay />
+      {import.meta.env.DEV && !isRigDebug ? <ShotButton /> : null}
     </div>
   );
 }
