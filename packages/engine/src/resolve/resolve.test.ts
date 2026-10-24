@@ -354,6 +354,54 @@ describe("resolve edge cases", () => {
     ).toBeUndefined();
   });
 
+  test("a pick_up retracted with supersededBy does not hold the prop", () => {
+    expect(
+      hold([
+        ev({ id: "p1", actor: "suspect", action: "pick_up", prop: "k", supersededBy: "utt_9", at: { kind: "xyz", position: [3, 0, 8] }, t: [1, 2] }),
+        ev({ id: "s", actor: "witness", action: "stand", at: { kind: "xyz", position: [8, 0, 8] }, t: [0, 10] }),
+      ]),
+    ).toBeUndefined();
+  });
+
+  test("a drop retracted with supersededBy leaves the hold running to the end", () => {
+    expect(
+      hold([
+        ev({ id: "p1", actor: "suspect", action: "pick_up", prop: "k", at: { kind: "xyz", position: [3, 0, 8] }, t: [1, 2] }),
+        ev({ id: "d", actor: "suspect", action: "drop", prop: "k", supersededBy: "utt_9", at: { kind: "xyz", position: [3, 0, 8] }, t: [4, 5] }),
+        ev({ id: "s", actor: "witness", action: "stand", at: { kind: "xyz", position: [8, 0, 8] }, t: [0, 10] }),
+      ]),
+    ).toEqual([{ actor: "suspect", tStart: 2, tEnd: 10 }]);
+  });
+
+  test("a retracted walk never moves the actor for later events, but still resolves itself", () => {
+    const r = resolve(
+      graphOf([
+        ev({ id: "a", actor: "witness", action: "stand", at: { kind: "at", landmark: "aisle_chips" }, t: [0, 1] }),
+        ev({ id: "w", actor: "witness", action: "walk", to: { kind: "at", landmark: "window_front" }, supersededBy: "utt_9", t: [2, 4] }),
+        ev({ id: "s", actor: "witness", action: "speak", t: [5, 6] }),
+      ]),
+      store,
+    );
+    const aisle = anchorToPoint({ kind: "at", landmark: "aisle_chips" }, store);
+    const window = anchorToPoint({ kind: "at", landmark: "window_front" }, store);
+    expect(r.events[2]!.at).toEqual(aisle);
+    expect(r.events[1]!.supersededBy).toBe("utt_9");
+    expect(r.events[1]!.to).toEqual(window);
+    expect(r.events[1]!.path.length).toBeGreaterThanOrEqual(2);
+    expect(r.actors.find((x) => x.id === "witness")!.position).toEqual(aisle);
+  });
+
+  test("a retracted stand does not become the actor's first known position", () => {
+    const r = resolve(
+      graphOf([
+        ev({ id: "x", actor: "suspect", action: "stand", at: { kind: "xyz", position: [9, 0, 9] }, supersededBy: "utt_9", t: [0, 1] }),
+        ev({ id: "y", actor: "suspect", action: "stand", at: { kind: "xyz", position: [2, 0, 2] }, t: [2, 3] }),
+      ]),
+      synth,
+    );
+    expect(r.actors.find((x) => x.id === "suspect")!.position).toEqual([2, 0, 2]);
+  });
+
   test("after an unreachable walk the actor stays where they started", () => {
     const r = resolve(
       graphOf([

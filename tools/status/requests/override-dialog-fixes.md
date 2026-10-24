@@ -10,7 +10,9 @@ PR #12 was reviewed: approve with fixes. The 10-character rule, the imports, the
    - RightPanel.tsx lines 52 to 53: `statusOf` returns "overridden" when a local override exists, and onConfirm (lines 100 to 105) keeps the override only in `useState`.
    - Change this so the panel always shows the event's status from `useGraph()`. While an override is confirmed but not yet applied, show it as "override pending: <reason>" next to the gate's status, never as the status.
    - Keep emitting the `Override` through the `onConfirm` callback prop for now.
-   - Dependency: the real override path is `useGraphActions().applyPatches([{ op: "override", id, reason, by }])`, exported from apps/web/src/scene/index.ts. scene-core is building that hook now (night item N6), and it needs PR #11 (engine-override) on main before the gate returns `overridden`. Until both land, do only the pending display above; once `useGraphActions` is on main, swap the callback for that call, and e5 comes back overridden from the gate.
+   - Dependency: the real override path is `useGraphActions().applyPatches([{ op: "override", id, reason, by }])`, exported from apps/web/src/scene/index.ts. scene-core is building that hook now (night item N6), and it needs PR #11 (engine-override) on main before the gate returns `overridden`. Both have landed on main (scene-core N6 and PR #11, main 2887c27): `useGraphActions().applyPatches([{ op: "override", id, reason, by }])` now makes e5 come back overridden from the gate. Swap the callback for that call.
+   - `applyPatches` throws in live mode (live statuses come only from the server) and when no graph source is mounted. Your modal must catch the error, keep the dialog open, and show the message; never fall back to marking the event overridden in the UI.
+   - It also throws on a reason under 10 characters or an override of an event the gate does not mark implausible; your own 10-character check runs first, but catch these too.
 2. OverrideDialog.tsx lines 21 to 22 and 64, accessibility:
    - Close on Escape.
    - Trap Tab and Shift+Tab inside the dialog.
