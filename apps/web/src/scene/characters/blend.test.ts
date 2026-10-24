@@ -1,5 +1,6 @@
 import type { ResolvedEvent, ResolvedGraph } from "@rashomon/engine";
 import type { Action, Status } from "@rashomon/schema";
+import { robberyResolved } from "@rashomon/schema/fixtures";
 import { describe, expect, test } from "vitest";
 import { buildClipWindows, clipTime, createClipSampler, envelope, sampleClips, type ClipSample } from "./blend";
 
@@ -340,10 +341,7 @@ describe("envelope", () => {
   });
 });
 
-const NODE_FS: string = "node:fs/promises";
-const RESOLVED_URL = new URL("../../../../../packages/schema/fixtures/robbery.resolved.json", import.meta.url);
-const fs: { readFile: (path: URL, encoding: "utf8") => Promise<string> } = await import(NODE_FS);
-const resolved = JSON.parse(await fs.readFile(RESOLVED_URL, "utf8")) as ResolvedGraph;
+const resolved = robberyResolved as unknown as ResolvedGraph;
 
 describe("robbery.resolved.json, witness and suspect", () => {
   const events = resolved.events;
