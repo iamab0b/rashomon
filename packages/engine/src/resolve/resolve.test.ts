@@ -1,20 +1,23 @@
 import { describe, expect, test } from "vitest";
 import type { EventGraph, Landmark, SceneManifest } from "@rashomon/schema";
-import robberyJson from "../../../schema/fixtures/robbery.graph.json";
+import { robberyGraph, storeScene } from "@rashomon/schema/fixtures";
 import resolvedJson from "../../../schema/fixtures/robbery.resolved.json";
-import storeJson from "../../../schema/fixtures/store.scene.json";
 import { anchorToPoint } from "./anchors";
 import { MARGIN_M } from "./geometry";
 import { pathLength, shortestPath } from "./portals";
 import { resolve } from "./resolve";
 import { durationFor, resolveInterval } from "./time";
 
-const store = storeJson as unknown as SceneManifest;
-const robbery = robberyJson as unknown as EventGraph;
+const store = storeScene;
+const robbery = robberyGraph;
 const box = (id: string): Landmark => {
   const l = store.landmarks.find((m) => m.id === id);
   if (!l) throw new Error(id);
   return l;
+};
+
+type GateExpectations = {
+  expectedAfterGate: { pathLengthsM: Record<string, [number, number]> };
 };
 
 const lm = (
@@ -43,10 +46,7 @@ const synth: SceneManifest = {
     lm("south", [4, 0], [6, 1]),
     lm("mid", [4, 4], [6, 6]),
   ],
-};
-(synth as unknown as { interior: unknown }).interior = {
-  min: [0, 0, 0],
-  max: [10, 3, 10],
+  interior: { min: [0, 0, 0], max: [10, 3, 10] },
 };
 
 describe("anchorToPoint", () => {
@@ -99,7 +99,7 @@ describe("time", () => {
     expect(durationFor("look", 0)).toBe(2);
     for (const a of ["shove", "fall", "pick_up"] as const) expect(durationFor(a, 0)).toBe(1);
   });
-  test("resolve chains inferred events off the previous end", () => {
+  test("resolve starts an inferred event when the same actor's previous event ends", () => {
     const g = {
       sceneId: "store_v1",
       version: 1,
@@ -112,8 +112,8 @@ describe("time", () => {
       ],
     } as unknown as EventGraph;
     const r = resolve(g, store);
-    expect(r.events[1]).toMatchObject({ tStart: 5, tEnd: 7, tInferred: true });
-    expect(r.events[2]).toMatchObject({ tStart: 7, tEnd: 8, tInferred: true });
+    expect(r.events[1]).toMatchObject({ tStart: 0, tEnd: 2, tInferred: true });
+    expect(r.events[2]).toMatchObject({ tStart: 2, tEnd: 3, tInferred: true });
     expect(r.events[0]!.tInferred).toBe(false);
   });
 });
@@ -218,11 +218,13 @@ describe("robbery fixture", () => {
     }
   });
 
-  test("e1 length is a plausible detour (see PR: the 7-10 m expectation does not match the floor plan)", () => {
+  test("e1 length lies within the fixture's expected range", () => {
+    const { pathLengthsM } = (robberyGraph as EventGraph & GateExpectations).expectedAfterGate;
+    const [low, high] = pathLengthsM["e1"]!;
     const len = pathLength(ev("e1").path);
     expect(len).toBeCloseTo(ev("e1").pathLengthM, 5);
-    expect(len).toBeGreaterThan(Math.hypot(7.2 - 1.5, 2.5 - 0.4));
-    expect(len).toBeLessThanOrEqual(7.5);
+    expect(len).toBeGreaterThanOrEqual(low);
+    expect(len).toBeLessThanOrEqual(high);
   });
 
   test("e5 stands inside aisle_chips", () => {
@@ -390,6 +392,58 @@ describe("resolve edge cases", () => {
         ev({ id: "s", actor: "witness", action: "stand", at: { kind: "xyz", position: [8, 0, 8] }, t: [0, 9] }),
       ]),
     ).toBeUndefined();
+  });
+
+  test("a held prop in a zero-duration graph has no interval", () => {
+    expect(hold([], { ...knife, heldBy: "suspect" })).toBeUndefined();
+  });
+
+  const tied = [
+    ev({ id: "p1", actor: "suspect", action: "pick_up", prop: "k", at: { kind: "xyz", position: [3, 0, 8] }, t: [1, 2] }),
+    ev({ id: "d", actor: "suspect", action: "drop", prop: "k", at: { kind: "xyz", position: [3, 0, 8] }, t: [5, 6] }),
+    ev({ id: "p2", actor: "suspect", action: "pick_up", prop: "k", at: { kind: "xyz", position: [3, 0, 8] }, t: [5, 6] }),
+    ev({ id: "s", actor: "witness", action: "stand", at: { kind: "xyz", position: [8, 0, 8] }, t: [0, 9] }),
+  ];
+  const tiedResult = [
+    { actor: "suspect", tStart: 2, tEnd: 5 },
+    { actor: "suspect", tStart: 6, tEnd: 9 },
+  ];
+
+  test("a drop and a pick_up sharing a tStart resolve drop first when the drop is listed first", () => {
+    expect(hold(tied)).toEqual(tiedResult);
+  });
+
+  test("a drop and a pick_up sharing a tStart resolve drop first when the pick_up is listed first", () => {
+    const [p1, d, p2, s] = tied;
+    expect(hold([p1, p2, d, s])).toEqual(tiedResult);
+  });
+
+  test("an inferred event on one actor does not wait for another actor's events", () => {
+    const at = { kind: "xyz", position: [8, 0, 8] };
+    const r = resolve(
+      graphOf([
+        ev({ id: "a1", actor: "suspect", action: "stand", at, t: [4, 6] }),
+        ev({ id: "b1", actor: "clerk", action: "stand", at }),
+        ev({ id: "a2", actor: "suspect", action: "stand", at }),
+        ev({ id: "b2", actor: "clerk", action: "stand", at }),
+      ]),
+      synth,
+    );
+    expect(r.events[1]).toMatchObject({ tStart: 0, tEnd: 2, tInferred: true });
+    expect(r.events[2]).toMatchObject({ tStart: 6, tEnd: 8, tInferred: true });
+    expect(r.events[3]).toMatchObject({ tStart: 2, tEnd: 4, tInferred: true });
+  });
+
+  test("an inferred event starts where the same actor's stated event ends", () => {
+    const at = { kind: "xyz", position: [8, 0, 8] };
+    const r = resolve(
+      graphOf([
+        ev({ id: "a", actor: "suspect", action: "stand", at, t: [3, 5] }),
+        ev({ id: "b", actor: "suspect", action: "speak", at }),
+      ]),
+      synth,
+    );
+    expect(r.events[1]).toMatchObject({ tStart: 5, tEnd: 7, tInferred: true });
   });
 
   test("every robbery event is reachable", () => {
