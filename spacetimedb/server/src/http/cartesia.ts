@@ -1,9 +1,9 @@
-import { Router, SyncResponse, type Request } from "spacetimedb/server";
+import { Router, SyncResponse, type ReducerCtx, type Request } from "spacetimedb/server";
 import type { Anchor } from "@rashomon/schema";
 import { eventGraphFromRow } from "../convert";
 import { fnv1a64 } from "../extract/hash";
 import { EXTRACTION_FAILED, UNKNOWN_SESSION, openHardFlags, runExtraction, type Extraction, type Io } from "../extract/run";
-import { buildGraph, type ReadDb } from "../graph";
+import { buildGraph, type ModuleSchema, type ReadDb } from "../graph";
 import { MAX_BODY_BYTES, MAX_UTTERANCES } from "../limits";
 import { insertSegmentRow, key, manifestFor } from "../reducers";
 import { spacetimedb } from "../tables";
@@ -23,7 +23,14 @@ export type SceneContext = {
 
 export type InterviewSummary = { ended: true; statements: number; events: number; openQuestions: number };
 
-export type WebhookOutcome = { status: number; body: Extraction | SceneContext | InterviewSummary | { error: string } };
+export type AskBack = { flagId: string; eventId: string; question: string };
+
+export type StatementResult = Extraction & { askNext: AskBack | null };
+
+export type WebhookOutcome = {
+  status: number;
+  body: StatementResult | Extraction | SceneContext | InterviewSummary | { error: string };
+};
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
@@ -178,7 +185,20 @@ export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
   }
   const result = runExtraction(io, sessionId, segmentId);
   if (result.error === EXTRACTION_FAILED) return { status: 502, body: { error: EXTRACTION_FAILED } };
-  return { status: 200, body: result };
+  let askNext: AskBack | null;
+  try {
+    askNext = io.withTx((ctx) => takeNextQuestion(ctx, sessionId));
+  } catch {
+    askNext = null;
+  }
+  return { status: 200, body: { ...result, askNext } };
+}
+
+export function takeNextQuestion(ctx: ReducerCtx<ModuleSchema>, sessionId: string): AskBack | null {
+  const next = openHardFlags(ctx.db, sessionId).find((f) => !ctx.db.askedFlags.rowKey.find(key(sessionId, f.id)));
+  if (!next) return null;
+  ctx.db.askedFlags.insert({ rowKey: key(sessionId, next.id), sessionId, flagId: next.id, askedAt: ctx.timestamp });
+  return { flagId: next.id, eventId: next.eventId, question: next.suggestedQuestion };
 }
 
 const anchorLandmark = (a: Anchor | undefined): string | undefined =>
@@ -211,7 +231,7 @@ export function handleSceneContext(io: WebhookIo, req: Request): WebhookOutcome 
       landmarks: manifest.landmarks.map((l) => ({ id: l.id, label: l.label })),
       recentEvents,
       openQuestions,
-      nextQuestion: openQuestions[0]?.question ?? null,
+      nextQuestion: takeNextQuestion(ctx, sessionId)?.question ?? null,
     };
   });
   if (!context) return bad(UNKNOWN_SESSION);

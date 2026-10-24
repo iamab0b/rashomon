@@ -19,6 +19,38 @@ const modelParams = (name: (typeof TOOL_NAMES)[number]) =>
     .filter(([, p]) => !("constant_value" in p))
     .map(([k]) => k);
 
+describe("the interviewer's instructions", () => {
+  test("keep the original interviewer rules", () => {
+    expect(INSTRUCTIONS).toContain("You are a calm, neutral interviewer helping a witness describe what they saw.");
+    expect(INSTRUCTIONS).toContain("call record_statement with their words verbatim, not a summary");
+    expect(INSTRUCTIONS).toContain("call end_interview and then end the call");
+  });
+
+  test("ask each new hard flag's question once, on the next turn, one at a time", () => {
+    expect(INSTRUCTIONS).toContain("When record_statement returns askNext, ask askNext.question on your next turn");
+    expect(INSTRUCTIONS).toContain("in your own words but keeping its content");
+    expect(INSTRUCTIONS).toContain("Ask only that one question on that turn.");
+    expect(INSTRUCTIONS).toContain("Ask each follow-up only once. Never repeat a question you have already asked");
+  });
+
+  test("record the answer to a follow-up as a new statement", () => {
+    expect(INSTRUCTIONS).toContain("record the answer with record_statement as a new statement, verbatim");
+  });
+
+  test("never judge the witness or read out a flag's detail or check", () => {
+    for (const word of ["implausible", "impossible", "lie", "wrong"]) expect(INSTRUCTIONS).toContain(`"${word}"`);
+    expect(INSTRUCTIONS).toContain("Never say");
+    expect(INSTRUCTIONS).toContain("Never read out a flag's detail or check");
+  });
+
+  test("follow the cognitive-interview order: narrative, landmarks, times, sightlines", () => {
+    const order = ["Free narrative first", "do not interrupt", "anchor each event to landmarks", "Then times", "Then sightlines"];
+    const at = order.map((rule) => INSTRUCTIONS.indexOf(rule));
+    expect(at.every((i) => i >= 0)).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+  });
+});
+
 describe("tool definitions", () => {
   test("record_statement lets the model supply only the witness's words", () => {
     expect(modelParams("record_statement")).toEqual(["text"]);

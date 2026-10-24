@@ -15,6 +15,7 @@ import {
   handleEndInterview,
   handleSceneContext,
   secretsMatch,
+  takeNextQuestion,
 } from "./http/cartesia";
 import { MAX_BODY_BYTES, MAX_SEGMENT_TEXT_CHARS, MAX_UTTERANCES } from "./limits";
 import { EXTRACTION_FAILED, MAX_RETRIES, PROMPT_HASH, REQUEST_TIMEOUT_MS, runExtraction, type Io } from "./extract/run";
@@ -706,7 +707,7 @@ describe("the Cartesia webhook", () => {
     expect(ended.body).toMatchObject({ openQuestions: 0 });
     const out = handleCartesia(webhookIo(ok([toolUse("tu_1", "add_event", { ...walkInput, sources: [plainId] })])), post(plain()));
     expect(out.status).toBe(200);
-    expect(out.body).toMatchObject({ hardFlags: [] });
+    expect(out.body).toMatchObject({ hardFlags: [], askNext: null });
   });
 
   test("both extraction attempts finish inside Cartesia's 120 second tool limit", () => {
@@ -812,6 +813,70 @@ describe("the robbery demo path", () => {
     });
     expect(e5?.suggestedQuestion).toMatch(/Where exactly were you standing/);
     expect(JSON.parse(JSON.stringify(out.body)).hardFlags).toContainEqual(e5);
+  });
+  test("the agent asks each new hard flag once: e5's question comes back as askNext, then never again", () => {
+    const req = new Request("http://localhost/webhook/cartesia", {
+      method: "POST",
+      headers: { [SECRET_HEADER]: HOOK },
+      body: JSON.stringify({ sessionId: SESSION, segmentId: robberyToolUses.segmentId, witness: "w1", utterances }),
+    });
+    const out = handleCartesia({ ...ioFor(ok(robberyToolUses.content)), webhookSecret: () => HOOK }, req);
+    expect(out.status).toBe(200);
+    const stored = harness.db.flags.rowKey.find(`${SESSION}/sightline:e5`)!;
+    expect((out.body as { askNext: unknown }).askNext).toEqual({ flagId: "sightline:e5", eventId: "e5", question: stored.suggestedQuestion });
+    expect(stored.suggestedQuestion).toMatch(/Where exactly were you standing/);
+
+    const answer = "I was over by the window.";
+    const answerId = defaultSegmentId(SESSION, "w1", [{ text: answer }], 2);
+    const follow = new Request("http://localhost/webhook/cartesia/record_statement", {
+      method: "POST",
+      headers: { [SECRET_HEADER]: HOOK },
+      body: JSON.stringify({ session_id: SESSION, witness_id: "w1", text: answer }),
+    });
+    const io = { ...ioFor(ok([toolUse("tu_a", "add_event", { ...walkInput, actor: "witness", sources: [answerId] })])), webhookSecret: () => HOOK };
+    const second = handleCartesia(io, follow);
+    expect(second.status).toBe(200);
+    expect(second.body).toMatchObject({ segmentId: answerId, askNext: null });
+    expect((second.body as { hardFlags: { id: string }[] }).hardFlags.map((f) => f.id)).toContain("sightline:e5");
+    expect(harness.db.segments.rowKey.find(`${SESSION}/${answerId}`)).toMatchObject({ text: answer, speaker: "witness" });
+
+    const context = handleSceneContext(
+      { ...ioFor(ok([])), webhookSecret: () => HOOK },
+      new Request("http://localhost/webhook/cartesia/scene_context", {
+        method: "POST",
+        headers: { [SECRET_HEADER]: HOOK },
+        body: JSON.stringify({ session_id: SESSION }),
+      }),
+    );
+    expect(context.body).toMatchObject({ nextQuestion: null });
+  });
+
+  test("new hard flags are handed out one at a time, in the gate's order", () => {
+    const flag = (eventId: string, seq: number) => ({
+      rowKey: `${SESSION}/sightline:${eventId}`,
+      sessionId: SESSION,
+      eventId,
+      seq,
+      id: `sightline:${eventId}`,
+      check: "sightline",
+      severity: "hard",
+      detail: "detail the witness never hears",
+      evidence: "",
+      conflictsWith: undefined,
+      suggestedQuestion: `Question about ${eventId}?`,
+    });
+    const asked: unknown[] = [];
+    call((ctx: { db: { flags: { insert: (row: unknown) => void } } }) => {
+      ctx.db.flags.insert(flag("e7", 2));
+      ctx.db.flags.insert(flag("e3", 1));
+    });
+    for (let i = 0; i < 3; i++) call((ctx) => void asked.push(takeNextQuestion(ctx, SESSION)));
+    expect(asked).toEqual([
+      { flagId: "sightline:e3", eventId: "e3", question: "Question about e3?" },
+      { flagId: "sightline:e7", eventId: "e7", question: "Question about e7?" },
+      null,
+    ]);
+    expect(JSON.stringify(asked)).not.toContain("detail the witness never hears");
   });
 });
 

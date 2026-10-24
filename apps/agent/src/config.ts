@@ -61,12 +61,12 @@ export function toolDefinition(s: Settings, name: ToolName): WebhookTool {
     properties.text = { type: "string", description: "The witness's words from their last turn, verbatim, not a summary." };
     required.push("text");
     description =
-      "Record what the witness just said. Call it after every witness turn with their exact words. If the result's hardFlags is not empty, ask the first flag's suggestedQuestion next.";
+      "Record what the witness just said. Call it after every witness turn with their exact words, including answers to follow-ups. If the result's askNext is not null, ask askNext.question on your next turn.";
     preToolSpeech = "auto";
     timeout = 120;
   } else if (name === "get_scene_context") {
     description =
-      "Get the scene's landmark names, the last five recorded events and nextQuestion, the follow-up to ask. Call it when you need the next question.";
+      "Get the scene's landmark names, the last five recorded events and nextQuestion, a follow-up not asked before (null when there is none). Call it when you need the next question.";
   } else {
     description = "Close the interview record. Call it once, when the witness says they are finished, before ending the call.";
   }

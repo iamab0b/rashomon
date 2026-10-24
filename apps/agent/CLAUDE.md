@@ -12,8 +12,10 @@ Read 2026-10-24 from docs.cartesia.ai:
 - WebSocket: `wss://api.cartesia.ai/v1/agents/websocket/{agent_id}?cartesia_version=2026-08-14`, browser auth via `access_token`; first event `session_create`, wait for `session_ready`.
 
 Webhook routes (SpacetimeDB module, `spacetimedb/server/src/http/cartesia.ts`), all POST with `x-rashomon-webhook-secret`:
-- `/v1/database/<db>/route/webhook/cartesia/record_statement` body `{session_id, witness_id, text}`
-- `/v1/database/<db>/route/webhook/cartesia/scene_context` body `{session_id}`
+- `/v1/database/<db>/route/webhook/cartesia/record_statement` body `{session_id, witness_id, text}`; the response's `askNext` is `{flagId, eventId, question}` for one open hard flag not handed out before, or null. Each flag is handed out once (table `asked_flags`).
+- `/v1/database/<db>/route/webhook/cartesia/scene_context` body `{session_id}`; `nextQuestion` follows the same once-only rule.
 - `/v1/database/<db>/route/webhook/cartesia/end_interview` body `{session_id}`
+
+The ask-back and cognitive-interview rules live in `src/instructions.ts`; `src/agent.test.ts` checks each one.
 
 Setup: `pnpm --filter agent models`, then `pnpm --filter agent setup`. Env comes from the repo-root `.env.local`: `CARTESIA_API_KEY`, `CARTESIA_WEBHOOK_SECRET`, `RASHOMON_TUNNEL_URL`, `RASHOMON_SESSION_ID`, optional `RASHOMON_WITNESS_ID` (default w1), `SPACETIME_DB` (default rashomon), `CARTESIA_AGENT_MODEL`, `CARTESIA_VOICE_ID`. Created ids are kept in the gitignored `apps/agent/.cartesia-ids.json`, so a re-run updates instead of creating duplicates. Never print or commit a key or the webhook secret.
