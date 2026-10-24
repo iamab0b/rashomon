@@ -121,7 +121,6 @@ EDITOR_IDENTITIES=… spacetime publish rashomon --server maincloud --env-only -
 | `CARTESIA_API_KEY` | apps/agent setup script (Eric) | agent setup only |
 | `UTHANA_API_KEY` | module (generated motion), at publish; dev server proxy `/__uthana` | after the generated-motion PR merges |
 | `UTHANA_CHARACTER_ID` | module and dev server (the uploaded Y Bot's id; not secret, kept out of the repo) | after the generated-motion PR merges |
-| `MESHY_API_KEY` | only if the bodies are generated through Meshy's API instead of its web app | optional |
 
 To upload the Y Bot to Uthana once, from your own terminal, after `read -rs UTHANA_API_KEY && export UTHANA_API_KEY`: use the multipart `create_character` request from uthana.com/docs/api/capabilities/auto-rig-and-add-character with apps/web/public/characters/ybot.fbx, then `export UTHANA_CHARACTER_ID=<returned id>`. Re-uploading the same file returns the same id.
 
