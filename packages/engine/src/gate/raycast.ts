@@ -1,14 +1,10 @@
-import type { Vec3 } from "../types";
-import type { SceneGeom } from "../types";
+import type { SceneGeom, Vec3 } from "../types";
 
 export type RayHit = {
   meshId: string;
-  /** Fraction along the segment, 0 at `a` and 1 at `b`. */
   t: number;
   point: Vec3;
-  /** Triangle index within the mesh. */
   triangle: number;
-  /** True when the ray met the triangle from behind (against its winding). */
   backface: boolean;
 };
 
@@ -24,12 +20,6 @@ const cross = (a: Vec3, b: Vec3): Vec3 => [
   a[0] * b[1] - a[1] * b[0],
 ];
 
-/**
- * Möller–Trumbore. Double-sided: a triangle is hit from either side, and
- * `backface` says which. Points on an edge or vertex count as hits, so a ray
- * through the seam of two triangles cannot slip between them. Returns the ray
- * parameter t (point = origin + t * dir) or null.
- */
 export function rayTriangle(
   origin: Vec3,
   dir: Vec3,
@@ -41,7 +31,7 @@ export function rayTriangle(
   const e2 = sub(v2, v0);
   const p = cross(dir, e2);
   const det = dot(e1, p);
-  if (Math.abs(det) < DET_EPS) return null; // parallel to the triangle plane
+  if (Math.abs(det) < DET_EPS) return null;
   const inv = 1 / det;
   const s = sub(origin, v0);
   const u = dot(s, p) * inv;
@@ -52,11 +42,6 @@ export function rayTriangle(
   return { t: dot(e2, q) * inv, backface: det < 0 };
 }
 
-/**
- * First mesh triangle crossed by the segment a -> b, or null. Hits within
- * 1e-9 of either end do not count, so a target resting on a surface is not
- * blocked by that surface.
- */
 export function segmentBlocked(a: Vec3, b: Vec3, geom: SceneGeom): RayHit | null {
   const dir = sub(b, a);
   if (dot(dir, dir) === 0) return null;

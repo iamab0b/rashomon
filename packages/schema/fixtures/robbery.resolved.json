@@ -75,7 +75,9 @@
         0,
         2.5
       ],
-      "segmentId": "utt_2",
+      "sources": [
+        "utt_2"
+      ],
       "tInferred": false
     },
     {
@@ -99,7 +101,9 @@
         0,
         2.5
       ],
-      "segmentId": "utt_2",
+      "sources": [
+        "utt_2"
+      ],
       "tInferred": false
     },
     {
@@ -123,7 +127,9 @@
         0,
         3.3
       ],
-      "segmentId": "utt_1",
+      "sources": [
+        "utt_1"
+      ],
       "tInferred": false
     },
     {
@@ -143,7 +149,10 @@
         2.5
       ],
       "target": "clerk",
-      "segmentId": "utt_3",
+      "sources": [
+        "utt_3",
+        "utt_4"
+      ],
       "tInferred": false
     },
     {
@@ -163,7 +172,10 @@
         3.5
       ],
       "target": "suspect",
-      "segmentId": "utt_6",
+      "sources": [
+        "utt_6",
+        "utt_7"
+      ],
       "tInferred": false
     },
     {
@@ -183,7 +195,9 @@
         2.5
       ],
       "prop": "p_knife",
-      "segmentId": "utt_5",
+      "sources": [
+        "utt_5"
+      ],
       "tInferred": false
     },
     {
@@ -203,7 +217,9 @@
         2.5
       ],
       "target": "clerk",
-      "segmentId": "utt_8",
+      "sources": [
+        "utt_8"
+      ],
       "tInferred": false
     },
     {
@@ -222,7 +238,9 @@
         0,
         2.5
       ],
-      "segmentId": "utt_8",
+      "sources": [
+        "utt_8"
+      ],
       "tInferred": false
     },
     {
@@ -241,7 +259,9 @@
         0,
         3.5
       ],
-      "segmentId": "utt_9",
+      "sources": [
+        "utt_9"
+      ],
       "tInferred": false
     },
     {
@@ -281,7 +301,9 @@
         0,
         0.4
       ],
-      "segmentId": "utt_10",
+      "sources": [
+        "utt_10"
+      ],
       "tInferred": false
     }
   ],

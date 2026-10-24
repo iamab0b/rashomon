@@ -1,46 +1,44 @@
-import type { ResolvedEvent, ResolvedGraph } from "../types";
+import type { FlagDraft, ResolvedEvent, ResolvedGraph } from "../types";
 import { dist, endPoint, startPoint } from "./positions";
-import type { GateFlag } from "../types";
 
 export const WALK_MAX_MS = 2;
 export const RUN_MAX_MS = 6;
 export const ANY_MAX_MS = 8;
-/** Gap used when two consecutive events touch (zero seconds apart). */
 export const MIN_GAP_S = 0.1;
 
-function classify(action: string, speed: number): "hard" | "soft" | null {
-  if (speed > ANY_MAX_MS) return "hard";
-  if (action === "walk" && speed > WALK_MAX_MS) return "soft";
-  if (action === "run" && speed > RUN_MAX_MS) return "soft";
+function limitExceeded(action: string, speed: number): number | null {
+  if (speed > ANY_MAX_MS) return ANY_MAX_MS;
+  if (action === "walk" && speed > WALK_MAX_MS) return WALK_MAX_MS;
+  if (action === "run" && speed > RUN_MAX_MS) return RUN_MAX_MS;
   return null;
 }
 
-const limitFor = (action: string, severity: "hard" | "soft"): number =>
-  severity === "hard" ? ANY_MAX_MS : action === "walk" ? WALK_MAX_MS : RUN_MAX_MS;
-
-/**
- * Per actor, in time order: each movement event's own path length over its
- * duration, and the straight-line jump from one event's end to the next
- * event's start over the gap between them. Overlapping events are skipped
- * here; the contradiction rule covers those.
- */
-export function timeDistanceFlags(resolved: ResolvedGraph): GateFlag[] {
-  const flags: GateFlag[] = [];
-  const speedFlag = (
+export function timeDistanceFlags(resolved: ResolvedGraph): FlagDraft[] {
+  const flags: FlagDraft[] = [];
+  const push = (
     e: ResolvedEvent,
-    ids: string[],
     meters: number,
     seconds: number,
-    what: string,
+    lead: string,
+    between: string,
+    extra: Record<string, string> = {},
   ) => {
     const speed = meters / seconds;
-    const severity = classify(e.action, speed);
-    if (!severity) return;
+    const limit = limitExceeded(e.action, speed);
+    if (limit === null) return;
     flags.push({
-      kind: "time_distance",
-      severity,
-      eventIds: ids,
-      message: `${e.actor} ${what} ${meters.toFixed(1)} m in ${seconds.toFixed(1)} s, ${speed.toFixed(1)} m/s, over the ${limitFor(e.action, severity)} m/s ${severity === "hard" ? "limit for any movement" : `${e.action} limit`}.`,
+      eventId: e.id,
+      check: "time_distance",
+      severity: "hard",
+      detail: `${lead} ${meters.toFixed(1)} m${between} in ${seconds.toFixed(1)} s, ${speed.toFixed(1)} m/s, over the ${limit.toFixed(1)} m/s limit.`,
+      evidence: {
+        distanceM: Number(meters.toFixed(2)),
+        durationS: Number(seconds.toFixed(2)),
+        speedMS: Number(speed.toFixed(2)),
+        limitMS: limit,
+        ...extra,
+      },
+      suggestedQuestion: `That is about ${meters.toFixed(1)} m in ${seconds.toFixed(1)} s. Did it feel faster than a normal walk, or did it take longer than that?`,
     });
   };
 
@@ -49,21 +47,31 @@ export function timeDistanceFlags(resolved: ResolvedGraph): GateFlag[] {
     const mine = resolved.events
       .filter((e) => e.actor === actor && e.status !== "superseded")
       .sort((a, b) => a.tStart - b.tStart || a.tEnd - b.tEnd);
-    for (let i = 0; i < mine.length; i++) {
-      const e = mine[i]!;
+    for (const e of mine) {
       if ((e.action === "walk" || e.action === "run") && e.pathLengthM > 0) {
         const seconds = e.tEnd - e.tStart;
-        speedFlag(e, [e.id], e.pathLengthM, seconds > 0 ? seconds : MIN_GAP_S, "covers");
+        push(e, e.pathLengthM, seconds > 0 ? seconds : MIN_GAP_S, `${e.actor} covers`, "");
       }
-      const prev = mine[i - 1];
-      if (!prev) continue;
-      const from = endPoint(prev);
       const to = startPoint(e);
-      const gap = e.tStart - prev.tEnd;
-      if (!from || !to || gap < 0) continue;
+      if (!to) continue;
+      let prev: ResolvedEvent | undefined;
+      for (const c of mine) {
+        if (c === e || c.tEnd > e.tStart || !endPoint(c)) continue;
+        if (!prev || c.tEnd >= prev.tEnd) prev = c;
+      }
+      if (!prev) continue;
+      const from = endPoint(prev)!;
       const meters = dist(from, to);
       if (meters === 0) continue;
-      speedFlag(e, [prev.id, e.id], meters, gap > 0 ? gap : MIN_GAP_S, "jumps");
+      const gap = e.tStart - prev.tEnd;
+      push(
+        e,
+        meters,
+        gap > 0 ? gap : MIN_GAP_S,
+        `${e.actor} would have to cover`,
+        ` between ${prev.id} and ${e.id}`,
+        { previousEventId: prev.id },
+      );
     }
   }
   return flags;

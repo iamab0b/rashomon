@@ -19,8 +19,7 @@ export type ResolvedEvent = {
   facing?: Vec3;
   target?: string;
   prop?: string;
-  /** First source segment id of the event; undefined when it has none. */
-  segmentId?: string;
+  sources: string[];
   tInferred: boolean;
   handwritten?: boolean;
 };
@@ -54,34 +53,17 @@ export type ResolvedGraph = {
 
 export type GeomMesh = {
   id: string;
-  /** Flat x, y, z triples in meters. */
   positions: number[];
-  /** Flat triangle vertex indices into `positions` / 3. */
   indices: number[];
 };
 
 export type SceneGeom = { meshes: GeomMesh[] };
 
-export type GateFlagKind =
-  | "sightline"
-  | "reachability"
-  | "time_distance"
-  | "contradiction"
-  | "unanchored"
-  | "missing_time";
-
-/** A gate finding. Named GateFlag because `Flag` is already the schema's per-event flag. */
-export type GateFlag = {
-  kind: GateFlagKind;
-  severity: "hard" | "soft";
-  eventIds: string[];
-  /** One sentence with the numbers that triggered the flag. */
-  message: string;
-};
+export type FlagDraft = Omit<Flag, "id">;
 
 export type GateOutput = {
   statuses: Record<string, Status>;
-  flags: GateFlag[];
+  flags: Flag[];
 };
 
 export type { Flag };

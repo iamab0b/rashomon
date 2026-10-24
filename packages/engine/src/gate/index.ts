@@ -1,42 +1,42 @@
-import type { SceneManifest, Status } from "@rashomon/schema";
-import type { ResolvedGraph } from "../types";
-import { contradictionFlags } from "./contradiction";
+import type { Flag, SceneManifest, Status } from "@rashomon/schema";
+import type { FlagDraft, GateOutput, ResolvedGraph, SceneGeom } from "../types";
 import { missingTimeFlags, unanchoredFlags } from "./completeness";
+import { contradictionFlags } from "./contradiction";
 import { reachabilityFlags } from "./reachability";
 import { sightlineFlags } from "./sightline";
 import { timeDistanceFlags } from "./timeDistance";
-import type { GateFlag, GateOutput, SceneGeom } from "../types";
 
 export { segmentBlocked, rayTriangle } from "./raycast";
 export type { RayHit } from "./raycast";
 
-/**
- * Runs every rule in a fixed order (sightline, reachability, time_distance,
- * contradiction, unanchored, missing_time) and derives a status per event:
- * overridden and superseded are kept; otherwise any hard flag is implausible,
- * an unanchored or missing_time flag leaves it proposed, and everything else
- * (clean or soft-flagged) is plausible. Inputs are never mutated.
- */
 export function gate(
   resolved: ResolvedGraph,
   manifest: SceneManifest,
   geom: SceneGeom,
 ): GateOutput {
-  const flags: GateFlag[] = [
-    ...sightlineFlags(resolved, geom),
+  const drafts: FlagDraft[] = [
+    ...sightlineFlags(resolved, manifest, geom),
     ...reachabilityFlags(resolved, manifest),
     ...timeDistanceFlags(resolved),
     ...contradictionFlags(resolved, manifest),
-    ...unanchoredFlags(resolved),
+    ...unanchoredFlags(resolved, manifest),
     ...missingTimeFlags(resolved),
   ];
 
+  const seen = new Map<string, number>();
+  const flags: Flag[] = drafts.map((d) => {
+    const base = `${d.check}:${d.eventId}`;
+    const n = (seen.get(base) ?? 0) + 1;
+    seen.set(base, n);
+    return { id: n === 1 ? base : `${base}:${n}`, ...d };
+  });
+
   const statuses: Record<string, Status> = {};
   for (const e of resolved.events) {
-    const mine = flags.filter((f) => f.eventIds.includes(e.id));
+    const mine = flags.filter((f) => f.eventId === e.id);
     if (e.status === "overridden" || e.status === "superseded") statuses[e.id] = e.status;
     else if (mine.some((f) => f.severity === "hard")) statuses[e.id] = "implausible";
-    else if (mine.some((f) => f.kind === "unanchored" || f.kind === "missing_time"))
+    else if (mine.some((f) => f.check === "unanchored" || f.check === "missing_time"))
       statuses[e.id] = "proposed";
     else statuses[e.id] = "plausible";
   }

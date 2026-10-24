@@ -9,7 +9,6 @@ export const endPoint = (e: ResolvedEvent): Vec3 | undefined =>
 export const dist = (a: Vec3, b: Vec3): number =>
   Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
-/** Where one event has its actor at time t (clamped to the event's interval). */
 export function eventPositionAt(e: ResolvedEvent, t: number): Vec3 | undefined {
   const span = e.tEnd - e.tStart;
   if (e.path.length >= 2 && span > 0) {
@@ -34,11 +33,6 @@ export function eventPositionAt(e: ResolvedEvent, t: number): Vec3 | undefined {
 const frac = (e: ResolvedEvent, t: number): number =>
   e.tEnd > e.tStart ? (t - e.tStart) / (e.tEnd - e.tStart) : 0;
 
-/**
- * Where an actor is at time t: the event covering t (the later-listed one if
- * several do), else the end of the last earlier event, else the start of the
- * first later one. Undefined when the actor has no positioned events.
- */
 export function actorPositionAt(
   events: ResolvedEvent[],
   actor: string,

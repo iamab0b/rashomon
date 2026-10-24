@@ -1,9 +1,8 @@
 import { describe, expect, test } from "vitest";
-import { boxMesh } from "./testHelpers";
+import { boxMesh } from "./occluders";
 import { rayTriangle, segmentBlocked } from "./raycast";
 import type { SceneGeom } from "../types";
 
-// Unit square in the z = 0 plane, normal +z, split along the (0,0)-(1,1) diagonal.
 const quad: SceneGeom = {
   meshes: [{ id: "quad", positions: [0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0], indices: [0, 1, 2, 0, 2, 3] }],
 };
@@ -31,9 +30,9 @@ describe("segmentBlocked", () => {
   });
 
   test("edge: seam between triangles, outer edge and a vertex count; just outside does not", () => {
-    expect(segmentBlocked([0.5, 0.5, 1], [0.5, 0.5, -1], quad)).not.toBeNull(); // shared diagonal
-    expect(segmentBlocked([1, 0.5, 1], [1, 0.5, -1], quad)).not.toBeNull(); // outer edge
-    expect(segmentBlocked([1, 1, 1], [1, 1, -1], quad)).not.toBeNull(); // vertex
+    expect(segmentBlocked([0.5, 0.5, 1], [0.5, 0.5, -1], quad)).not.toBeNull();
+    expect(segmentBlocked([1, 0.5, 1], [1, 0.5, -1], quad)).not.toBeNull();
+    expect(segmentBlocked([1, 1, 1], [1, 1, -1], quad)).not.toBeNull();
     expect(segmentBlocked([1.001, 0.5, 1], [1.001, 0.5, -1], quad)).toBeNull();
   });
 
@@ -44,7 +43,6 @@ describe("segmentBlocked", () => {
     const h = segmentBlocked([0, 0.5, 0.5], [10, 0.5, 0.5], geom)!;
     expect(h.meshId).toBe("near");
     expect(h.t).toBeCloseTo(0.1);
-    // target exactly on the near face: not blocked by it
     expect(segmentBlocked([0, 0.5, 0.5], [1, 0.5, 0.5], geom)).toBeNull();
   });
 
