@@ -1,0 +1,101 @@
+/* Design tokens and components ported from the Figma Make prototype.
+   Everything is scoped under .rui so nothing leaks into the scene's overlays. */
+
+.rui {
+  --status-plausible: #d7dee7;
+  --status-proposed: #8793a3;
+  --status-implausible: #f06a6a;
+  --status-overridden: #e5ae52;
+  --surface: #11161d;
+  --surface-raised: #1a212b;
+  --border: #303a46;
+  --text-primary: #e8edf2;
+  --text-secondary: #98a4b3;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  color: var(--text-primary);
+  font: 13px/1.45 Inter, system-ui, -apple-system, sans-serif;
+}
+.rui *,
+.rui *::before,
+.rui *::after { box-sizing: border-box; }
+.rui .mono { font-family: var(--mono); }
+
+.rui .button { height: 30px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 11px; color: var(--text-primary); border: 1px solid #3b4243; background: #191d1e; border-radius: 4px; font: 500 12px/1 inherit; font-family: inherit; cursor: pointer; }
+.rui .button:hover:not(:disabled) { background: #24292a; border-color: #535b5d; }
+.rui .button--primary { color: #17120b; background: #dda44e; border-color: #efbb69; font-weight: 650; }
+.rui .button--primary:hover:not(:disabled) { background: #edb45e; border-color: #efbb69; }
+.rui .button:disabled { cursor: not-allowed; opacity: .38; }
+
+.rui .eyebrow { display: block; margin-bottom: 3px; color: #747e80; font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: .12em; }
+.rui .section-title { margin: 0 2px 12px; }
+.rui .section-title h2 { margin: 0 0 3px; color: #e4e8e7; font-size: 14px; }
+.rui .section-title span { color: #6f797b; font-size: 11px; }
+
+/* Status token */
+.rui .status-token { display: inline-flex; align-items: center; gap: 5px; width: fit-content; color: var(--status-plausible); font: 500 10px var(--mono); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+.rui .status-token.status-proposed { padding-left: 6px; color: var(--status-proposed); border-left: 2px dotted var(--status-proposed); text-transform: none; }
+.rui .status-token.status-implausible { padding: 3px 6px; color: var(--status-implausible); border: 1px dashed var(--status-implausible); border-radius: 2px; }
+.rui .status-token.status-overridden { padding: 3px 6px; color: var(--status-overridden); border: 1px solid color-mix(in srgb, var(--status-overridden) 55%, transparent); border-radius: 2px; }
+.rui .status-token.status-superseded { color: var(--text-secondary); text-transform: none; }
+.rui .status-diamond { display: inline-block; width: 7px; height: 7px; background: var(--status-overridden); transform: rotate(45deg); }
+
+/* Event header */
+.rui .event-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 12px; padding: 0 2px; }
+.rui .event-head strong { display: block; color: var(--text-primary); font-size: 14px; }
+.rui .event-head .event-meta { color: var(--text-secondary); font-size: 11px; }
+
+/* Flags */
+.rui .flag-list { display: grid; gap: 8px; }
+.rui .hard-flag { padding: 12px; background: var(--surface-raised); border: 1px dashed var(--status-implausible); border-radius: 4px; }
+.rui .hard-flag.is-waived { border-style: solid; border-color: color-mix(in srgb, var(--status-overridden) 55%, transparent); }
+.rui .hard-flag__heading { display: flex; align-items: center; gap: 8px; }
+.rui .hard-flag__warning { width: 26px; height: 26px; display: grid; flex: 0 0 auto; place-items: center; color: var(--status-implausible); border: 1px dashed var(--status-implausible); border-radius: 3px; }
+.rui .flag-chips { display: flex; gap: 5px; }
+.rui .check-chip,
+.rui .severity-chip { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 10px; font: 500 10px var(--mono); text-transform: uppercase; }
+.rui .check-chip { color: var(--text-secondary); border: 1px solid var(--border); background: var(--surface); }
+.rui .severity-chip { color: var(--status-implausible); border: 1px dashed var(--status-implausible); background: color-mix(in srgb, var(--status-implausible) 8%, var(--surface)); }
+.rui .severity-chip.soft { color: var(--status-proposed); border: 1px dotted var(--status-proposed); background: var(--surface); }
+.rui .hard-flag h3 { margin: 12px 0 6px; color: var(--text-primary); font-size: 14px; line-height: 1.25; }
+.rui .hard-flag__detail { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+.rui .flag-evidence { margin-top: 10px; padding: 8px; color: var(--status-implausible); border-left: 2px solid var(--status-implausible); background: var(--surface); font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.rui .hard-flag blockquote { margin: 10px 0 0; padding: 9px 10px; color: var(--status-plausible); border: 1px solid var(--border); border-left: 2px solid var(--text-secondary); background: var(--surface); font-size: 12px; line-height: 1.45; }
+.rui .flag-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }
+.rui .flags-empty { padding: 12px; color: var(--text-secondary); border: 1px solid var(--border); border-radius: 4px; background: var(--surface-raised); font-size: 12px; }
+
+.rui .override-log { margin-top: 10px; padding: 10px; border: 1px solid var(--status-overridden); border-radius: 4px; background: color-mix(in srgb, var(--status-overridden) 7%, var(--surface-raised)); }
+.rui .override-log__head { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; color: var(--status-overridden); font-size: 12px; }
+.rui .override-log p { display: grid; grid-template-columns: 52px 1fr; gap: 4px; margin: 6px 0 0; color: var(--text-primary); font-size: 11px; line-height: 1.35; }
+.rui .override-log p span { color: var(--text-secondary); }
+
+/* Modal */
+.rui .modal-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(4, 6, 7, .75); backdrop-filter: blur(3px); }
+.rui .modal { width: min(490px, 100%); padding: 20px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 20px 80px #000; }
+.rui .modal-header { display: flex; justify-content: space-between; }
+.rui .modal h2 { margin: 0; color: #f0f2f2; font-size: 17px; }
+.rui .close { padding: 3px; border: 0; background: transparent; color: #808a8c; cursor: pointer; }
+.rui .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #303638; }
+.rui .override-event { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 17px; padding: 11px; border: 1px solid var(--border); background: var(--surface); border-radius: 3px; }
+.rui .override-event strong { display: block; margin-bottom: 4px; color: var(--text-primary); font-size: 13px; }
+.rui .override-event div > span { color: var(--text-secondary); font-size: 11px; }
+.rui .field-label { display: flex; justify-content: space-between; margin-bottom: 6px; color: var(--text-secondary); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+.rui .field-label i { color: var(--status-implausible); font-style: normal; }
+.rui .waived-flags { margin-top: 14px; }
+.rui .waived-flags > div { display: flex; align-items: center; gap: 7px; padding: 8px 9px; color: var(--status-implausible); border: 1px dashed var(--status-implausible); border-bottom: 0; background: color-mix(in srgb, var(--status-implausible) 5%, var(--surface)); }
+.rui .waived-flags > div:last-child { border-bottom: 1px dashed var(--status-implausible); }
+.rui .waived-flags p { margin: 0; color: var(--text-secondary); font-size: 11px; }
+.rui .waived-flags b { color: var(--status-implausible); font-weight: 500; }
+.rui .reason-field,
+.rui .readonly-field { display: block; margin-top: 14px; }
+.rui .reason-field textarea,
+.rui .readonly-field input { width: 100%; color: var(--text-primary); border: 1px solid var(--border); border-radius: 3px; outline: 0; background: var(--surface); font-family: inherit; }
+.rui .reason-field textarea { min-height: 80px; padding: 9px 10px; resize: none; font-size: 12px; line-height: 1.45; }
+.rui .reason-field textarea:focus { border-color: var(--status-overridden); box-shadow: 0 0 0 1px var(--status-overridden); }
+.rui .reason-field textarea::placeholder { color: #667383; }
+.rui .reason-field small { display: block; margin-top: 5px; color: var(--text-secondary); font-size: 11px; }
+.rui .reason-field small.ok { color: #8ac8a6; }
+.rui .readonly-field input { height: 32px; padding: 0 10px; color: var(--text-secondary); font: 12px var(--mono); }
+
+.rui .toast { position: fixed; z-index: 1001; left: 50%; bottom: 72px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 10px 14px; color: #dce6e0; background: #1d2923; border: 1px solid #42614e; border-radius: 4px; box-shadow: 0 10px 30px #0009; font-size: 12px; }
+.rui .toast span { color: #83c69f; }
