@@ -3,7 +3,10 @@ import {
   ANTHROPIC_VERSION,
   EXTRACTION_MODEL,
   EXTRACTOR_TOOLS,
+  NO_TOOL_CALL,
+  NO_TOOL_CALL_NUDGE,
   SYSTEM_PROMPT,
+  TRUNCATED,
   buildRequest,
   validateToolUses,
 } from "@rashomon/extractor";
@@ -36,6 +39,7 @@ export type ErrorCode =
   | "bad_model_response"
   | "model_refused"
   | "bad_tool_output"
+  | "truncated"
   | "partly_rejected"
   | "apply_failed";
 
@@ -187,10 +191,18 @@ function gather(io: Io, apiKey: string, segment: Segment, base: ExtractContext):
       return { code: "bad_model_response", detail: "the model response was not valid JSON" };
     }
     if (body.stop_reason === "refusal") return { code: "model_refused", detail: "the model refused this statement" };
-    const blocks = (Array.isArray(body.content) ? body.content : []).filter(isToolUse);
-    if (blocks.length === 0) {
-      unparsed = ["the model returned no tool call"];
+    if (body.stop_reason === "max_tokens") {
+      unparsed = [TRUNCATED];
       break;
+    }
+    const content = Array.isArray(body.content) ? body.content : [];
+    const blocks = content.filter(isToolUse);
+    if (blocks.length === 0) {
+      unparsed = [NO_TOOL_CALL];
+      if (attempt === MAX_RETRIES) break;
+      if (content.length > 0) messages.push({ role: "assistant", content });
+      messages.push({ role: "user", content: NO_TOOL_CALL_NUDGE });
+      continue;
     }
     const results = validateToolUses(blocks, segment, context);
     const accepted = results.flatMap((r) => r.patches);
@@ -236,11 +248,14 @@ export function runExtraction(io: Io, sessionId: string, segmentId: string): Ext
   if ("code" in gathered) return recordError(io, sessionId, segmentId, gathered.code, gathered.detail);
   const { unparsed } = gathered;
   const patches = mintPropIds(gathered.patches, snap.context);
+  const truncated = unparsed.includes(TRUNCATED);
+  if (patches.length === 0 && truncated)
+    return recordError(io, sessionId, segmentId, TRUNCATED, "the reply reached max_tokens before it finished");
   if (patches.length === 0 && unparsed.length > 0)
     return recordError(io, sessionId, segmentId, "bad_tool_output", `validation failed: ${unparsed.join("; ")}`);
 
-  if (unparsed.length > 0) logFailure(sessionId, segmentId, "partly_rejected", `partly rejected: ${unparsed.join("; ")}`);
-  const partial: ErrorCode | undefined = unparsed.length > 0 ? "partly_rejected" : undefined;
+  const partial: ErrorCode | undefined = unparsed.length === 0 ? undefined : truncated ? TRUNCATED : "partly_rejected";
+  if (partial !== undefined) logFailure(sessionId, segmentId, partial, `partly rejected: ${unparsed.join("; ")}`);
   try {
     return io.withTx((ctx) => {
       const session = ctx.db.sessions.id.find(sessionId);

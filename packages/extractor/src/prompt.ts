@@ -3,6 +3,9 @@ import { EXTRACTOR_TOOLS } from "./tools";
 import type { ExtractContext, ModelMessage, ModelRequest } from "./types";
 
 export const EXTRACTION_MODEL = "claude-sonnet-5-5";
+export const NO_TOOL_CALL_NUDGE = "Reply only with tool calls. If nothing belongs in the reconstruction, call no_events.";
+export const NO_TOOL_CALL = "the model returned no tool call";
+export const TRUNCATED = "truncated";
 
 export const SYSTEM_PROMPT = `You turn one witness statement at a time into structured changes to an event graph that will be drawn as a 3D reconstruction of a real room. You never reply in prose. You reply only by calling tools.
 
@@ -22,7 +25,7 @@ Rules, in priority order:
 12. sources must include the statement id given to you. You may also cite earlier statement ids if the new statement depends on them.
 13. If nothing in the statement belongs in the reconstruction, call no_events with a short reason.
 
-Call one tool per change. Call as many as the statement needs.`;
+Call one tool per change. Call as many as the statement needs. Every reply must contain at least one tool call: when nothing belongs in the reconstruction, call no_events. Never answer in prose.`;
 
 const anchorText = (a: Anchor | undefined): string => {
   if (!a) return "-";
@@ -90,7 +93,7 @@ export function buildRequest(
 ): ModelRequest {
   return {
     model,
-    max_tokens: 1500,
+    max_tokens: 16000,
     system: [
       {
         type: "text",
@@ -99,7 +102,8 @@ export function buildRequest(
       },
     ],
     tools: EXTRACTOR_TOOLS,
-    tool_choice: { type: "any" },
+    tool_choice: { type: "auto" },
+    output_config: { effort: "low" },
     messages: [buildUserMessage(segment, ctx)],
   };
 }
