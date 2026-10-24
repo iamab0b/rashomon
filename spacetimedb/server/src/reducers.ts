@@ -30,11 +30,11 @@ import { EventGraphT, FlagT, StatusEntryT, UtteranceInputT, spacetimedb } from "
 
 type Ctx = ReducerCtx<ModuleSchema>;
 
-const key = (sessionId: string, id: string): string => `${sessionId}/${id}`;
+export const key = (sessionId: string, id: string): string => `${sessionId}/${id}`;
 
 const MANIFESTS: Record<string, SceneManifest> = { store_v1: storeScene };
 
-function manifestFor(sceneId: string): SceneManifest {
+export function manifestFor(sceneId: string): SceneManifest {
   return MANIFESTS[sceneId] ?? fail(`unknown sceneId ${sceneId}; known scenes: ${Object.keys(MANIFESTS).join(", ")}`);
 }
 
@@ -290,6 +290,12 @@ export const insertSegment = spacetimedb.reducer(
       tEnd: a.tEnd,
       source: a.source,
       supersedes: a.supersedes,
+      extractModel: undefined,
+      extractPromptHash: undefined,
+      extractUtteranceIds: undefined,
+      extractedAt: undefined,
+      extractPatchCount: undefined,
+      extractError: undefined,
     });
     for (const u of a.utterances)
       ctx.db.utterances.insert({
@@ -304,47 +310,51 @@ export const insertSegment = spacetimedb.reducer(
   },
 );
 
+export function applyPatchBatch(ctx: Ctx, sessionId: string, baseVersion: number, patches: unknown): void {
+  const session = requireSession(ctx, sessionId);
+  if (baseVersion !== session.version)
+    fail(`stale baseVersion ${baseVersion}; the graph is at version ${session.version}`);
+  if (!Array.isArray(patches) || patches.length === 0) return fail("patchesJson must be a non-empty array of patches");
+  const appliedVersion = session.version + 1;
+  const touched = new Set<string>();
+  for (const patch of patches) {
+    if (isRecord(patch)) {
+      if (patch.op === "override" && typeof patch.id === "string" && touched.has(patch.id)) {
+        regate(ctx, sessionId);
+      }
+      if (patch.op === "update_event" || patch.op === "retract_event") {
+        if (typeof patch.id === "string") touched.add(patch.id);
+      } else if (patch.op === "add_event" && isRecord(patch.event) && typeof patch.event.id === "string") {
+        touched.add(patch.event.id);
+      }
+    }
+    const sources = applyPatch(ctx, sessionId, patch);
+    ctx.db.patches.insert({
+      id: 0n,
+      sessionId,
+      baseVersion,
+      appliedVersion,
+      op: String((patch as { op: unknown }).op),
+      payload: JSON.stringify(patch),
+      sources,
+      appliedAt: ctx.timestamp,
+    });
+  }
+  checkReferences(ctx, sessionId);
+  ctx.db.sessions.id.update({ ...session, version: appliedVersion });
+  regate(ctx, sessionId);
+}
+
 export const applyPatches = spacetimedb.reducer(
   { sessionId: t.string(), baseVersion: t.u32(), patchesJson: t.string() },
   (ctx, { sessionId, baseVersion, patchesJson }) => {
-    const session = requireSession(ctx, sessionId);
-    if (baseVersion !== session.version)
-      fail(`stale baseVersion ${baseVersion}; the graph is at version ${session.version}`);
     let patches: unknown;
     try {
       patches = JSON.parse(patchesJson);
     } catch {
       return fail("patchesJson must be a JSON array of patches");
     }
-    if (!Array.isArray(patches) || patches.length === 0) return fail("patchesJson must be a non-empty array of patches");
-    const appliedVersion = session.version + 1;
-    const touched = new Set<string>();
-    for (const patch of patches) {
-      if (isRecord(patch)) {
-        if (patch.op === "override" && typeof patch.id === "string" && touched.has(patch.id)) {
-          regate(ctx, sessionId);
-        }
-        if (patch.op === "update_event" || patch.op === "retract_event") {
-          if (typeof patch.id === "string") touched.add(patch.id);
-        } else if (patch.op === "add_event" && isRecord(patch.event) && typeof patch.event.id === "string") {
-          touched.add(patch.event.id);
-        }
-      }
-      const sources = applyPatch(ctx, sessionId, patch);
-      ctx.db.patches.insert({
-        id: 0n,
-        sessionId,
-        baseVersion,
-        appliedVersion,
-        op: String((patch as { op: unknown }).op),
-        payload: JSON.stringify(patch),
-        sources,
-        appliedAt: ctx.timestamp,
-      });
-    }
-    checkReferences(ctx, sessionId);
-    ctx.db.sessions.id.update({ ...session, version: appliedVersion });
-    regate(ctx, sessionId);
+    applyPatchBatch(ctx, sessionId, baseVersion, patches);
   },
 );
 

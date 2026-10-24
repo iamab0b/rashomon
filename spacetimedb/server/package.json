@@ -9,6 +9,8 @@
   },
   "dependencies": {
     "@rashomon/engine": "workspace:*",
+    "@rashomon/extractor": "workspace:*",
+    "@rashomon/props": "workspace:*",
     "@rashomon/schema": "workspace:*",
     "spacetimedb": "2.13.0"
   },

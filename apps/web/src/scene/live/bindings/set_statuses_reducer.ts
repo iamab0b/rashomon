@@ -11,8 +11,8 @@ import {
 } from "spacetimedb";
 
 import {
-  Flag,
   StatusEntry,
+  Flag,
 } from "./types";
 
 export default {

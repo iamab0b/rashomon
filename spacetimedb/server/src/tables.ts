@@ -108,6 +108,12 @@ const segments = table(
     tEnd: t.f64(),
     source: t.string(),
     supersedes: t.option(t.string()),
+    extractModel: t.option(t.string()),
+    extractPromptHash: t.option(t.string()),
+    extractUtteranceIds: t.option(t.array(t.string())),
+    extractedAt: t.option(t.timestamp()),
+    extractPatchCount: t.option(t.u32()),
+    extractError: t.option(t.string()),
   },
 );
 
@@ -223,6 +229,22 @@ const overrides = table(
   },
 );
 
+export const HardFlagT = t.object("HardFlag", {
+  id: t.string(),
+  eventId: t.string(),
+  check: t.string(),
+  detail: t.string(),
+  suggestedQuestion: t.string(),
+});
+
+export const ExtractionT = t.object("Extraction", {
+  segmentId: t.string(),
+  patchCount: t.u32(),
+  statuses: t.array(StatusEntryT),
+  hardFlags: t.array(HardFlagT),
+  error: t.option(t.string()),
+});
+
 export const spacetimedb = schema({
   sessions,
   segments,
@@ -233,6 +255,8 @@ export const spacetimedb = schema({
   patches,
   flags,
   overrides,
+}, {
+  env: { ANTHROPIC_API_KEY: t.string(), CARTESIA_WEBHOOK_SECRET: t.string() },
 });
 
 export { t };
