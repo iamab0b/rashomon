@@ -373,6 +373,15 @@ describe("resolve edge cases", () => {
     ).toEqual([{ actor: "suspect", tStart: 2, tEnd: 10 }]);
   });
 
+  test("overlapping pick_ups never produce an interval that runs backward", () => {
+    const intervals = hold([
+      ev({ id: "p1", actor: "suspect", action: "pick_up", prop: "k", at: { kind: "xyz", position: [3, 0, 8] }, t: [1, 5] }),
+      ev({ id: "p2", actor: "clerk", action: "pick_up", prop: "k", at: { kind: "xyz", position: [3, 0, 8] }, t: [3, 6] }),
+      ev({ id: "s", actor: "witness", action: "stand", at: { kind: "xyz", position: [8, 0, 8] }, t: [0, 9] }),
+    ]);
+    expect(intervals).toEqual([{ actor: "clerk", tStart: 6, tEnd: 9 }]);
+  });
+
   test("every robbery event is reachable", () => {
     expect(resolve(robbery, store).events.every((e) => e.reachable)).toBe(true);
   });

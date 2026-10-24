@@ -102,23 +102,25 @@ function heldIntervals(
     )
     .sort((a, b) => a.tStart - b.tStart);
   type Open = Omit<HeldInterval, "tEnd">;
+  const closeAt = (o: Open, t: number): HeldInterval[] =>
+    t > o.tStart + TIME_EPS ? [{ ...o, tEnd: t }] : [];
   const initial: { closed: HeldInterval[]; open?: Open } = { closed: [] };
   const { closed, open } = handoffs.reduce((acc, e) => {
     if (e.action === "pick_up") {
       if (acc.open?.actor === e.actor) return acc;
       const closedNow = acc.open
-        ? [...acc.closed, { ...acc.open, tEnd: e.tStart }]
+        ? [...acc.closed, ...closeAt(acc.open, e.tStart)]
         : acc.closed;
       return { closed: closedNow, open: { actor: e.actor, tStart: e.tEnd } };
     }
     if (acc.open && acc.open.actor !== e.actor) return acc;
     if (acc.open)
-      return { closed: [...acc.closed, { ...acc.open, tEnd: e.tStart }] };
+      return { closed: [...acc.closed, ...closeAt(acc.open, e.tStart)] };
     if (acc.closed.length) return acc;
-    return { closed: [{ actor: e.actor, tStart: 0, tEnd: e.tStart }] };
+    return { closed: closeAt({ actor: e.actor, tStart: 0 }, e.tStart) };
   }, initial);
-  const all = open ? [...closed, { ...open, tEnd: durationS }] : closed;
-  if (!all.length && prop.heldBy)
+  const all = open ? [...closed, ...closeAt(open, durationS)] : closed;
+  if (!handoffs.length && prop.heldBy)
     return [{ actor: prop.heldBy, tStart: 0, tEnd: durationS }];
   return all;
 }
