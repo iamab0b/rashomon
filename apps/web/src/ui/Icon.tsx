@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 
-// Line icons from the Figma Make prototype (20x20 grid, stroke = currentColor).
 export type IconName = "eye" | "warning" | "x";
 
 const icons: Record<IconName, ReactNode> = {

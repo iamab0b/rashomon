@@ -6,8 +6,6 @@ const SWATCHES = ["blue", "green"] as const;
 export function WitnessesTab(context: PanelContext) {
   const { graph } = context;
   const witnesses = graph.actors.filter((actor) => actor.role === "witness");
-  // Resolved events don't say which witness stated them, so counts are only
-  // meaningful while the reconstruction has a single witness.
   const single = witnesses.length === 1;
 
   return (

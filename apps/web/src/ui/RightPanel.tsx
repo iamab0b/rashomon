@@ -1,5 +1,5 @@
 import { useEffect, useState, type ComponentType, type CSSProperties } from "react";
-import { useGraph, useSelection, type ResolvedEvent, type Status } from "../scene";
+import { useGraph, useSelection, useTimeline, type ResolvedEvent, type Status } from "../scene";
 import { EventsTab } from "./EventsTab";
 import { FlagsTab, openFlagCount } from "./FlagsTab";
 import { HistoryTab } from "./HistoryTab";
@@ -15,7 +15,6 @@ type Tab = {
   Component: ComponentType<PanelContext>;
 };
 
-// Add, remove, rename or reorder tabs here.
 const TABS: Tab[] = [
   { id: "flags", label: "Flags", count: openFlagCount, Component: FlagsTab },
   { id: "events", label: "Events", count: ({ graph }) => graph.events.length, Component: EventsTab },
@@ -28,6 +27,7 @@ const TOAST_MS = 2200;
 export function RightPanel({ by = "investigator" }: { by?: string }) {
   const { resolved, statuses } = useGraph();
   const { selectedEventId, select } = useSelection();
+  const { setT, pause } = useTimeline();
   const [activeTab, setActiveTab] = useState(TABS[0]!.id);
   const [overrides, setOverrides] = useState<Overrides>({});
   const [dialogEventId, setDialogEventId] = useState<string | null>(null);
@@ -52,12 +52,20 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
   const statusOf = (event: ResolvedEvent): Status =>
     overrides[event.id] ? "overridden" : (statuses[event.id] ?? event.status);
 
+  const jumpTo = (eventId: string) => {
+    const event = resolved.events.find((e) => e.id === eventId);
+    select(eventId);
+    if (!event) return;
+    pause();
+    setT(event.tStart);
+  };
+
   const context: PanelContext = {
     graph: resolved,
     overrides,
     statusOf,
     selectedEventId,
-    select,
+    jumpTo,
     openOverride: setDialogEventId,
   };
 

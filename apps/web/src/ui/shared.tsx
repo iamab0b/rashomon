@@ -22,14 +22,12 @@ const CHECK_TITLES: Record<Flag["check"], string> = {
 
 export type Overrides = Record<string, Override>;
 
-// What every tab needs: the graph, each event's status with local overrides applied,
-// and the actions that change selection or open the override dialog.
 export type PanelContext = {
   graph: ResolvedGraph;
   overrides: Overrides;
   statusOf: (event: ResolvedEvent) => Status;
   selectedEventId: string | null;
-  select: (eventId: string) => void;
+  jumpTo: (eventId: string) => void;
   openOverride: (eventId: string) => void;
 };
 

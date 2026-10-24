@@ -1,7 +1,7 @@
 import { Icon } from "./Icon";
 import { actorLabel, eventDetail, eventTime, StatusToken, words, type PanelContext } from "./shared";
 
-export function EventsTab({ graph, statusOf, selectedEventId, select }: PanelContext) {
+export function EventsTab({ graph, statusOf, selectedEventId, jumpTo }: PanelContext) {
   const events = [...graph.events].sort((a, b) => a.tStart - b.tStart);
 
   return (
@@ -18,7 +18,7 @@ export function EventsTab({ graph, statusOf, selectedEventId, select }: PanelCon
               type="button"
               key={event.id}
               className={`investigation-event status-${status}${selectedEventId === event.id ? " selected" : ""}`}
-              onClick={() => select(event.id)}
+              onClick={() => jumpTo(event.id)}
             >
               <div className="investigation-event__top">
                 <time className="mono">{eventTime(event)}</time>

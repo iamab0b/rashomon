@@ -6,8 +6,7 @@ export function openFlagCount({ graph, statusOf }: Pick<PanelContext, "graph" | 
     .reduce((count, event) => count + event.flags.length, 0);
 }
 
-export function FlagsTab({ graph, statusOf, select, openOverride }: PanelContext) {
-  // Newest first: later events in the timeline come first.
+export function FlagsTab({ graph, statusOf, jumpTo, openOverride }: PanelContext) {
   const flagged = graph.events
     .filter((event) => event.flags.length > 0 && statusOf(event) !== "overridden")
     .sort((a, b) => b.tStart - a.tStart);
@@ -35,7 +34,7 @@ export function FlagsTab({ graph, statusOf, select, openOverride }: PanelContext
                 flag={flag}
                 eventLabel={`${event.id} · ${event.actor} · ${event.action}`}
                 waived={false}
-                onJump={() => select(event.id)}
+                onJump={() => jumpTo(event.id)}
                 onOverride={() => openOverride(event.id)}
               />
             )),
