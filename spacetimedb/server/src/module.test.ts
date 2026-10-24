@@ -75,8 +75,8 @@ describe("insertSegment", () => {
 
   test("stores the segment and its utterances", () => {
     insert();
-    expect(h.db.segments.id.find("seg1")).toMatchObject({ sessionId: SESSION, speaker: "witness", tEnd: 4 });
-    expect(h.db.utterances.rowKey.find(`${SESSION}/utt_1`)).toMatchObject({ segmentId: "seg1", text: expect.any(String) });
+    expect(h.db.segments.rowKey.find(`${SESSION}/seg1`)).toMatchObject({ sessionId: SESSION, speaker: "witness", tEnd: 4 });
+    expect(h.db.utterances.rowKey.find(`${SESSION}/utt_1`)).toMatchObject({ segmentKey: `${SESSION}/seg1`, text: expect.any(String) });
   });
 
   test("rejects an unknown session, a bad speaker or source, a reversed interval and an empty text", () => {
@@ -91,15 +91,37 @@ describe("insertSegment", () => {
     insert();
     expect(() => insert()).toThrow(/already exists/);
     expect(() => insert({ id: "seg2", supersedes: "ghost", utterances: [] })).toThrow(/unknown segment/);
-    expect(h.db.segments.id.find("seg2")).toBeNull();
+    expect(h.db.segments.rowKey.find(`${SESSION}/seg2`)).toBeNull();
     insert({ id: "seg3", supersedes: "seg1", utterances: [] });
-    expect(h.db.segments.id.find("seg3")?.supersedes).toBe("seg1");
+    expect(h.db.segments.rowKey.find(`${SESSION}/seg3`)?.supersedes).toBe("seg1");
+  });
+
+  test("two sessions can each insert seg1 and stay separate", () => {
+    call((ctx) => mod.createSession(ctx, { id: "s2", sceneId: "store_v1" }));
+    insert();
+    insert({ sessionId: "s2", text: "Second session.", utterances: [{ id: "utt_1", text: "Second session.", tStart: 0, tEnd: 4 }] });
+    expect(() => insert()).toThrow(/already exists/);
+    expect(h.db.segments.rowKey.find(`${SESSION}/seg1`)).toMatchObject({ sessionId: SESSION, text: segment.text });
+    expect(h.db.segments.rowKey.find("s2/seg1")).toMatchObject({ sessionId: "s2", text: "Second session." });
+    expect(h.db.utterances.rowKey.find(`${SESSION}/utt_1`)).toMatchObject({ segmentKey: `${SESSION}/seg1`, text: segment.text });
+    expect(h.db.utterances.rowKey.find("s2/utt_1")).toMatchObject({ segmentKey: "s2/seg1", text: "Second session." });
+    expect([...h.db.segments.sessionId.filter("s2")]).toHaveLength(1);
+    expect([...h.db.utterances.segmentKey.filter(`${SESSION}/seg1`)]).toHaveLength(1);
+    expect(() => insert({ id: "seg9", sessionId: "s2", supersedes: "seg1/x", utterances: [] })).toThrow(/"\/"/);
+    insert({ id: "seg2", sessionId: "s2", supersedes: "seg1", utterances: [] });
+    expect(h.db.segments.rowKey.find("s2/seg2")?.supersedes).toBe("seg1");
+  });
+
+  test("a supersedes from another session is unknown", () => {
+    call((ctx) => mod.createSession(ctx, { id: "s2", sceneId: "store_v1" }));
+    insert();
+    expect(() => insert({ id: "seg2", sessionId: "s2", supersedes: "seg1", utterances: [] })).toThrow(/unknown segment/);
   });
 
   test("a duplicate utterance id rolls the whole reducer back", () => {
     const utterances = [segment.utterances[0]!, segment.utterances[0]!];
     expect(() => insert({ utterances })).toThrow(/utterance/);
-    expect(h.db.segments.id.find("seg1")).toBeNull();
+    expect(h.db.segments.rowKey.find(`${SESSION}/seg1`)).toBeNull();
   });
 });
 
@@ -626,6 +648,17 @@ describe("identity", () => {
       h.withReducerTx(stranger, ((ctx: never) =>
         mod.setStatuses(ctx, { sessionId: "s2", baseVersion: 0, statuses: [], flags: [] })) as never),
     ).toThrow(/creator/);
+  });
+
+  test("the module's own identity can set statuses on a session it did not create", () => {
+    const creator = TestAuth.fromJwtPayload(JSON.stringify({ iss: "https://example.test", sub: "creator" }), ConnectionId.random());
+    h.withReducerTx(creator, ((ctx: never) => mod.createSession(ctx, { id: "s3", sceneId: "store_v1" })) as never);
+    const call3 = (who: TestAuth) =>
+      h.withReducerTx(who, ((ctx: never) =>
+        mod.setStatuses(ctx, { sessionId: "s3", baseVersion: 0, statuses: [], flags: [] })) as never);
+    expect(h.db.sessions.id.find("s3")?.creator).not.toBe(h.moduleIdentity.toHexString());
+    expect(() => call3(stranger)).toThrow(/creator/);
+    expect(() => call3(auth)).not.toThrow();
   });
 
   test("an override records the sender's identity beside the display name", () => {

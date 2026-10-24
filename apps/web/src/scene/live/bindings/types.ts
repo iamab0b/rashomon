@@ -208,8 +208,9 @@ export const Props = __t.object("Props", {
 export type Props = __Infer<typeof Props>;
 
 export const Segments = __t.object("Segments", {
-  id: __t.string(),
+  rowKey: __t.string(),
   sessionId: __t.string(),
+  id: __t.string(),
   witnessId: __t.string(),
   speaker: __t.string(),
   text: __t.string(),
@@ -247,7 +248,7 @@ export const Utterances = __t.object("Utterances", {
   rowKey: __t.string(),
   sessionId: __t.string(),
   id: __t.string(),
-  segmentId: __t.string(),
+  segmentKey: __t.string(),
   text: __t.string(),
   tStart: __t.f64(),
   tEnd: __t.f64(),

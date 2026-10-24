@@ -214,10 +214,12 @@ export const insertSegment = spacetimedb.reducer(
     oneOf(a.speaker, SPEAKERS, "segment speaker");
     oneOf(a.source, SEGMENT_SOURCES, "segment source");
     intervalOf([a.tStart, a.tEnd], "segment t");
-    if (ctx.db.segments.id.find(a.id)) fail(`segment ${a.id} already exists`);
+    const segmentKey = key(a.sessionId, a.id);
+    if (ctx.db.segments.rowKey.find(segmentKey)) fail(`segment ${a.id} already exists`);
     if (a.supersedes !== undefined) {
-      const earlier = ctx.db.segments.id.find(a.supersedes) ?? fail(`unknown segment ${a.supersedes}`);
-      if (earlier.sessionId !== a.sessionId) fail(`segment ${a.supersedes} belongs to another session`);
+      idOf(a.supersedes, "segment supersedes");
+      const earlier = ctx.db.segments.rowKey.find(key(a.sessionId, a.supersedes));
+      if (!earlier || earlier.sessionId !== a.sessionId) fail(`unknown segment ${a.supersedes}`);
     }
     const seen = new Set<string>();
     for (const u of a.utterances) {
@@ -228,6 +230,7 @@ export const insertSegment = spacetimedb.reducer(
       seen.add(u.id);
     }
     ctx.db.segments.insert({
+      rowKey: segmentKey,
       id: a.id,
       sessionId: a.sessionId,
       witnessId: a.witnessId,
@@ -243,7 +246,7 @@ export const insertSegment = spacetimedb.reducer(
         rowKey: key(a.sessionId, u.id),
         sessionId: a.sessionId,
         id: u.id,
-        segmentId: a.id,
+        segmentKey,
         text: u.text,
         tStart: u.tStart,
         tEnd: u.tEnd,
@@ -296,7 +299,7 @@ export const setStatuses = spacetimedb.reducer(
   (ctx, { sessionId, baseVersion, statuses, flags }) => {
     const session = requireSession(ctx, sessionId);
     const sender = ctx.sender.toHexString();
-    if (sender !== ctx.identity.toHexString() && sender !== session.creator)
+    if (sender !== ctx.databaseIdentity.toHexString() && sender !== session.creator)
       fail("only the module or the session's creator can set statuses");
     if (baseVersion !== session.version)
       fail(`stale baseVersion ${baseVersion}; the graph is at version ${session.version}`);
