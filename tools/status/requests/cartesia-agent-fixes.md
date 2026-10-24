@@ -36,7 +36,7 @@ Done-check:
 
 You pushed the witness-id fix to spacetime-procedure (b4b9c76) as well as here (75e053e). The two now conflict in http/cartesia.ts and procedure.test.ts. The leader merges #27 first, once its reviews and Greptile are clean. Then run `git fetch origin && git merge origin/main` on cartesia-agent, keep one witness-aware hash (b4b9c76's), and push it together with the fixes above. No rebase, no force-push.
 
-## Sat 6:30 PM: review of f8239cc (Opus and Sonnet clean; Greptile 4/5 holds)
+## Sat 4:25 PM: review of f8239cc (Opus and Sonnet clean; Greptile 4/5 holds)
 
 The ask-back rule and interview order are in INSTRUCTIONS with tests. asked_flags is private and additive (-c=never is enough). Overridden flags are filtered, and the timeout is 120 s. Nothing of main was reverted. Greptile holds the merge on one finding, and the reviews add one MEDIUM. Push to cartesia-agent; no force-push.
 
