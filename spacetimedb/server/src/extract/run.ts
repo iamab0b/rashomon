@@ -3,7 +3,10 @@ import {
   ANTHROPIC_VERSION,
   EXTRACTION_MODEL,
   EXTRACTOR_TOOLS,
+  NO_TOOL_CALL,
+  NO_TOOL_CALL_NUDGE,
   SYSTEM_PROMPT,
+  TRUNCATED,
   buildRequest,
   validateToolUses,
 } from "@rashomon/extractor";
@@ -37,6 +40,7 @@ export type ErrorCode =
   | "bad_model_response"
   | "model_refused"
   | "bad_tool_output"
+  | "truncated"
   | "partly_rejected"
   | "apply_failed";
 
@@ -191,10 +195,15 @@ function gather(io: Io, apiKey: string, segment: Segment, base: ExtractContext):
       return { code: "bad_model_response", detail: "the model response was not valid JSON" };
     }
     if (body.stop_reason === "refusal") return { code: "model_refused", detail: "the model refused this statement" };
-    const blocks = (Array.isArray(body.content) ? body.content : []).filter(isToolUse);
+    const content = Array.isArray(body.content) ? body.content : [];
+    const blocks = content.filter(isToolUse);
     if (blocks.length === 0) {
-      unparsed = ["the model returned no tool call"];
-      break;
+      if (body.stop_reason === "max_tokens") return { code: TRUNCATED, detail: "the reply reached max_tokens before any tool call" };
+      unparsed = [NO_TOOL_CALL];
+      if (attempt === MAX_RETRIES) break;
+      if (content.length > 0) messages.push({ role: "assistant", content });
+      messages.push({ role: "user", content: NO_TOOL_CALL_NUDGE });
+      continue;
     }
     const results = validateToolUses(blocks, segment, context);
     const accepted = results.flatMap((r) => r.patches);

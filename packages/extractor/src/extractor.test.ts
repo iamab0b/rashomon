@@ -4,7 +4,7 @@ import propsJson from "../../props/props.json";
 import transcriptJson from "../fixtures/robbery.transcript.json";
 import correctionJson from "../fixtures/robbery.correction.json";
 import type { EventGraph, PropType, Segment } from "@rashomon/schema";
-import { SYSTEM_PROMPT } from "./prompt";
+import { NO_TOOL_CALL, NO_TOOL_CALL_NUDGE, SYSTEM_PROMPT, TRUNCATED } from "./prompt";
 import {
   applyPatchesLocal,
   buildRequest,
@@ -279,15 +279,12 @@ describe("buildRequest", () => {
     expect(req.tools.map((t) => t.name)).toContain("no_events");
   });
 
-  test("the serialized request never forces a tool, so it is valid with thinking on and never pairs thinking with any or tool", () => {
-    const body = JSON.parse(JSON.stringify(buildRequest(utt("utt_1"), baseCtx()))) as {
-      tool_choice?: { type: string };
-      thinking?: unknown;
-    };
+  test("the serialized request lets the model choose its tool, leaves thinking adaptive at low effort, and has room for thinking", () => {
+    const body = JSON.parse(JSON.stringify(buildRequest(utt("utt_1"), baseCtx()))) as Record<string, unknown>;
     expect(body.tool_choice).toEqual({ type: "auto" });
-    const forced = body.tool_choice !== undefined && ["any", "tool"].includes(body.tool_choice.type);
-    expect(forced).toBe(false);
-    expect(body.thinking !== undefined && forced).toBe(false);
+    expect(body).not.toHaveProperty("thinking");
+    expect(body.output_config).toEqual({ effort: "low" });
+    expect(body.max_tokens).toBe(16000);
     expect(buildRequest(utt("utt_1"), baseCtx()).tools.every((t) => t.strict === true)).toBe(true);
     expect(SYSTEM_PROMPT).toContain("Every reply must contain at least one tool call");
   });
@@ -304,6 +301,51 @@ describe("extractSegment", () => {
     expect(calls).toBe(0);
     expect(r.skipped).toBeDefined();
     expect(r.patches).toEqual([]);
+  });
+
+  test("a reply with no tool call is retried once with the assistant turn unchanged and a nudge", async () => {
+    const prose = [
+      { type: "thinking", thinking: "", signature: "sig-1" },
+      { type: "text", text: "He walked to the counter." },
+    ] as unknown as ModelResponse["content"];
+    const seen: { messages: unknown[]; toolChoice: string }[] = [];
+    const model: CallModel = async (req): Promise<ModelResponse> => {
+      seen.push({ messages: [...req.messages], toolChoice: req.tool_choice.type });
+      if (seen.length === 1) return { content: prose, stop_reason: "end_turn" };
+      return { content: [use("add_event", walkInput(), "ok")], stop_reason: "tool_use" };
+    };
+    const r = await extractSegment(utt("utt_2"), baseCtx(), model);
+    expect(r.attempts).toBe(2);
+    expect(r.patches).toHaveLength(1);
+    expect(r.unparsed).toEqual([]);
+    expect(seen[1]!.messages).toHaveLength(3);
+    expect(seen[1]!.messages[1]).toEqual({ role: "assistant", content: prose });
+    expect(seen[1]!.messages[2]).toEqual({ role: "user", content: NO_TOOL_CALL_NUDGE });
+    expect(seen.map((s) => s.toolChoice)).toEqual(["auto", "auto"]);
+  });
+
+  test("two replies with no tool call end as no tool call after the one retry", async () => {
+    let calls = 0;
+    const model: CallModel = async () => {
+      calls++;
+      return { content: [{ type: "text", text: "Nothing to add." }], stop_reason: "end_turn" };
+    };
+    const r = await extractSegment(utt("utt_2"), baseCtx(), model);
+    expect(calls).toBe(2);
+    expect(r.patches).toEqual([]);
+    expect(r.unparsed).toEqual([NO_TOOL_CALL]);
+  });
+
+  test("a reply cut off by max_tokens before any tool call is reported as truncated and not retried", async () => {
+    let calls = 0;
+    const model: CallModel = async () => {
+      calls++;
+      return { content: [], stop_reason: "max_tokens" };
+    };
+    const r = await extractSegment(utt("utt_2"), baseCtx(), model);
+    expect(calls).toBe(1);
+    expect(r.unparsed).toEqual([TRUNCATED]);
+    expect(TRUNCATED).toBe("truncated");
   });
 
   test("retries once with the error and keeps the patches that were fine", async () => {

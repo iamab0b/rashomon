@@ -1,5 +1,5 @@
 import type { Patch, Segment } from "@rashomon/schema";
-import { buildRequest, EXTRACTION_MODEL } from "./prompt";
+import { buildRequest, EXTRACTION_MODEL, NO_TOOL_CALL, NO_TOOL_CALL_NUDGE, TRUNCATED } from "./prompt";
 import type {
   CallModel,
   ExtractContext,
@@ -45,8 +45,15 @@ export async function extractSegment(
     const response = await callModel({ ...first, messages });
     const blocks = response.content.filter(isToolUse);
     if (blocks.length === 0) {
-      unparsed = ["the model returned no tool call"];
-      break;
+      if (response.stop_reason === "max_tokens") {
+        unparsed = [TRUNCATED];
+        break;
+      }
+      unparsed = [NO_TOOL_CALL];
+      if (attempt === maxRetries) break;
+      if (response.content.length > 0) messages.push({ role: "assistant", content: response.content });
+      messages.push({ role: "user", content: NO_TOOL_CALL_NUDGE });
+      continue;
     }
     const results = validateToolUses(blocks, segment, ctx);
     const accepted = results.flatMap((r) => r.patches);

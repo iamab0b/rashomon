@@ -41,6 +41,7 @@ export type ModelRequest = {
   system: Array<Record<string, unknown>>;
   tools: ToolDef[];
   tool_choice: { type: "auto" };
+  output_config: { effort: "low" };
   messages: ModelMessage[];
 };
 
