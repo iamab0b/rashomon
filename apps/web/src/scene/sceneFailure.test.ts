@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { fixtureGraphSource } from "./playback/graphSource";
 import { selectSource } from "./playback/selectSource";
 import { noGraphMessage, sceneFailure, shouldSignalReady, unknownFixtureMessage } from "./sceneFailure";
 import { useSceneStore } from "./store";
@@ -23,6 +24,7 @@ describe("sceneFailure", () => {
   });
 
   it("an unknown scenario on a known fixture names both", () => {
+    expect(fixtureGraphSource("store", "x")).toBeNull();
     expect(fixtureFailure("?scenario=x", "store")).toBe('No graph for fixture "store" and scenario "x"');
     expect(noGraphMessage("store", null)).toBe('No graph for fixture "store"');
   });
