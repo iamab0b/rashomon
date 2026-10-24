@@ -1,0 +1,134 @@
+[
+  {
+    "id": "utt_1",
+    "sessionId": "s1",
+    "witnessId": "w1",
+    "speaker": "witness",
+    "text": "I was in the first aisle, the snack one on the left, looking at the chips.",
+    "t": [
+      0.0,
+      7.3
+    ],
+    "source": "upload_text"
+  },
+  {
+    "id": "utt_2",
+    "sessionId": "s1",
+    "witnessId": "w1",
+    "speaker": "witness",
+    "text": "A guy came in the front door and went straight up to the counter. The clerk was behind the till.",
+    "t": [
+      7.8,
+      16.7
+    ],
+    "source": "upload_text"
+  },
+  {
+    "id": "utt_3",
+    "sessionId": "s1",
+    "witnessId": "w1",
+    "speaker": "witness",
+    "text": "He said something to the clerk, I couldn't hear what at first.",
+    "t": [
+      17.2,
+      23.6
+    ],
+    "source": "upload_text"
+  },
+  {
+    "id": "utt_4",
+    "sessionId": "s1",
+    "witnessId": "w1",
+    "speaker": "witness",
+    "text": "Then he got loud. 'Open it, open it.' Like that.",
+    "t": [
+      24.1,
+      29.5
+    ],
+    "source": "upload_text"
+  },
+  {
+    "id": "utt_5",
+    "sessionId": "s1",
+    "witnessId": "w1",
+    "speaker": "witness",
+    "text": "He had a knife. A kitchen knife, maybe eight inches. He pulled it out of his jacket.",
+    "t": [
+      30.0,
+      38.0
+    ],
+    "source": "upload_text"
+  },
+  {
+    "id": "utt_6",
+    "sessionId": "s1",
+    "witnessId": "w1",
+    "speaker": "witness",
+    "text": "That's when I looked up.",
+    "t": [
+      38.5,
+      42.2
+    ],
+    "source": "upload_text"
+  },
+  {
+    "id": "utt_7",
+    "sessionId": "s1",
+    "witnessId": "w1",
+    "speaker": "witness",
+    "text": "I saw his face clearly. White guy, thirties, dark hoodie.",
+    "t": [
+      42.7,
+      48.8
+    ],
+    "source": "upload_text"
+  },
+  {
+    "id": "utt_8",
+    "sessionId": "s1",
+    "witnessId": "w1",
+    "speaker": "witness",
+    "text": "He shoved the clerk, hard, and the clerk went down behind the counter.",
+    "t": [
+      49.3,
+      56.3
+    ],
+    "source": "upload_text"
+  },
+  {
+    "id": "utt_9",
+    "sessionId": "s1",
+    "witnessId": "w1",
+    "speaker": "witness",
+    "text": "I got down. I crouched behind the shelf.",
+    "t": [
+      56.8,
+      61.7
+    ],
+    "source": "upload_text"
+  },
+  {
+    "id": "utt_10",
+    "sessionId": "s1",
+    "witnessId": "w1",
+    "speaker": "witness",
+    "text": "Then he ran out the front, same way he came in.",
+    "t": [
+      62.2,
+      67.6
+    ],
+    "source": "upload_text"
+  },
+  {
+    "id": "utt_11",
+    "sessionId": "s1",
+    "witnessId": "w1",
+    "speaker": "witness",
+    "text": "The whole thing was maybe twenty, thirty seconds.",
+    "t": [
+      68.1,
+      73.6
+    ],
+    "source": "upload_text"
+  }
+]

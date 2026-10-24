@@ -2,6 +2,7 @@ import type { ResolvedGraph } from "@rashomon/engine";
 import type { Status } from "@rashomon/schema";
 import { create } from "zustand";
 import type { CameraPreset } from "./cameras/presets";
+import type { GraphSource } from "./playback/graphSource";
 
 export type SceneStatus = "loading" | "ready" | "error";
 
@@ -28,6 +29,7 @@ export type SceneState = {
   duration: number;
   resolved: ResolvedGraph | null;
   statuses: StatusMap;
+  graphSource: GraphSource | null;
   actorsReady: boolean;
   selectedEventId: string | null;
   povFollow: boolean;
@@ -46,6 +48,7 @@ export type SceneState = {
   pause: () => void;
   setResolved: (resolved: ResolvedGraph | null) => void;
   setGraph: (snapshot: GraphSnapshot) => void;
+  setGraphSource: (source: GraphSource | null) => void;
   setActorsReady: (ready: boolean) => void;
   select: (id: string) => void;
   clear: () => void;
@@ -91,6 +94,7 @@ export const useSceneStore = create<SceneState>((set) => ({
   duration: 0,
   resolved: null,
   statuses: EMPTY_STATUSES,
+  graphSource: null,
   actorsReady: false,
   selectedEventId: null,
   povFollow: false,
@@ -129,6 +133,7 @@ export const useSceneStore = create<SceneState>((set) => ({
         selectedEventId: survivingSelection(state.selectedEventId, resolved),
       };
     }),
+  setGraphSource: (graphSource) => set({ graphSource }),
   setActorsReady: (actorsReady) => set({ actorsReady }),
   select: (id) => set((state) => ({ selectedEventId: survivingSelection(id, state.resolved) ?? state.selectedEventId })),
   clear: () => set({ selectedEventId: null }),

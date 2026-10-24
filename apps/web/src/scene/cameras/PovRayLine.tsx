@@ -6,7 +6,7 @@ import { currentPovRay } from "./povSightline";
 const BLOCKED_COLOR = "#ff3b30";
 const CLEAR_COLOR = "#34c759";
 const RAY_RADIUS_M = 0.012;
-const HIT_RADIUS_M = 0.08;
+const HIT_RADIUS_M = 0.03;
 const RADIAL_SEGMENTS = 8;
 const UP = new Vector3(0, 1, 0);
 

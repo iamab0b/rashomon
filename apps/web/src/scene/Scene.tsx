@@ -14,7 +14,7 @@ import { LabelProjector } from "./landmarks/LabelProjector";
 import { LandmarkMarkers } from "./landmarks/LandmarkMarkers";
 import { loadScene, type LoadedScene } from "./loaders/scene";
 import { Actors } from "./playback/Actors";
-import { fixtureGraphSource } from "./playback/graphSource";
+import { fixtureGraphSource, scenarioFromSearch } from "./playback/graphSource";
 import { Playhead } from "./playback/Playhead";
 import { ScrubBar } from "./playback/ScrubBar";
 import { useGraphSource } from "./playback/useGraph";
@@ -119,7 +119,7 @@ export function Scene({ fixture, debug, t }: SceneProps) {
   const isRigDebug = debug === RIG_DEBUG;
   const loaded = useLoadedScene(isRigDebug ? undefined : fixture);
   const graphSource = useMemo(
-    () => (!isRigDebug && fixture ? fixtureGraphSource(fixture) : null),
+    () => (!isRigDebug && fixture ? fixtureGraphSource(fixture, scenarioFromSearch(window.location.search)) : null),
     [isRigDebug, fixture],
   );
   useGraphSource(graphSource);
@@ -150,7 +150,7 @@ export function Scene({ fixture, debug, t }: SceneProps) {
             <LandmarkMarkers landmarks={loaded.manifest.landmarks} />
             <LabelProjector landmarks={loaded.manifest.landmarks} occluders={loaded.model} />
             <FloorProbe interior={loaded.manifest.interior} />
-            <WitnessView model={loaded.model} />
+            <WitnessView model={loaded.model} manifest={loaded.manifest} />
             <PovRayLine />
             {hasGraph ? <Actors /> : null}
             {!hasGraph || actorsReady ? <ReadySignal /> : null}

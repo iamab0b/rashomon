@@ -18,7 +18,7 @@
     },
     "C": {
       "owner": "Eric",
-      "aliases": ["Eric"],
+      "aliases": ["Eric", "Eric Liu", "ieatpiYT", "250847818+ieatpiYT@users.noreply.github.com"],
       "folders": ["packages/extractor", "apps/agent", "apps/web/src/adapters", "spacetimedb/server/src/procedures"],
       "milestones": [
         {"hours": "0-3", "goal": "Extractor core: Claude call with the strict Patch tool, examples 01 and 02 pass against the fixture", "signals": ["packages/extractor/src/*.ts"]},
