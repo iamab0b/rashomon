@@ -23,4 +23,4 @@ Done-check:
 - Switching the toggle reloads with the new `?mode`, and fixture is the default with no query string.
 - Update the PR description: it depends on #12, and live is wired once scene-core's N3 lands.
 
-`/team-status` closes this item when no file under `apps/web/src/ui/` contains `previewStatuses` and the toggle reloads with `?mode=`; the tracker's grep watches for `location.search` in apps/web/src/ui.
+`/team-status` closes this item when no file under `apps/web/src/ui/` contains `previewStatuses` and the toggle reloads with `?mode=`; the tracker's grep watches for an assignment to `location.search` in apps/web/src/ui.
