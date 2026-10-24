@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { isCameraPreset, POV_CAM, Scene, Timeline, useCamera } from "./scene";
 import { RightPanel } from "./ui/RightPanel";
 import { TopBar } from "./ui/TopBar";
+import { ViewSwitcher } from "./ui/ViewSwitcher";
 
 export function App() {
   const params = new URLSearchParams(window.location.search);
@@ -22,8 +23,9 @@ export function App() {
       <TopBar />
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-          <div style={{ flex: 1, minHeight: 0 }}>
+          <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
             <Scene fixture={fixture} debug={debug} t={t} scrubBar={false} />
+            <ViewSwitcher />
           </div>
           <Timeline />
         </div>
