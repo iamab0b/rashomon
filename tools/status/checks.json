@@ -199,6 +199,17 @@
       "paths": [
         "apps/web/src/ui"
       ]
+    },
+    {
+      "id": "pitch-fixes",
+      "from": "Sahil",
+      "due": "16-19",
+      "todo": "PR #28: make the pitch and video plan match main (no agent, no statement box, no export label yet; props are placeholder boxes; quote the real flag questions and fixture words); catch in the first 15 s of the 2-minute cut",
+      "doc": "tools/status/requests/pitch-fixes.md",
+      "grep": "real-size placeholder",
+      "paths": [
+        "demo"
+      ]
     }
   ],
   "runtime": [
