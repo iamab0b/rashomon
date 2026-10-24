@@ -2,7 +2,7 @@
 
 Hazel, Saturday. The interviewee has given a formal statement in an investigative/police setting and spoke from the witness's side: recalling events, organizing details, and wondering how their words were recorded. No name or contact details are kept here.
 
-**Quote permission is not confirmed.** Until it is, attribute by role only ("someone who has given a police statement") and never by name. If they decline, drop the quotes from the pitch.
+**Quote permission was given before the interview.** The pitch credits them by role ("someone who has given a police statement").
 
 ## What was hardest
 

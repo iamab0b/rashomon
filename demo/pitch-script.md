@@ -1,6 +1,6 @@
 # Pitch script: 3 minutes, plus the 2-minute demo-first cut
 
-Hazel presents, Sahil drives, A takes technical questions, Eric stands by on voice. About 420 words for the 3-minute version. Based on the prep pack's script, checked against main on Sat afternoon. The two quotes are from our interview with a person who has given a formal police statement (notes in demo/witness-interview.md). Consent to quote is not confirmed yet: attribute by role only, never by name, and drop the quotes if they decline. Lines in *italics* are what is on screen; quoted UI text is exactly what the app shows. Lines marked **(if merged)** depend on Eric's agent (branch cartesia-agent) or the Statement box (PR #35) being on main by the recording; use the fallback next to them until then.
+Hazel presents, Sahil drives, A takes technical questions, Eric stands by on voice. About 420 words for the 3-minute version. Based on the prep pack's script, checked against main on Sat afternoon. The two quotes are from our interview with a person who has given a formal police statement (notes in demo/witness-interview.md). They agreed to be quoted before the interview; we credit them by role. Lines in *italics* are what is on screen; quoted UI text is exactly what the app shows. Lines marked **(if merged)** depend on Eric's agent (branch cartesia-agent) or the Statement box (PR #35) being on main by the recording; use the fallback next to them until then.
 
 Demo URLs (Sahil's laptop, `localhost:5173`):
 - Fixture, the default: `/`
