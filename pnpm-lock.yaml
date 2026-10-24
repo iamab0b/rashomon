@@ -284,6 +284,9 @@ importers:
 
   spacetimedb/server:
     dependencies:
+      '@rashomon/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
       '@rashomon/schema':
         specifier: workspace:*
         version: link:../../packages/schema
