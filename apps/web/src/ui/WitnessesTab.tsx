@@ -13,7 +13,6 @@ export function witnessName(layers: readonly WitnessLayer[], witnessId: string):
 
 export type Disagreement = { key: string; actor: string; atTimeS: number | null; distanceM: number | null; events: [ResolvedEvent, ResolvedEvent] };
 
-// Contradiction flags between events from different witnesses, one entry per pair.
 export function disagreements({ graph }: Pick<PanelContext, "graph">): Disagreement[] {
   const byId = new Map(graph.events.map((event) => [event.id, event]));
   const seen = new Set<string>();

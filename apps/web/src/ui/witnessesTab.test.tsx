@@ -8,7 +8,6 @@ function twoWitnesses(): ResolvedGraph {
   return selectSource("?scenario=two-witnesses")!.getSnapshot().resolved!;
 }
 
-// As the scene's witnessLayers does: listed witnesses, plus any witness id that only appears on events.
 function layersOf(graph: ResolvedGraph): WitnessLayer[] {
   const listed = graph.witnesses ?? [];
   const derived = [...new Set(graph.events.map((e) => e.witnessId))].filter((id) => !listed.some((w) => w.id === id)).map((id) => ({ id, label: id }));
@@ -79,7 +78,6 @@ describe("witnesses tab", () => {
     expect(html).toContain('aria-label="Show Clerk&#x27;s layer"');
     const hiddenButtons = findAll(hidden, (el) => el.type === "button");
     expect(hiddenButtons.find((b) => b.props.children === "Show all layers")!.props.disabled).toBe(false);
-    // Customer is already the only layer shown.
     expect(hiddenButtons.filter((b) => b.props.children === "Only this")[0]!.props.disabled).toBe(true);
   });
 
