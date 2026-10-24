@@ -104,21 +104,23 @@ function heldIntervals(
   type Open = Omit<HeldInterval, "tEnd">;
   const closeAt = (o: Open, t: number): HeldInterval[] =>
     t > o.tStart + TIME_EPS ? [{ ...o, tEnd: t }] : [];
-  const initial: { closed: HeldInterval[]; open?: Open } = { closed: [] };
-  const { closed, open } = handoffs.reduce((acc, e) => {
+  type Acc = { closed: HeldInterval[]; open?: Open; seen: boolean };
+  const initial: Acc = { closed: [], seen: false };
+  const step = (acc: Acc, e: ResolvedEvent): Acc => {
     if (e.action === "pick_up") {
       if (acc.open?.actor === e.actor) return acc;
-      const closedNow = acc.open
+      const closed = acc.open
         ? [...acc.closed, ...closeAt(acc.open, e.tStart)]
         : acc.closed;
-      return { closed: closedNow, open: { actor: e.actor, tStart: e.tEnd } };
+      return { closed, open: { actor: e.actor, tStart: e.tEnd }, seen: true };
     }
-    if (acc.open && acc.open.actor !== e.actor) return acc;
+    if (acc.open && acc.open.actor !== e.actor) return { ...acc, seen: true };
     if (acc.open)
-      return { closed: [...acc.closed, ...closeAt(acc.open, e.tStart)] };
-    if (acc.closed.length) return acc;
-    return { closed: closeAt({ actor: e.actor, tStart: 0 }, e.tStart) };
-  }, initial);
+      return { closed: [...acc.closed, ...closeAt(acc.open, e.tStart)], seen: true };
+    if (acc.seen) return acc;
+    return { closed: closeAt({ actor: e.actor, tStart: 0 }, e.tStart), seen: true };
+  };
+  const { closed, open } = handoffs.reduce(step, initial);
   const all = open ? [...closed, ...closeAt(open, durationS)] : closed;
   if (!handoffs.length && prop.heldBy)
     return [{ actor: prop.heldBy, tStart: 0, tEnd: durationS }];

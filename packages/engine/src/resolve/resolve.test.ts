@@ -382,6 +382,16 @@ describe("resolve edge cases", () => {
     expect(intervals).toEqual([{ actor: "clerk", tStart: 6, tEnd: 9 }]);
   });
 
+  test("a second drop with no pick_up between never invents a hold", () => {
+    expect(
+      hold([
+        ev({ id: "d1", actor: "suspect", action: "drop", prop: "k", at: { kind: "xyz", position: [3, 0, 8] }, t: [0, 1] }),
+        ev({ id: "d2", actor: "suspect", action: "drop", prop: "k", at: { kind: "xyz", position: [3, 0, 8] }, t: [5, 6] }),
+        ev({ id: "s", actor: "witness", action: "stand", at: { kind: "xyz", position: [8, 0, 8] }, t: [0, 9] }),
+      ]),
+    ).toBeUndefined();
+  });
+
   test("every robbery event is reachable", () => {
     expect(resolve(robbery, store).events.every((e) => e.reachable)).toBe(true);
   });
