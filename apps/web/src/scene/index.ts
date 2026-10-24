@@ -20,6 +20,8 @@ export type { GraphActions } from "./playback/useGraphActions";
 export type { Patch } from "@rashomon/schema";
 export { useTimeline } from "./playback/useTimeline";
 export type { TimelineApi } from "./playback/useTimeline";
+export { useSceneStatus } from "./useSceneStatus";
+export type { SceneStatusView } from "./useSceneStatus";
 export { useSelection } from "./playback/useSelection";
 export type { SelectionApi } from "./playback/useSelection";
 export { Timeline } from "./timeline";
