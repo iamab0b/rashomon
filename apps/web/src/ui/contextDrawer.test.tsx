@@ -3,7 +3,9 @@ import { describe, expect, test } from "vitest";
 import { ContextDrawer } from "./ContextDrawer";
 import { PanelHeader } from "./PanelHeader";
 import { StatusToken, type PanelContext } from "./shared";
-import { gatedRobbery } from "./testGraph";
+import type { Status } from "../scene";
+import { MISSING_OVERRIDE_RECORD } from "./OverrideHistory";
+import { gatedRobbery, OVERRIDE_REASON, overriddenRobbery } from "./testGraph";
 import { transcriptFor } from "./transcript";
 
 function context(): PanelContext {
@@ -99,21 +101,58 @@ describe("context drawer", () => {
   });
 
   test("an overridden selection tints the History rail and focuses its override entry", () => {
-    const base = context();
-    const override = { by: "investigator", reason: "Witness recalled the window view.", at: 0, flagIds: base.graph.events.find((e) => e.id === "e5")!.flags.map((f) => f.id) };
-    const graph = { ...base.graph, events: base.graph.events.map((e) => (e.id === "e5" ? { ...e, status: "overridden" as const, override } : e)) };
-    const ctx = { ...base, graph };
+    const ctx = { ...context(), graph: overriddenRobbery(), statusOf: (e: { status: Status }) => e.status };
     const render = (accent: boolean, view: "history" | null, focus: string | null) =>
       renderToStaticMarkup(
         <ContextDrawer view={view} onOpen={() => {}} onClose={() => {}} context={ctx} focusSourceId={null} overrideFocusId={focus} historyAccent={accent} />,
       );
     expect(render(true, null, null)).toMatch(/class="context-rail__button has-override"[^>]*aria-description="Selected event has override history"/);
     expect(render(false, null, null)).not.toContain("has-override");
-    const html = render(true, "history", "e5");
-    expect(html).toContain("data-override-focus");
-    expect(html).toContain("Witness recalled the window view.");
-    expect(html).toMatch(/Before override<\/span> Implausible · sightline waived/);
+    expect(render(true, "history", "e5")).toContain("data-override-focus");
     expect(render(true, "history", "e3")).not.toContain("data-override-focus");
+  });
+
+  test("an overridden event shows its original finding, the override and the current state, in that order", () => {
+    const graph = overriddenRobbery();
+    const e5 = graph.events.find((e) => e.id === "e5")!;
+    expect(e5.status).toBe("overridden");
+    const ctx = { ...context(), graph, statusOf: (e: { status: Status }) => e.status };
+    const html = renderToStaticMarkup(
+      <ContextDrawer view="history" onOpen={() => {}} onClose={() => {}} context={ctx} focusSourceId={null} overrideFocusId="e5" historyAccent />,
+    );
+    const original = html.indexOf("override-step--original");
+    const action = html.indexOf("override-step--action");
+    const current = html.indexOf("override-step--current");
+    expect(original).toBeGreaterThan(-1);
+    expect(original).toBeLessThan(action);
+    expect(action).toBeLessThan(current);
+    const originalStep = html.slice(original, action);
+    expect(originalStep).toContain("status-token status-implausible");
+    expect(originalStep).toContain("sightline is blocked by the chips shelf");
+    expect(originalStep).toContain("blocker shelf_a");
+    for (const id of e5.sources) expect(originalStep).toContain(id);
+    const actionStep = html.slice(action, current);
+    expect(actionStep).toContain("investigator");
+    expect(actionStep).toContain(OVERRIDE_REASON);
+    expect(actionStep).toMatch(/Previous<\/span>Implausible/);
+    expect(html.slice(current)).toContain("status-token status-overridden");
+    expect(html).not.toContain("no longer reports it");
+  });
+
+  test("missing history is stated, not invented", () => {
+    const graph = overriddenRobbery();
+    const stripped = { ...graph, events: graph.events.map((e) => (e.id === "e5" ? { ...e, flags: [] } : e)) };
+    const html = renderToStaticMarkup(
+      <ContextDrawer view="history" onOpen={() => {}} onClose={() => {}} context={{ ...context(), graph: stripped, statusOf: (e: { status: Status }) => e.status }} focusSourceId={null} />,
+    );
+    expect(html).toContain("sightline:e5</code> was recorded with the override, but the gate no longer reports it");
+    expect(html).not.toContain("blocker shelf_a");
+    const noRecord = { ...graph, events: graph.events.map((e) => (e.id === "e5" ? { ...e, override: undefined } : e)) };
+    const bare = renderToStaticMarkup(
+      <ContextDrawer view="history" onOpen={() => {}} onClose={() => {}} context={{ ...context(), graph: noRecord, statusOf: (e: { status: Status }) => e.status }} focusSourceId={null} />,
+    );
+    expect(bare).toContain(MISSING_OVERRIDE_RECORD);
+    expect(bare).not.toContain("override-step--original");
   });
 
   test("a live proposed event waits with static text, not a spinner", () => {

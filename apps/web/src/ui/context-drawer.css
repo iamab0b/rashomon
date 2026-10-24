@@ -64,5 +64,27 @@
 .rui .context-rail__button .status-diamond,
 .rui .context-tabs .status-diamond { width: 6px; height: 6px; flex: none; }
 .rui .context-tabs button.has-override { display: inline-flex; align-items: center; gap: 6px; }
-.rui .version-card[data-override-focus] .override-log { box-shadow: 0 0 0 1px var(--status-overridden); }
-.rui .override-before span { display: inline-block; min-width: 92px; color: var(--text-secondary); }
+.rui .override-trail { display: grid; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; }
+.rui .override-step { position: relative; display: grid; gap: 5px; padding: 8px 9px 8px 12px; border-radius: 3px; background: var(--surface); font-size: var(--fs-sm); }
+.rui .override-step::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 3px 0 0 3px; }
+.rui .override-step__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rui .override-step__label { color: var(--text-secondary); font: 600 var(--fs-2xs) var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+.rui .override-step--original { border: 1px dashed color-mix(in srgb, var(--status-implausible) 55%, transparent); opacity: .92; }
+.rui .override-step--original::before { background: color-mix(in srgb, var(--status-implausible) 70%, transparent); }
+.rui .override-step__flag { display: grid; gap: 4px; }
+.rui .override-step__flag > p { margin: 0; color: var(--status-implausible); line-height: 1.4; }
+.rui .override-step__flag small { color: var(--status-proposed); font-size: var(--fs-2xs); }
+.rui .override-step__flag .check-chip,
+.rui .override-step__flag .severity-chip { height: 17px; padding: 0 6px; font-size: var(--fs-2xs); }
+.rui .override-step__flag .override-step__detail { color: var(--text-secondary); }
+.rui .override-step .flag-evidence { margin-top: 0; }
+.rui .override-step .version-meta { margin-top: 2px; }
+.rui .override-step--action { border: 1px solid var(--border); }
+.rui .override-step--action::before { background: var(--status-overridden); }
+.rui .override-step__row { display: grid; grid-template-columns: 60px 1fr; gap: 4px; margin: 0; color: var(--text-primary); line-height: 1.35; }
+.rui .override-step__row span { color: var(--text-secondary); }
+.rui .override-step--current { border: 1px solid color-mix(in srgb, var(--status-overridden) 55%, transparent); }
+.rui .override-step--current::before { background: var(--status-overridden); }
+.rui .override-trail__note { margin: 0; color: var(--text-secondary); font-size: var(--fs-2xs); }
+.rui .override-trail__missing { margin: 0; padding: 6px 8px; color: var(--text-secondary); border: 1px dashed var(--border); border-radius: 3px; font-size: var(--fs-xs); }
+.rui .version-card[data-override-focus] .override-step--action { box-shadow: 0 0 0 1px var(--status-overridden); }
