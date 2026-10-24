@@ -3,12 +3,12 @@ import type { Anchor } from "@rashomon/schema";
 import { eventGraphFromRow } from "../convert";
 import { fnv1a64 } from "../extract/hash";
 import { EXTRACTION_FAILED, UNKNOWN_SESSION, runExtraction, type Extraction, type Io } from "../extract/run";
-import { buildGraph } from "../graph";
+import { buildGraph, type ReadDb } from "../graph";
 import { MAX_BODY_BYTES, MAX_UTTERANCES } from "../limits";
 import { insertSegmentRow, key, manifestFor } from "../reducers";
 import { spacetimedb } from "../tables";
 
-export type WebhookIo = Io & { nowMicros: () => bigint; webhookSecret: () => string | undefined };
+export type WebhookIo = Io & { webhookSecret: () => string | undefined };
 
 export const SECRET_HEADER = "x-rashomon-webhook-secret";
 export const SECONDS_PER_WORD = 0.4;
@@ -45,7 +45,6 @@ const firstNumber = (o: Record<string, unknown>, names: string[]): number | unde
 
 const bad = (error: string): WebhookOutcome => ({ status: 400, body: { error } });
 
-// Runs over the whole of the longer input, so the time taken does not depend on where the first mismatch is.
 export function secretsMatch(given: string, expected: string): boolean {
   const n = Math.max(given.length, expected.length);
   let diff = given.length ^ expected.length;
@@ -60,6 +59,23 @@ const readSecret = (io: WebhookIo): string | undefined => {
     return undefined;
   }
 };
+
+export const defaultSegmentId = (
+  sessionId: string,
+  utterances: { text: string; tStart?: number; tEnd?: number }[],
+  priorSegments: number,
+): string =>
+  `seg_${fnv1a64(JSON.stringify([sessionId, priorSegments, utterances.map((u) => [u.text, u.tStart ?? null, u.tEnd ?? null])]))}`;
+
+export function resolveSegmentId(db: ReadDb, sessionId: string, parts: { text: string; tStart?: number; tEnd?: number }[]): string {
+  let prior = 0;
+  for (const s of db.segments.sessionId.filter(sessionId)) if (s.sessionId === sessionId) prior++;
+  if (prior > 0) {
+    const previous = defaultSegmentId(sessionId, parts, prior - 1);
+    if (db.segments.rowKey.find(key(sessionId, previous))) return previous;
+  }
+  return defaultSegmentId(sessionId, parts, prior);
+}
 
 type Authorized = { body: Record<string, unknown>; sessionId: string };
 
@@ -84,27 +100,25 @@ function authorize(io: WebhookIo, req: Request): Authorized | WebhookOutcome {
 
 const isOutcome = (v: Authorized | WebhookOutcome): v is WebhookOutcome => "status" in v;
 
-type Utterance = { id: string; text: string; tStart: number; tEnd: number };
+type Parsed = { id: string | undefined; text: string; tStart: number; tEnd: number };
 
 export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
   const auth = authorize(io, req);
   if (isOutcome(auth)) return auth;
   const { body, sessionId } = auth;
   const witnessId = firstString(body, ["witnessId", "witness_id", "witness", "witnessName", "witness_name"]) ?? "witness";
+  const givenId = firstString(body, ["segmentId", "segment_id"]);
 
-  let segmentId: string;
   let text: string;
-  let utterances: Utterance[] | undefined;
+  let parsed: Parsed[] | undefined;
   if (body.utterances === undefined) {
     const plain = firstString(body, ["text"]);
     if (!plain) return bad("text or utterances is required");
     text = plain.trim();
-    segmentId = firstString(body, ["segmentId", "segment_id"]) ?? `seg_${fnv1a64(`${sessionId}\n${text}`)}`;
   } else {
     if (!Array.isArray(body.utterances) || body.utterances.length === 0) return bad("utterances must be a non-empty array");
     if (body.utterances.length > MAX_UTTERANCES) return bad(`at most ${MAX_UTTERANCES} utterances per request`);
-    segmentId = firstString(body, ["segmentId", "segment_id"]) ?? `seg_${io.nowMicros()}`;
-    utterances = [];
+    parsed = [];
     for (const [i, raw] of body.utterances.entries()) {
       if (!isRecord(raw)) return bad(`utterance ${i} must be an object`);
       const uText = firstString(raw, ["text"]);
@@ -112,23 +126,26 @@ export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
       const tEnd = firstNumber(raw, ["tEnd", "t_end"]);
       if (!uText) return bad(`utterance ${i} needs text`);
       if (tStart === undefined || tEnd === undefined || tStart > tEnd) return bad(`utterance ${i} needs tStart and tEnd in order`);
-      utterances.push({ id: firstString(raw, ["id"]) ?? `${segmentId}_u${i + 1}`, text: uText, tStart, tEnd });
+      parsed.push({ id: firstString(raw, ["id"]), text: uText, tStart, tEnd });
     }
-    text = utterances.map((u) => u.text).join(" ");
+    text = parsed.map((u) => u.text).join(" ");
   }
 
+  let segmentId: string;
   try {
-    io.withTx((ctx) => {
-      // A resend of a segment that is already stored (same id, same text) goes straight to the stored result.
-      const existing = ctx.db.segments.rowKey.find(key(sessionId, segmentId));
-      if (existing && existing.sessionId === sessionId && existing.text === text) return;
-      let lines = utterances;
-      if (!lines) {
+    segmentId = io.withTx((ctx) => {
+      const id = givenId ?? resolveSegmentId(ctx.db, sessionId, parsed ?? [{ text }]);
+      const existing = ctx.db.segments.rowKey.find(key(sessionId, id));
+      if (existing && existing.sessionId === sessionId && existing.text === text) return id;
+      let lines: { id: string; text: string; tStart: number; tEnd: number }[];
+      if (parsed) {
+        lines = parsed.map((u, i) => ({ ...u, id: u.id ?? `${id}_u${i + 1}` }));
+      } else {
         let start = 0;
         for (const s of ctx.db.segments.sessionId.filter(sessionId)) if (s.sessionId === sessionId && s.tEnd > start) start = s.tEnd;
         const words = text.split(/\s+/).filter(Boolean).length;
         const end = Math.round((start + Math.max(1, words * SECONDS_PER_WORD)) * 10) / 10;
-        lines = [{ id: `${segmentId}_u1`, text, tStart: start, tEnd: end }];
+        lines = [{ id: `${id}_u1`, text, tStart: start, tEnd: end }];
       }
       let tStart = Infinity;
       let tEnd = -Infinity;
@@ -137,7 +154,7 @@ export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
         if (u.tEnd > tEnd) tEnd = u.tEnd;
       }
       insertSegmentRow(ctx, {
-        id: segmentId,
+        id,
         sessionId,
         witnessId,
         speaker: "witness",
@@ -148,6 +165,7 @@ export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
         supersedes: undefined,
         utterances: lines,
       });
+      return id;
     });
   } catch {
     return bad("the segment could not be stored");
@@ -220,7 +238,6 @@ const respond = (handle: (io: WebhookIo, req: Request) => WebhookOutcome) =>
         webhookSecret: () => ctx.env.CARTESIA_WEBHOOK_SECRET,
         http: ctx.http,
         withTx: (body) => ctx.withTx(body),
-        nowMicros: () => ctx.timestamp.microsSinceUnixEpoch,
       },
       req,
     );

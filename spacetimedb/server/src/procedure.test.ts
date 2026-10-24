@@ -8,8 +8,14 @@ import { robberyGraph } from "@rashomon/schema/fixtures";
 import robberyTranscript from "../../../packages/extractor/fixtures/robbery.transcript.json";
 import robberyToolUses from "./fixtures/robbery.tool-uses.json";
 import { EXTRACTION_MODEL } from "@rashomon/extractor";
-import { SECRET_HEADER, handleCartesia, handleEndInterview, handleSceneContext, secretsMatch } from "./http/cartesia";
-import { fnv1a64 } from "./extract/hash";
+import {
+  SECRET_HEADER,
+  defaultSegmentId,
+  handleCartesia,
+  handleEndInterview,
+  handleSceneContext,
+  secretsMatch,
+} from "./http/cartesia";
 import { MAX_BODY_BYTES, MAX_SEGMENT_TEXT_CHARS, MAX_UTTERANCES } from "./limits";
 import { EXTRACTION_FAILED, PROMPT_HASH, runExtraction, type Io } from "./extract/run";
 import { NOT_THE_MODULE, extractAs } from "./procedures/extractSegment";
@@ -224,8 +230,6 @@ describe("extractSegment", () => {
         ]),
       }),
     );
-    // e7 is retracted while the model call is in flight, so the batch is valid against the
-    // snapshot the model saw but its second patch fails inside applyPatchBatch.
     const responder: TestHttpResponder<never> = (test, req, b) => {
       call((ctx) =>
         mod.applyPatches(ctx, {
@@ -302,7 +306,6 @@ describe("extractSegment", () => {
   test("when two calls overlap, only the first to finish applies its patches", () => {
     let nested: ReturnType<typeof runExtraction> | undefined;
     const outer: TestHttpResponder<never> = (test, req, b) => {
-      // A second call for the same segment starts and finishes while this one waits on the model.
       if (!nested) nested = runExtraction(ioFor(ok([toolUse("tu_n", "add_event", walkInput)])), SESSION, "utt_2");
       return ok([toolUse("tu_o", "add_event", { ...walkInput, actor: "clerk", t_start: 15, t_end: 18 })])(test, req, b);
     };
@@ -336,9 +339,9 @@ describe("extractSegment", () => {
 describe("the Cartesia webhook", () => {
   const webhookIo = (responder: TestHttpResponder<never>, secret: string | undefined = HOOK) => ({
     ...ioFor(responder),
-    nowMicros: () => 1234n,
     webhookSecret: () => secret,
   });
+  const SEG = defaultSegmentId(SESSION, [{ text: "A guy came in the front door.", tStart: 7.8, tEnd: 12 }], 1);
   const body = (over: Record<string, unknown> = {}) =>
     JSON.stringify({
       sessionId: SESSION,
@@ -419,11 +422,13 @@ describe("the Cartesia webhook", () => {
   });
 
   test("exactly 50 utterances are accepted", () => {
-    const io = webhookIo(ok([toolUse("tu_1", "add_event", { ...walkInput, sources: ["seg_1234"] })]));
+    const io = webhookIo(ok([toolUse("tu_1", "add_event", { ...walkInput, sources: [SEG] })]));
     const fifty = Array.from({ length: MAX_UTTERANCES }, (_, i) => ({ text: `line ${i}`, tStart: i, tEnd: i + 0.5 }));
     const out = handleCartesia(io, post(body({ utterances: fifty })));
     expect(out.status).toBe(200);
-    expect(harness.db.segments.rowKey.find(`${SESSION}/seg_1234`)).toMatchObject({ tStart: 0, tEnd: 49.5 });
+    const id = (out.body as { segmentId: string }).segmentId;
+    expect(id).toBe(defaultSegmentId(SESSION, fifty, 1));
+    expect(harness.db.segments.rowKey.find(`${SESSION}/${id}`)).toMatchObject({ tStart: 0, tEnd: 49.5 });
   });
 
   test("the exported handler reads the secret from the module env and checks it first", () => {
@@ -435,13 +440,13 @@ describe("the Cartesia webhook", () => {
   });
 
   test("a good body inserts the segment, runs the extraction and returns its result", () => {
-    const io = webhookIo(ok([toolUse("tu_1", "add_event", { ...walkInput, sources: ["seg_1234"] })]));
+    const io = webhookIo(ok([toolUse("tu_1", "add_event", { ...walkInput, sources: [SEG] })]));
     const out = handleCartesia(io, post(body()));
     expect(out.status).toBe(200);
-    expect(out.body).toMatchObject({ segmentId: "seg_1234", patchCount: 1, statuses: [{ eventId: "e1", status: "plausible" }] });
-    const row = harness.db.segments.rowKey.find(`${SESSION}/seg_1234`)!;
+    expect(out.body).toMatchObject({ segmentId: SEG, patchCount: 1, statuses: [{ eventId: "e1", status: "plausible" }] });
+    const row = harness.db.segments.rowKey.find(`${SESSION}/${SEG}`)!;
     expect(row).toMatchObject({ speaker: "witness", witnessId: "w1", source: "live", tStart: 7.8, tEnd: 12 });
-    expect(row.extractUtteranceIds).toEqual(["seg_1234_u1"]);
+    expect(row.extractUtteranceIds).toEqual([`${SEG}_u1`]);
     expect(graph().events).toHaveLength(1);
   });
 
@@ -458,11 +463,43 @@ describe("the Cartesia webhook", () => {
     expect(requests).toHaveLength(1);
   });
 
+  test("a resend without a segmentId gets the same id and the stored result, not a second call", () => {
+    const io = webhookIo(ok([toolUse("tu_1", "add_event", walkInput)]));
+    const first = handleCartesia(io, post(body()));
+    expect(first.status).toBe(200);
+    expect(SEG).toMatch(/^seg_[0-9a-f]{16}$/);
+    expect(first.body).toMatchObject({ segmentId: SEG, patchCount: 1 });
+    const again = handleCartesia(io, post(body()));
+    expect(again).toEqual(first);
+    expect(requests).toHaveLength(1);
+    expect(graph().events).toHaveLength(1);
+    expect([...harness.db.segments.sessionId.filter(SESSION)]).toHaveLength(2);
+  });
+
+  test("the default segment id changes with the session, the text, the times or the session's segment count", () => {
+    const u = { text: "A guy came in the front door.", tStart: 7.8, tEnd: 12 };
+    expect(defaultSegmentId(SESSION, [u], 1)).toBe(SEG);
+    expect(defaultSegmentId("s2", [u], 1)).not.toBe(SEG);
+    expect(defaultSegmentId(SESSION, [{ ...u, text: "A guy came in the back door." }], 1)).not.toBe(SEG);
+    expect(defaultSegmentId(SESSION, [{ ...u, tEnd: 12.5 }], 1)).not.toBe(SEG);
+    expect(defaultSegmentId(SESSION, [u], 2)).not.toBe(SEG);
+  });
+
+  test("a key read that throws is a generic 502 and never reaches the model", () => {
+    const hostError = "Unsupported SpacetimeDB host syscall: env_get";
+    const io = { ...webhookIo(ok([toolUse("tu_1", "add_event", walkInput)])), apiKey: () => { throw new Error(hostError); } };
+    const out = handleCartesia(io, post(body()));
+    expect(out).toEqual({ status: 502, body: { error: EXTRACTION_FAILED } });
+    expect(requests).toHaveLength(0);
+    expect(harness.db.segments.rowKey.find(`${SESSION}/${SEG}`)?.extractError).toBe("no_api_key");
+    expect(lastLog()).toBe(`extract_segment s1/${SEG} no_api_key: reading ANTHROPIC_API_KEY failed: ${hostError}`);
+  });
+
   test("an extraction error is a 502 with a generic message, and the detail stays on the segment", () => {
     const out = handleCartesia(webhookIo(status(500, JSON.stringify({ error: { message: "overloaded" } }))), post(body()));
     expect(out).toEqual({ status: 502, body: { error: EXTRACTION_FAILED } });
-    expect(harness.db.segments.rowKey.find(`${SESSION}/seg_1234`)?.extractError).toBe("model_error");
-    expect(lastLog()).toBe("extract_segment s1/seg_1234 model_error: Anthropic API 500: overloaded");
+    expect(harness.db.segments.rowKey.find(`${SESSION}/${SEG}`)?.extractError).toBe("model_error");
+    expect(lastLog()).toBe(`extract_segment s1/${SEG} model_error: Anthropic API 500: overloaded`);
   });
 
   test("an upstream message echoing a variant of the key never reaches the caller", () => {
@@ -485,7 +522,7 @@ describe("the Cartesia webhook", () => {
   });
 
   test("a partly rejected batch is a 200 whose error is generic", () => {
-    const good = toolUse("tu_1", "add_event", { ...walkInput, sources: ["seg_1234"] });
+    const good = toolUse("tu_1", "add_event", { ...walkInput, sources: [SEG] });
     const badCall = toolUse("tu_2", "add_event", { ...walkInput, from: at("moon_base") });
     let n = 0;
     const responder: TestHttpResponder<never> = (test, req, b) => (n++ === 0 ? ok([good, badCall]) : ok([badCall]))(test, req, b);
@@ -493,11 +530,11 @@ describe("the Cartesia webhook", () => {
     expect(out.status).toBe(200);
     expect(out.body).toMatchObject({ patchCount: 1, error: "extraction partly failed" });
     expect(JSON.stringify(out.body)).not.toContain("moon_base");
-    expect(harness.db.segments.rowKey.find(`${SESSION}/seg_1234`)?.extractError).toBe("partly_rejected");
+    expect(harness.db.segments.rowKey.find(`${SESSION}/${SEG}`)?.extractError).toBe("partly_rejected");
     expect(lastLog()).toMatch(/partly_rejected: partly rejected: add_event: .*moon_base/);
   });
   const STATEMENT = "A guy came in the front door.";
-  const plainId = `seg_${fnv1a64(`${SESSION}\n${STATEMENT}`)}`;
+  const plainId = defaultSegmentId(SESSION, [{ text: STATEMENT }], 1);
   const plain = (over: Record<string, unknown> = {}) => JSON.stringify({ sessionId: SESSION, text: STATEMENT, ...over });
 
   test("a plain text body is stored as one utterance after the session's last segment and extracted", () => {
@@ -520,6 +557,39 @@ describe("the Cartesia webhook", () => {
     expect(requests).toHaveLength(1);
     expect([...harness.db.segments.sessionId.filter(SESSION)]).toHaveLength(2);
     expect(graph().events).toHaveLength(1);
+  });
+
+  test("a second identical answer after another statement is a new segment, while a retry is deduplicated", () => {
+    const no = defaultSegmentId(SESSION, [{ text: "No." }], 1);
+    const other = defaultSegmentId(SESSION, [{ text: "He had a knife." }], 2);
+    const noAgain = defaultSegmentId(SESSION, [{ text: "No." }], 3);
+    let n = 0;
+    const sources = [no, other, noAgain];
+    const responder: TestHttpResponder<never> = (test, req, b) =>
+      ok([toolUse(`tu_${n}`, "add_event", { ...walkInput, sources: [sources[n++]] })])(test, req, b);
+    const io = webhookIo(responder);
+    const first = handleCartesia(io, post(plain({ text: "No." })));
+    expect(first.body).toMatchObject({ segmentId: no });
+    expect(handleCartesia(io, post(plain({ text: "No." })))).toEqual(first);
+    expect(handleCartesia(io, post(plain({ text: "He had a knife." }))).body).toMatchObject({ segmentId: other });
+    const second = handleCartesia(io, post(plain({ text: "No." })));
+    expect(second.status).toBe(200);
+    expect(second.body).toMatchObject({ segmentId: noAgain });
+    expect(noAgain).not.toBe(no);
+    expect(handleCartesia(io, post(plain({ text: "No." }))).body).toMatchObject({ segmentId: noAgain, patchCount: 1 });
+    expect(requests).toHaveLength(3);
+    expect([...harness.db.segments.sessionId.filter(SESSION)].map((r) => r.id)).toEqual(["utt_2", no, other, noAgain]);
+  });
+
+  test("a resent utterance body is deduplicated and the same words with new times later are a new segment", () => {
+    const io = webhookIo(ok([toolUse("tu_1", "add_event", { ...walkInput, sources: [SEG] })]));
+    const first = handleCartesia(io, post(body()));
+    expect(handleCartesia(io, post(body()))).toEqual(first);
+    const later = { utterances: [{ text: "A guy came in the front door.", tStart: 40, tEnd: 44 }] };
+    const laterId = defaultSegmentId(SESSION, later.utterances, 2);
+    const out = handleCartesia(webhookIo(ok([toolUse("tu_2", "add_event", { ...walkInput, sources: [laterId] })])), post(body(later)));
+    expect(out.body).toMatchObject({ segmentId: laterId });
+    expect([...harness.db.segments.sessionId.filter(SESSION)]).toHaveLength(3);
   });
 
   test("a plain text body without text is a 400, and a wrong secret is a 401, before anything is stored", () => {
@@ -677,7 +747,7 @@ describe("the robbery demo path", () => {
       headers: { [SECRET_HEADER]: HOOK },
       body: JSON.stringify({ sessionId: SESSION, segmentId: robberyToolUses.segmentId, witness: "w1", utterances }),
     });
-    const io = { ...ioFor(ok(robberyToolUses.content)), nowMicros: () => 1n, webhookSecret: () => HOOK };
+    const io = { ...ioFor(ok(robberyToolUses.content)), webhookSecret: () => HOOK };
     const out = handleCartesia(io, req);
     expect(out.status).toBe(200);
     expect(out.body).toMatchObject({ segmentId: "seg_w1", patchCount: 12, error: undefined });

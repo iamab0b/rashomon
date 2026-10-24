@@ -8,7 +8,7 @@ import robberyToolUses from "./fixtures/robbery.tool-uses.json";
 import { editorList, isEditor } from "./editors";
 import { eventGraphFromRow } from "./convert";
 import type { Io } from "./extract/run";
-import { SECRET_HEADER, handleCartesia } from "./http/cartesia";
+import { SECRET_HEADER, defaultSegmentId, handleCartesia } from "./http/cartesia";
 import { MAX_SEGMENT_TEXT_CHARS } from "./limits";
 import { NOT_THE_MODULE } from "./procedures/extractSegment";
 import { runQueuedAs } from "./procedures/runQueuedExtraction";
@@ -258,6 +258,7 @@ describe("the webhook still works with no editors listed", () => {
       utterances: [{ text, tStart: 0, tEnd: 30 }],
     });
     expect(new TextEncoder().encode(body).length).toBeGreaterThanOrEqual(40_000);
+    const segmentId = defaultSegmentId(SESSION, [{ text, tStart: 0, tEnd: 30 }], [...harness.db.segments.sessionId.filter(SESSION)].length);
     const walk = {
       actor: "suspect",
       action: "walk",
@@ -271,12 +272,12 @@ describe("the webhook still works with no editors listed", () => {
       t_end: 5,
       t_confidence: "inferred",
       confidence: "high",
-      sources: ["seg_1234"],
+      sources: [segmentId],
     };
     const out = handleCartesia(webhookIo(respond([toolUse("tu_1", "add_event", walk)])), post(body));
     expect(out.status).toBe(200);
-    expect(out.body).toMatchObject({ segmentId: "seg_1234", patchCount: 1 });
-    expect(harness.db.segments.rowKey.find(`${SESSION}/seg_1234`)?.text).toHaveLength(30_000);
+    expect(out.body).toMatchObject({ segmentId, patchCount: 1 });
+    expect(harness.db.segments.rowKey.find(`${SESSION}/${segmentId}`)?.text).toHaveLength(30_000);
     expect(graph().events).toHaveLength(1);
   });
 
