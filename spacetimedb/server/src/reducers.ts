@@ -26,6 +26,7 @@ import {
   validateFlag,
 } from "./convert";
 import { buildGraph, type ModuleSchema } from "./graph";
+import { MAX_BODY_BYTES, MAX_UTTERANCES, byteLength } from "./limits";
 import { EventGraphT, FlagT, StatusEntryT, UtteranceInputT, spacetimedb } from "./tables";
 
 type Ctx = ReducerCtx<ModuleSchema>;
@@ -257,6 +258,8 @@ export const insertSegment = spacetimedb.reducer(
     utterances: t.array(UtteranceInputT),
   },
   (ctx, a) => {
+    if (a.utterances.length > MAX_UTTERANCES) fail(`at most ${MAX_UTTERANCES} utterances per segment`);
+    if (byteLength(a) > MAX_BODY_BYTES) fail(`a segment must be at most ${MAX_BODY_BYTES} bytes`);
     requireSession(ctx, a.sessionId);
     idOf(a.id, "segment id");
     nonEmptyString(a.witnessId, "segment witnessId");

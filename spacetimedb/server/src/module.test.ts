@@ -4,6 +4,7 @@ import { TestAuth, createModuleTestHarness } from "spacetimedb/server/test-utils
 import type { Patch } from "@rashomon/schema";
 import { robberyGraph } from "@rashomon/schema/fixtures";
 import { eventGraphFromRow } from "./convert";
+import { MAX_BODY_BYTES, MAX_UTTERANCES } from "./limits";
 import * as mod from "./index";
 import { spacetimedb } from "./tables";
 
@@ -82,6 +83,22 @@ describe("insertSegment", () => {
     insert();
     expect(h.db.segments.rowKey.find(`${SESSION}/seg1`)).toMatchObject({ sessionId: SESSION, speaker: "witness", tEnd: 4 });
     expect(h.db.utterances.rowKey.find(`${SESSION}/utt_1`)).toMatchObject({ segmentKey: `${SESSION}/seg1`, text: expect.any(String) });
+  });
+
+  test("insert_segment rejects a segment over the webhook caps", () => {
+    const utterances = Array.from({ length: MAX_UTTERANCES + 1 }, (_, i) => ({ id: `u${i}`, text: "x", tStart: 0, tEnd: 1 }));
+    expect(() => insert({ utterances })).toThrow(/at most 50 utterances per segment/);
+    const text = "x".repeat(MAX_BODY_BYTES);
+    expect(() => insert({ text, utterances: [{ id: "u1", text: "x", tStart: 0, tEnd: 1 }] })).toThrow(/at most 65536 bytes/);
+    expect(h.db.segments.rowKey.find(`${SESSION}/seg1`)).toBeNull();
+    expect([...h.db.utterances.sessionId.filter(SESSION)]).toEqual([]);
+  });
+
+  test("a segment within the caps still inserts", () => {
+    const utterances = Array.from({ length: MAX_UTTERANCES }, (_, i) => ({ id: `u${i}`, text: "x", tStart: 0, tEnd: 1 }));
+    insert({ text: "x".repeat(MAX_BODY_BYTES / 2), utterances });
+    expect(h.db.segments.rowKey.find(`${SESSION}/seg1`)).toMatchObject({ sessionId: SESSION });
+    expect([...h.db.utterances.sessionId.filter(SESSION)]).toHaveLength(MAX_UTTERANCES);
   });
 
   test("rejects an unknown session, a bad speaker or source, a reversed interval and an empty text", () => {
