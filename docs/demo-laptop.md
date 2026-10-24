@@ -96,8 +96,10 @@ Variable names only; the values come from Sahil's shell (read with `read -rs`, n
 
 ```
 cd spacetimedb/server
-ANTHROPIC_API_KEY=… CARTESIA_WEBHOOK_SECRET=… EDITOR_IDENTITIES=… spacetime publish rashomon --server maincloud -y
+ANTHROPIC_API_KEY=… CARTESIA_WEBHOOK_SECRET=… EDITOR_IDENTITIES=… spacetime publish rashomon --server maincloud -c=never --break-clients -y
 ```
+
+- `--break-clients` is needed while a publish changes a row type the browser decodes (it does for #31 multi-witness). After such a publish, every open browser must `git pull`, `pnpm install` and hard-reload (section 4).
 
 - No `-c` while Maincloud holds the demo session: a publish without it keeps every session. If a publish refuses because of a breaking schema change, stop and ask before using `-c=always`, which wipes everything and means re-seeding demo with `tools/smoke/seed-maincloud.sh demo`.
 - `EDITOR_IDENTITIES` is a comma-separated list of hex identities: Sahil's CLI identity (`spacetime login show`, which the seed scripts need), Eric's, and the demo browser's.
@@ -108,6 +110,21 @@ EDITOR_IDENTITIES=… spacetime publish rashomon --server maincloud --env-only -
 ```
 
 - After any publish, run docs/smoke-demo.md M1 to M3.
+
+### Environment variable names (values only in Sahil's shell or the dev server's shell, never in the repo)
+
+| Name | Used by | When |
+| --- | --- | --- |
+| `ANTHROPIC_API_KEY` | module (extraction), at publish | always |
+| `CARTESIA_WEBHOOK_SECRET` | module (webhook), at publish; Cartesia dashboard header | always |
+| `EDITOR_IDENTITIES` | module, at publish | always |
+| `CARTESIA_API_KEY` | apps/agent setup script (Eric) | agent setup only |
+| `UTHANA_API_KEY` | module (generated motion), at publish; dev server proxy `/__uthana` | after the generated-motion PR merges |
+| `UTHANA_CHARACTER_ID` | module and dev server (the uploaded Y Bot's id; not secret, kept out of the repo) | after the generated-motion PR merges |
+| `MESHY_API_KEY` | only if the bodies are generated through Meshy's API instead of its web app | optional |
+
+To upload the Y Bot to Uthana once, from your own terminal, after `read -rs UTHANA_API_KEY && export UTHANA_API_KEY`: use the multipart `create_character` request from uthana.com/docs/api/capabilities/auto-rig-and-add-character with apps/web/public/characters/ybot.fbx, then `export UTHANA_CHARACTER_ID=<returned id>`. Re-uploading the same file returns the same id.
+
 
 ## 7. At the table
 
