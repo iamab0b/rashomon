@@ -10,7 +10,7 @@ import robberyToolUses from "./fixtures/robbery.tool-uses.json";
 import { EXTRACTION_MODEL, NO_TOOL_CALL_NUDGE } from "@rashomon/extractor";
 import { SECRET_HEADER, defaultSegmentId, handleCartesia, secretsMatch } from "./http/cartesia";
 import { MAX_BODY_BYTES, MAX_SEGMENT_TEXT_CHARS, MAX_UTTERANCES } from "./limits";
-import { EXTRACTION_FAILED, PROMPT_HASH, runExtraction, type Io } from "./extract/run";
+import { EXTRACTION_FAILED, EXTRACTION_PARTLY_FAILED, PROMPT_HASH, runExtraction, type Io } from "./extract/run";
 import { NOT_THE_MODULE, extractAs } from "./procedures/extractSegment";
 import * as mod from "./index";
 import { eventGraphFromRow } from "./convert";
@@ -223,8 +223,36 @@ describe("extractSegment", () => {
     expect(requests).toHaveLength(1);
     expect(result.error).toBe(EXTRACTION_FAILED);
     expect(segmentRow().extractError).toBe("truncated");
-    expect(lastLog()).toMatch(/truncated: the reply reached max_tokens before any tool call/);
+    expect(lastLog()).toMatch(/truncated: the reply reached max_tokens before it finished/);
     expect(graph().events).toEqual([]);
+  });
+
+  test("a truncated reply with a cut-off tool call is stored as truncated, not as bad tool output", () => {
+    const cutOff = [toolUse("tu_1", "add_event", { actor: "suspect", action: "walk" })];
+    const result = runExtraction(ioFor(ok(cutOff, { stop_reason: "max_tokens" })), SESSION, "utt_2");
+    expect(requests).toHaveLength(1);
+    expect(result.error).toBe(EXTRACTION_FAILED);
+    expect(segmentRow().extractError).toBe("truncated");
+    expect(graph().events).toEqual([]);
+  });
+
+  test("a retry cut off by max_tokens keeps and applies the calls the first reply got right", () => {
+    let n = 0;
+    const responder: TestHttpResponder<never> = (test, req, body) => {
+      n += 1;
+      if (n === 1)
+        return ok([toolUse("tu_ok", "add_event", walkInput), toolUse("tu_bad", "add_event", { ...walkInput, from: at("moon_base") })])(test, req, body);
+      return ok([toolUse("tu_fix", "add_event", { actor: "suspect" })], { stop_reason: "max_tokens" })(test, req, body);
+    };
+    const result = runExtraction(ioFor(responder), SESSION, "utt_2");
+    expect(n).toBe(2);
+    expect(result.patchCount).toBe(1);
+    expect(result.error).toBe(EXTRACTION_PARTLY_FAILED);
+    expect(graph().events).toHaveLength(1);
+    expect(segmentRow().extractError).toBe("truncated");
+    expect(segmentRow().extractedAt).toBeDefined();
+    expect(segmentRow().extractPatchCount).toBe(1);
+    expect(lastLog()).toMatch(/truncated: partly rejected: truncated/);
   });
 
   test("a retry that fixes the call is applied", () => {

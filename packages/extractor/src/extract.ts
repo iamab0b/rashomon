@@ -43,12 +43,12 @@ export async function extractSegment(
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     attempts++;
     const response = await callModel({ ...first, messages });
+    if (response.stop_reason === "max_tokens") {
+      unparsed = [TRUNCATED];
+      break;
+    }
     const blocks = response.content.filter(isToolUse);
     if (blocks.length === 0) {
-      if (response.stop_reason === "max_tokens") {
-        unparsed = [TRUNCATED];
-        break;
-      }
       unparsed = [NO_TOOL_CALL];
       if (attempt === maxRetries) break;
       if (response.content.length > 0) messages.push({ role: "assistant", content: response.content });

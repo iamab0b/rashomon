@@ -348,6 +348,35 @@ describe("extractSegment", () => {
     expect(TRUNCATED).toBe("truncated");
   });
 
+  test("a reply cut off inside a tool call is reported as truncated, not validated", async () => {
+    let calls = 0;
+    const model: CallModel = async () => {
+      calls++;
+      return { content: [use("add_event", { actor: "suspect" }, "cut")], stop_reason: "max_tokens" };
+    };
+    const r = await extractSegment(utt("utt_2"), baseCtx(), model);
+    expect(calls).toBe(1);
+    expect(r.patches).toEqual([]);
+    expect(r.unparsed).toEqual([TRUNCATED]);
+  });
+
+  test("a retry cut off by max_tokens keeps the patches the first reply got right", async () => {
+    let calls = 0;
+    const model: CallModel = async () => {
+      calls++;
+      if (calls === 1)
+        return {
+          content: [use("add_event", walkInput(), "ok"), use("add_event", walkInput({ to: at("the moon") }), "bad")],
+          stop_reason: "tool_use",
+        };
+      return { content: [use("add_event", { actor: "suspect" }, "cut")], stop_reason: "max_tokens" };
+    };
+    const r = await extractSegment(utt("utt_2"), baseCtx(), model);
+    expect(calls).toBe(2);
+    expect(r.patches).toHaveLength(1);
+    expect(r.unparsed).toEqual([TRUNCATED]);
+  });
+
   test("retries once with the error and keeps the patches that were fine", async () => {
     const requests: number[] = [];
     const toolChoices: string[] = [];
