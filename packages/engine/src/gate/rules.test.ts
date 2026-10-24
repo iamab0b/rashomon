@@ -7,6 +7,7 @@ import { missingTimeFlags, unanchoredFlags } from "./completeness";
 import { contradictionFlags } from "./contradiction";
 import { gate } from "./index";
 import { boxMesh } from "./occluders";
+import { spokenActor } from "./labels";
 import { reachabilityFlags } from "./reachability";
 import { sightlineFlags } from "./sightline";
 import { ev, floorPlanGeom, graphOf } from "./testHelpers";
@@ -364,7 +365,7 @@ describe("contradiction", () => {
     expect(f[0]).toMatchObject({ check: "contradiction", severity: "soft", eventId: "p", conflictsWith: ["q"] });
     expect(f[1]).toMatchObject({ eventId: "q", conflictsWith: ["p"] });
     expect(f[0]!.detail).toMatch(/\d+\.\d m apart/);
-    expect(f[0]!.suggestedQuestion).toMatch(/^Earlier you said a was by the .* around then; now the .*\. Which came first\?$/);
+    expect(f[0]!.suggestedQuestion).toMatch(/^Earlier you said the a was by the .* around then; now the .*\. Which came first\?$/);
     expect(f[0]!.evidence).toMatchObject({ distanceM: expect.any(Number) });
   });
 
@@ -402,7 +403,7 @@ describe("unanchored and missing_time", () => {
     const mt = missingTimeFlags(g);
     expect(mt.map((f) => f.eventId)).toEqual(["m"]);
     expect(mt[0]!.detail).toContain("2.0 s");
-    expect(mt[0]!.suggestedQuestion).toMatch(/^Was that before or after the stand by a\?$/);
+    expect(mt[0]!.suggestedQuestion).toMatch(/^Was that before or after the stand by the a\?$/);
     const out = gate(g, manifest(), empty);
     expect(out.statuses).toEqual({ u: "proposed", m: "proposed", ok: "plausible" });
     expect(out.flags.every((f) => f.severity === "soft")).toBe(true);
@@ -420,7 +421,7 @@ describe("unanchored and missing_time", () => {
       ev({ id: "live", action: "stand", at: [1, 0, 1] }),
       ev({ id: "m", action: "shove", at: [1, 0, 1], tInferred: true, tStart: 3, tEnd: 4 }),
     ]);
-    expect(missingTimeFlags(withLive)[0]!.suggestedQuestion).toBe("Was that before or after the stand by a?");
+    expect(missingTimeFlags(withLive)[0]!.suggestedQuestion).toBe("Was that before or after the stand by the a?");
   });
 
   test("an unanchored event's question names the two landmarks nearest the actor's last known position", () => {
@@ -621,5 +622,106 @@ describe("overrides and retractions derived from the graph", () => {
     const both = run(withChanges({ e5: { supersededBy: "utt_9", override: override("a perfectly good reason") } }));
     expect(both.statuses.e5).toBe("superseded");
     expect(both.flags).toEqual([]);
+  });
+});
+
+describe("questions speak to the witness", () => {
+  const geom = floorPlanGeom();
+  const movedE5 = (): EventGraph => ({
+    ...robberyGraph,
+    events: robberyGraph.events.map((e) =>
+      e.id === "e5" ? { ...e, at: { kind: "at", landmark: "window_front" } } : e,
+    ),
+  });
+  const run = (graph: EventGraph) => gate(resolve(graph, storeScene), storeScene, geom);
+  const roles = (roleOf: Record<string, string>, labels: Record<string, string>) =>
+    ["witness", "suspect", "clerk"].map((id) => ({
+      id,
+      label: labels[id] ?? id,
+      role: roleOf[id] ?? "other",
+      rig: "mixamo_ybot",
+    }));
+
+  test("spokenActor says you for a witness, and the plain lowercase role for anyone else", () => {
+    const graph = {
+      ...graphOf([]),
+      actors: [
+        { id: "w", label: "Witness (customer)", role: "witness", rig: "mixamo_ybot" },
+        { id: "s", label: "Suspect", role: "suspect", rig: "mixamo_ybot" },
+        { id: "c", label: "Store clerk (night shift)", role: "victim", rig: "mixamo_xbot" },
+      ],
+    };
+    expect(spokenActor(graph, "w")).toBe("you");
+    expect(spokenActor(graph, "s")).toBe("the suspect");
+    expect(spokenActor(graph, "c")).toBe("the store clerk");
+    expect(spokenActor(graph, "nobody")).toBe("nobody");
+  });
+
+  test("the witness's own contradiction reads you were, with no raw label", () => {
+    const out = run(movedE5());
+    const e3 = out.flags.find((f) => f.check === "contradiction" && f.eventId === "e3")!;
+    const e5 = out.flags.find((f) => f.check === "contradiction" && f.eventId === "e5")!;
+    expect(e3.suggestedQuestion).toBe(
+      "Earlier you said you were by the chips aisle around then; now the front window. Which came first?",
+    );
+    expect(e5.suggestedQuestion).toBe(
+      "Earlier you said you were by the front window around then; now the chips aisle. Which came first?",
+    );
+    expect(e3.detail).toContain("witness is placed by");
+    expect(e3.evidence).toMatchObject({ distanceM: expect.any(Number) });
+  });
+
+  test("a contradiction between two suspect events names the suspect in the third person", () => {
+    const g = {
+      ...graphOf(
+        [
+          ev({ id: "p", actor: "suspect", at: [0.5, 0, 0.5], tStart: 0, tEnd: 10, sources: ["s1"] }),
+          ev({ id: "q", actor: "suspect", at: [5, 0, 8], tStart: 5, tEnd: 12, sources: ["s2"] }),
+        ],
+        ["suspect"],
+      ),
+      actors: roles({ suspect: "suspect" }, { suspect: "Suspect" }),
+    };
+    const f = contradictionFlags(g, manifest());
+    expect(f).toHaveLength(2);
+    for (const flag of f) expect(flag.suggestedQuestion).toMatch(/^Earlier you said the suspect was by the /);
+  });
+
+  test("the sightline and missing_time questions use the same spoken names", () => {
+    const wall: SceneGeom = { meshes: [boxMesh("wall", [4, 0, 0], [5, 2, 10])] };
+    const g = {
+      ...graphOf([
+        ev({ id: "l", actor: "a", action: "look", target: "b", at: [1, 0, 5], tStart: 0, tEnd: 2 }),
+        ev({ id: "s", actor: "b", at: [8, 0, 5], tStart: 0, tEnd: 2 }),
+        ev({ id: "m", actor: "b", at: [8, 0, 5], tInferred: true, tStart: 5, tEnd: 6 }),
+      ]),
+      actors: [
+        { id: "a", label: "Witness (customer)", role: "witness", rig: "mixamo_ybot" },
+        { id: "b", label: "Store clerk (night shift)", role: "victim", rig: "mixamo_xbot" },
+      ],
+    };
+    const out = gate(g, manifest(), wall);
+    const sightline = out.flags.find((f) => f.check === "sightline")!;
+    expect(sightline.suggestedQuestion).toContain("would be between you and the store clerk. Where exactly");
+    const missing = out.flags.find((f) => f.check === "missing_time")!;
+    expect(missing.suggestedQuestion).toBe("Was that before or after the stand by the store clerk?");
+  });
+
+  test("no question on the robbery fixture has a parenthesis or a doubled article", () => {
+    const scenarios = [
+      run(robberyGraph),
+      run(movedE5()),
+      run({
+        ...robberyGraph,
+        events: robberyGraph.events.map((e) => (e.id === "e3" ? { ...e, tConfidence: "inferred" as const } : e)),
+      }),
+    ];
+    const questions = scenarios.flatMap((o) => o.flags.map((f) => f.suggestedQuestion));
+    expect(questions.length).toBeGreaterThanOrEqual(3);
+    for (const question of questions) {
+      expect(question).not.toContain("(");
+      expect(question).not.toContain("the the");
+      expect(question).not.toMatch(/Witness|you was/);
+    }
   });
 });
