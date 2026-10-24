@@ -243,6 +243,38 @@ describe("event state styling (regression)", () => {
   });
 });
 
+describe("toolbar", () => {
+  const toolbar = (patch: Partial<SceneState>) => {
+    const { resolved, statuses } = snap();
+    const html = renderWith({ resolved, statuses, duration: resolved!.durationS, ...patch });
+    return html.slice(html.indexOf('class="rtl-toolbar"'), html.indexOf("<svg", html.indexOf('class="rtl-time"')));
+  };
+
+  test("play/pause is one labelled icon button that follows the playing state", () => {
+    expect(toolbar({ playing: false })).toMatch(/class="rtl-play" aria-label="Play" title="Play \(Space\)" aria-keyshortcuts="Space"/);
+    expect(toolbar({ playing: true })).toMatch(/class="rtl-play" aria-label="Pause" title="Pause \(Space\)"/);
+  });
+
+  test("speeds are one labelled group with exactly one pressed", () => {
+    const html = toolbar({ speed: 2 });
+    expect(html).toContain('role="group" aria-label="Playback speed"');
+    const pressed = [...html.matchAll(/aria-pressed="(true|false)"[^>]*>([^<]+)</g)].map((m) => `${m[2]}:${m[1]}`);
+    expect(pressed).toEqual(["0.5×:false", "1×:false", "2×:true"]);
+  });
+
+  test("flag navigation is its own group with arrows, text and disabled ends", () => {
+    const start = toolbar({ t: 0 });
+    expect(start).toContain('role="group" aria-label="Flag navigation"');
+    expect(start).toMatch(/aria-label="Previous flag" title="Previous flag" disabled=""/);
+    expect(start).toMatch(/aria-label="Next flag" title="Next flag">/);
+    expect(start).toContain("Previous flag</span>");
+    expect(start).toContain("→");
+    const after = toolbar({ t: 11 });
+    expect(after).toMatch(/aria-label="Previous flag" title="Previous flag">/);
+    expect(after).toMatch(/aria-label="Next flag" title="Next flag" disabled=""/);
+  });
+});
+
 describe("interaction", () => {
   test("jump handler selects e5 and sets t to 10", () => {
     const { api, jump } = drive();
