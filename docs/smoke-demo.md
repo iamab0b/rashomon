@@ -1,4 +1,4 @@
-# Demo smoke test, main 6efdac8 (updated Sat 11:10 AM for 06, #19, #17)
+# Demo smoke test (updated Sat 1:10 PM: Maincloud section)
 
 Run on the merged main in /home/sahilmehta/calhacks/rashomon with `pnpm -F web dev` on http://localhost:5173 and the Mixamo clips in apps/web/public. Each step lists what should happen; anything else is a failure. Write the failures into board.md. 06 (PR #18) is on main: the Timeline is docked under the canvas (App.tsx, from #17; the scrub bar is gone), and a selected event has a drag gizmo. Two quick live drops now give "a change is still being applied" on the second instead of a silent stale-version loss (#19).
 
@@ -33,6 +33,22 @@ Every event is plausible, including the new walk event to window_front, and the 
 L8. A stale write is rejected: run the same apply_patches with base version 1 again. It fails with "stale baseVersion 1; the graph is at version 2", and the page does not change.
 L9. Live drag: smokefix is already corrected, so seed smokedrag as in L4, open `/?mode=live&session=smokedrag`, drag e5 to the front window as in fixture step 9. The session version goes from 1 to 2 and e5 turns plausible without a reload. Two drops in quick succession: the second is refused with "a change is still being applied; try again in a moment" (shown once Hazel renders useGraphErrors).
 L10. Back on `/?mode=live` (session demo), it is still at version 1 with e5 implausible. That is the state the demo starts from.
+
+## Live mode on Maincloud (database rashomon; every command carries `--server maincloud`)
+
+Live since Sat 1:05 PM: demo seeded at version 1, and smoke L2 passes at
+
+```
+http://localhost:5173/?mode=live&stdb=wss://maincloud.spacetimedb.com&db=rashomon&session=demo
+```
+
+`stdb` is the WebSocket base the SDK connects to; it adds `/v1/database/rashomon/subscribe` itself.
+
+M1. `spacetime sql --server maincloud rashomon "select version, id from sessions"`. Session demo is at version 1. The demo and the judges use it, so never change it: mutating checks use their own session.
+M2. Open the URL above. Expect the same as L2: "Live · connecting" then "Live", 10 events, and e5 implausible with sightline:e5.
+M3. The webhook fails closed, and this check spends no credits: `curl -s -o /dev/null -w "%{http_code}\n" -X POST -H 'content-type: application/json' -d '{}' https://maincloud.spacetimedb.com/v1/database/rashomon/route/webhook/cartesia` gives 401.
+M4. Writes: `tools/smoke/seed-maincloud.sh smokemc` seeds a scratch session. Open the URL with `session=smokemc` and repeat L5 (override) and L9 (drag) there.
+M5. After any later publish, check M1 again. A publish without -c keeps every session. A publish with -c=always wipes them all, so re-seed demo with `tools/smoke/seed-maincloud.sh demo` afterwards.
 
 ## After the smoke
 - Leave demo at version 1. The scratch sessions smokeam, smokeam2, smokefix and smokedrag can stay; nothing reads them.
