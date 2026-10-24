@@ -22,10 +22,17 @@ function readArgs(argv: readonly string[]): Map<string, string> {
 
 async function main(): Promise<void> {
   const args = readArgs(process.argv.slice(2));
-  const fixture = args.get("fixture") ?? "store";
-  const cam = args.get("cam") ?? "overview";
+  const debug = args.get("debug");
+  const cam = args.get("cam") ?? (debug ? undefined : "overview");
+  const query = new URLSearchParams();
+  if (debug) query.set("debug", debug);
+  else query.set("fixture", args.get("fixture") ?? "store");
+  if (cam) query.set("cam", cam);
+  const t = args.get("t");
+  if (t !== undefined) query.set("t", t);
   const outDir = resolve(process.cwd(), "shots");
-  const outFile = resolve(outDir, args.get("out") ?? `${cam}.png`);
+  const defaultName = debug ? `debug-${debug}.png` : `${cam}.png`;
+  const outFile = resolve(outDir, args.get("out") ?? defaultName);
 
   const server = await createServer({ server: { port: 0 }, logLevel: "error" });
   await server.listen();
@@ -38,12 +45,12 @@ async function main(): Promise<void> {
   try {
     const page = await browser.newPage({ viewport: VIEWPORT });
     page.on("console", (message) => {
-      if (message.type() === "error" || message.type() === "warning") {
+      if (["error", "warning", "info"].includes(message.type())) {
         process.stderr.write(`[page ${message.type()}] ${message.text()}\n`);
       }
     });
     page.on("pageerror", (error) => process.stderr.write(`[pageerror] ${error.message}\n`));
-    await page.goto(`http://localhost:${address.port}/?fixture=${fixture}&cam=${cam}`);
+    await page.goto(`http://localhost:${address.port}/?${query.toString()}`);
     await page.waitForSelector('[data-scene-ready="true"]', { timeout: READY_TIMEOUT_MS });
     await page.waitForTimeout(SETTLE_MS);
     await mkdir(outDir, { recursive: true });

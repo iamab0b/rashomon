@@ -2,6 +2,8 @@ import { Canvas } from "@react-three/fiber";
 import { useEffect, useState } from "react";
 import { CameraRig } from "./cameras/CameraRig";
 import { CAMERA_PRESETS } from "./cameras/presets";
+import { RigDebug } from "./characters/RigDebug";
+import { RigReportPanel } from "./characters/RigReportPanel";
 import { DebugOverlay } from "./DebugOverlay";
 import { FloorProbe } from "./FloorProbe";
 import { FpsProbe } from "./FpsProbe";
@@ -23,7 +25,10 @@ const INITIAL_FOV = 50;
 
 export type SceneProps = {
   fixture?: string;
+  debug?: string;
 };
+
+const RIG_DEBUG = "rig";
 
 function useLoadedScene(fixture: string | undefined): LoadedScene | null {
   const [loaded, setLoaded] = useState<LoadedScene | null>(null);
@@ -78,9 +83,18 @@ function ReadySignal() {
   return null;
 }
 
-export function Scene({ fixture }: SceneProps) {
+function useDebugPreset(debug: string | undefined): void {
+  const setPreset = useSceneStore((state) => state.setPreset);
+  useEffect(() => {
+    if (debug === RIG_DEBUG) setPreset("rig_debug");
+  }, [debug, setPreset]);
+}
+
+export function Scene({ fixture, debug }: SceneProps) {
   useSceneKeys();
-  const loaded = useLoadedScene(fixture);
+  useDebugPreset(debug);
+  const isRigDebug = debug === RIG_DEBUG;
+  const loaded = useLoadedScene(isRigDebug ? undefined : fixture);
   const ready = useSceneStore((state) => state.ready);
   const initial = CAMERA_PRESETS[useSceneStore.getState().preset];
 
@@ -98,6 +112,7 @@ export function Scene({ fixture }: SceneProps) {
         <Lights />
         <CameraRig />
         <FpsProbe />
+        {isRigDebug ? <RigDebug /> : null}
         {loaded ? (
           <>
             <primitive object={loaded.model} />
@@ -109,6 +124,7 @@ export function Scene({ fixture }: SceneProps) {
         ) : null}
       </Canvas>
       {loaded ? <LabelLayer landmarks={loaded.manifest.landmarks} /> : null}
+      {isRigDebug ? <RigReportPanel /> : null}
       <DebugOverlay />
     </div>
   );

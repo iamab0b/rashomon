@@ -7,6 +7,7 @@ const PANEL_WIDTH_PX = 360;
 export function App() {
   const params = new URLSearchParams(window.location.search);
   const fixture = params.get("fixture") ?? undefined;
+  const debug = params.get("debug") ?? undefined;
   const cam = params.get("cam");
   const { setPreset } = useCamera();
 
@@ -17,7 +18,7 @@ export function App() {
   return (
     <div style={{ display: "flex", width: "100%", height: "100%" }}>
       <div style={{ flex: 1 }}>
-        <Scene fixture={fixture} />
+        <Scene fixture={fixture} debug={debug} />
       </div>
       <div
         style={{
