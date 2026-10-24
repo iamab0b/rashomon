@@ -148,15 +148,15 @@ const tablesSchema = __schema({
   segments: __table({
     name: 'segments',
     indexes: [
-      { accessor: 'id', name: 'segments_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
+      { accessor: 'rowKey', name: 'segments_row_key_idx_btree', algorithm: 'btree', columns: [
+        'rowKey',
       ] },
       { accessor: 'sessionId', name: 'segments_session_id_idx_btree', algorithm: 'btree', columns: [
         'sessionId',
       ] },
     ],
     constraints: [
-      { name: 'segments_id_key', constraint: 'unique', columns: ['id'] },
+      { name: 'segments_row_key_key', constraint: 'unique', columns: ['rowKey'] },
     ],
   }, SegmentsRow),
   sessions: __table({
@@ -176,8 +176,8 @@ const tablesSchema = __schema({
       { accessor: 'rowKey', name: 'utterances_row_key_idx_btree', algorithm: 'btree', columns: [
         'rowKey',
       ] },
-      { accessor: 'segmentId', name: 'utterances_segment_id_idx_btree', algorithm: 'btree', columns: [
-        'segmentId',
+      { accessor: 'segmentKey', name: 'utterances_segment_key_idx_btree', algorithm: 'btree', columns: [
+        'segmentKey',
       ] },
       { accessor: 'sessionId', name: 'utterances_session_id_idx_btree', algorithm: 'btree', columns: [
         'sessionId',
