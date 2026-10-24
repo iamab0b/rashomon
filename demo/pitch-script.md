@@ -1,6 +1,6 @@
 # Pitch script: 3 minutes, plus the 2-minute demo-first cut
 
-Hazel presents, Sahil drives, A takes technical questions, Eric stands by on voice. About 420 words for the 3-minute version. Based on the prep pack's script, checked against main on Sat afternoon. Bracketed lines are the community call's quotes. Lines in *italics* are what is on screen; quoted UI text is exactly what the app shows. Lines marked **(if merged)** depend on Eric's agent (branch cartesia-agent) or the Statement box (PR #35) being on main by the recording; use the fallback next to them until then.
+Hazel presents, Sahil drives, A takes technical questions, Eric stands by on voice. About 420 words for the 3-minute version. Based on the prep pack's script, checked against main on Sat afternoon. The two quotes are from our interview with a person who has given a formal police statement (notes in demo/witness-interview.md). Consent to quote is not confirmed yet: attribute by role only, never by name, and drop the quotes if they decline. Lines in *italics* are what is on screen; quoted UI text is exactly what the app shows. Lines marked **(if merged)** depend on Eric's agent (branch cartesia-agent) or the Statement box (PR #35) being on main by the recording; use the fallback next to them until then.
 
 Demo URLs (Sahil's laptop, `localhost:5173`):
 - Fixture, the default: `/`
@@ -11,7 +11,7 @@ Demo URLs (Sahil's laptop, `localhost:5173`):
 ## 3-minute version
 
 **0:00 · The problem (20 s)**
-"[Quote from the investigator about statements and the room.] Eyewitness testimony is the most common evidence there is and the least checkable. A witness talks, it becomes a paragraph, and nobody checks that paragraph against the room until trial, if ever."
+"Someone who has given a police statement told us: “The hardest part was organizing everything in chronological order, or separating things out and explaining them clearly, while also knowing whether what I said had been recorded accurately.” Eyewitness testimony is the most common evidence there is and the least checkable. A witness talks, it becomes a paragraph, and nobody checks that paragraph against the room until trial, if ever."
 
 **0:20 · What we built (20 s)** *Overview of the store, landmarks labeled.*
 "Rashomon turns testimony into events placed in a modeled store, built from a measured floor plan. Every event links to the sentence it came from. And the room decides what is possible: a sightline, a path or a timing the geometry rules out is never animated as fact."
@@ -33,7 +33,7 @@ Witness (utt_6, utt_7 in the Transcript): "That's when I looked up." "I saw his 
 "Objects the witness names appear as real-size placeholders, in the hand that holds them. A second witness becomes a second layer, and where two statements differ you get a flag, not a verdict."
 
 **2:30 · Who it is for and what it is not (20 s)** *Guardrails card.*
-"[Second quote: the investigator's worry.] This is a demonstrative aid that tests hypotheses, not a simulation that reaches conclusions. A human decides every accept and override. Every element has a source. Uncertainty is drawn as uncertainty. There is no credibility score anywhere. Exports will carry the label: AI-assisted illustration, not a recording."
+"Their biggest worry: “If something I said wasn't actually a fact but was recorded as if it were, it could create confusion and have a negative impact.” This is a demonstrative aid that tests hypotheses, not a simulation that reaches conclusions. A human decides every accept and override. Every element has a source. Uncertainty is drawn as uncertainty. There is no credibility score anywhere. Exports will carry the label: AI-assisted illustration, not a recording."
 
 **2:50 · Stack (10 s)** *Stack card.*
 "Claude Sonnet turns speech into events. SpacetimeDB holds one shared world, and the room's verdict commits in the same transaction as the claim. Three.js on a measured floor plan." **(if merged)** "A Cartesia agent runs the interview." **Fallback:** "The Cartesia agent is next; its webhook is live, checks a shared secret, runs Claude extraction and returns the flags to the agent."
@@ -44,7 +44,7 @@ Witness (utt_6, utt_7 in the Transcript): "That's when I looked up." "I saw his 
 2. **The question (0:15–0:35):** the 20-second slot. **(if merged)** the agent asks aloud. **Fallback:** read the question from the Flags card and say plainly that voice is next. If the agent is not live by recording, decide with Sahil whether this beat shows the webhook instead (a curl returning 401 without the secret).
 3. **What you just saw (0:35–0:55):** a modeled store from a measured floor plan, a gate that checks sightlines, paths and timing, and a source on every event.
 4. **How it's built (0:55–1:20):** the stack paragraph with the sponsor's piece first. Cartesia: **(if merged)** Ink in, Sonic out, the webhook returns the flags mid-turn; **fallback:** the webhook is live and returns the flags, the agent is next. SpacetimeDB: the gate commits in the same transaction as the claim. Anthropic: strict-tool extraction, and where it could go wrong. Microsoft: production path, override log, responsible design.
-5. **Who it is for (1:20–1:40):** with the quote.
+5. **Who it is for (1:20–1:40):** with the worry quote (a guess recorded as fact).
 6. Stop and take questions.
 
 ## If something breaks on stage
