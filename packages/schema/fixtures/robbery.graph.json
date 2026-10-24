@@ -29,7 +29,7 @@
     ],
     "softFlags": [],
     "statuses": { "e1": "plausible", "e2": "plausible", "e3": "plausible", "e4": "plausible", "e5": "implausible", "e6": "plausible", "e7": "plausible", "e8": "plausible", "e9": "plausible", "e10": "plausible" },
-    "pathLengthsM": { "e1": [6.3, 7.5], "e10": [6.3, 7.5] }
+    "pathLengthsM": { "e1": [6.2, 7.5], "e10": [6.2, 7.5] }
   },
   "correctionPatch": {
     "note": "The patch the live loop produces when the witness says she had stepped to the front by the window. After it, e5 must be plausible and a new e3b stand event at window_front should exist for t [9, 13].",
