@@ -246,7 +246,7 @@ export const spacetimedb = schema({
   flags,
   overrides,
 }, {
-  env: { ANTHROPIC_API_KEY: t.string() },
+  env: { ANTHROPIC_API_KEY: t.string(), CARTESIA_WEBHOOK_SECRET: t.string() },
 });
 
 export { t };

@@ -1,9 +1,11 @@
-import { Router, SyncResponse } from "spacetimedb/server";
+import { Router, SyncResponse, type Request } from "spacetimedb/server";
 import { runExtraction, type Extraction, type Io } from "../extract/run";
 import { insertSegment } from "../reducers";
 import { spacetimedb } from "../tables";
 
-export type WebhookIo = Io & { nowMicros: () => bigint };
+export type WebhookIo = Io & { nowMicros: () => bigint; webhookSecret: () => string | undefined };
+
+export const SECRET_HEADER = "x-rashomon-webhook-secret";
 
 export type WebhookOutcome = { status: number; body: Extraction | { error: string } };
 
@@ -27,10 +29,30 @@ const firstNumber = (o: Record<string, unknown>, names: string[]): number | unde
 
 const bad = (error: string): WebhookOutcome => ({ status: 400, body: { error } });
 
-export function handleCartesia(io: WebhookIo, bodyText: string): WebhookOutcome {
+// Runs over the whole of the longer input, so the time taken does not depend on where the first mismatch is.
+export function secretsMatch(given: string, expected: string): boolean {
+  const n = Math.max(given.length, expected.length);
+  let diff = given.length ^ expected.length;
+  for (let i = 0; i < n; i++) diff |= (given.charCodeAt(i) | 0) ^ (expected.charCodeAt(i) | 0);
+  return diff === 0;
+}
+
+const readSecret = (io: WebhookIo): string | undefined => {
+  try {
+    return io.webhookSecret();
+  } catch {
+    return undefined;
+  }
+};
+
+export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
+  const expected = readSecret(io);
+  const given = req.headers.get(SECRET_HEADER);
+  if (!expected || given === null || !secretsMatch(given, expected)) return { status: 401, body: { error: "unauthorized" } };
+
   let body: unknown;
   try {
-    body = JSON.parse(bodyText);
+    body = JSON.parse(req.text());
   } catch {
     return bad("the body must be JSON");
   }
@@ -77,11 +99,12 @@ export const cartesiaWebhook = spacetimedb.httpHandler((ctx, req) => {
   const outcome = handleCartesia(
     {
       apiKey: () => ctx.env.ANTHROPIC_API_KEY,
+      webhookSecret: () => ctx.env.CARTESIA_WEBHOOK_SECRET,
       http: ctx.http,
       withTx: (body) => ctx.withTx(body),
       nowMicros: () => ctx.timestamp.microsSinceUnixEpoch,
     },
-    req.text(),
+    req,
   );
   return new SyncResponse(JSON.stringify(outcome.body), {
     status: outcome.status,

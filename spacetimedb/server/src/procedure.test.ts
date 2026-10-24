@@ -5,7 +5,7 @@ import { TestAuth, createModuleTestHarness } from "spacetimedb/server/test-utils
 import type { TestHttpResponder } from "spacetimedb/server/test-utils";
 import { robberyGraph } from "@rashomon/schema/fixtures";
 import { EXTRACTION_MODEL } from "@rashomon/extractor";
-import { handleCartesia } from "./http/cartesia";
+import { SECRET_HEADER, handleCartesia, secretsMatch } from "./http/cartesia";
 import { PROMPT_HASH, runExtraction, type Io } from "./extract/run";
 import * as mod from "./index";
 import { eventGraphFromRow } from "./convert";
@@ -14,6 +14,7 @@ import { spacetimedb } from "./tables";
 const auth = TestAuth.internal();
 const SESSION = "s1";
 const SECRET = "sk-test-secret-value";
+const HOOK = "whsec-test-value";
 
 const h = () => createModuleTestHarness(spacetimedb, mod);
 let harness: ReturnType<typeof h>;
@@ -211,7 +212,11 @@ describe("extractSegment", () => {
 });
 
 describe("the Cartesia webhook", () => {
-  const webhookIo = (responder: TestHttpResponder<never>) => ({ ...ioFor(responder), nowMicros: () => 1234n });
+  const webhookIo = (responder: TestHttpResponder<never>, secret: string | undefined = HOOK) => ({
+    ...ioFor(responder),
+    nowMicros: () => 1234n,
+    webhookSecret: () => secret,
+  });
   const body = (over: Record<string, unknown> = {}) =>
     JSON.stringify({
       sessionId: SESSION,
@@ -219,32 +224,66 @@ describe("the Cartesia webhook", () => {
       utterances: [{ text: "A guy came in the front door.", tStart: 7.8, tEnd: 12 }],
       ...over,
     });
+  const post = (text: string, secret: string | null = HOOK) =>
+    new Request("http://localhost/webhook/cartesia", {
+      method: "POST",
+      body: text,
+      headers: secret === null ? {} : { [SECRET_HEADER]: secret },
+    });
+  const exported = mod.cartesiaWebhook as unknown as (ctx: never, req: Request) => { status: number };
 
-  test("a bad body is a 400 and nothing is stored", () => {
+  test("a missing or wrong secret is a 401, never reaches the model and stores nothing", () => {
+    const io = webhookIo(ok([toolUse("tu_1", "add_event", walkInput)]));
+    expect(handleCartesia(io, post(body(), null)).status).toBe(401);
+    expect(handleCartesia(io, post(body(), "")).status).toBe(401);
+    expect(handleCartesia(io, post(body(), "whsec-test-valuf")).status).toBe(401);
+    expect(handleCartesia(io, post(body(), `${HOOK}x`)).status).toBe(401);
+    expect(handleCartesia(io, post(body(), HOOK.toUpperCase())).body).toEqual({ error: "unauthorized" });
+    expect(requests).toHaveLength(0);
+    expect([...harness.db.segments.sessionId.filter(SESSION)]).toHaveLength(1);
+  });
+
+  test("an unset secret on the module rejects every request, even one with an empty header", () => {
+    expect(handleCartesia(webhookIo(ok([]), ""), post(body(), "")).status).toBe(401);
+    expect(handleCartesia(webhookIo(ok([]), undefined), post(body(), "")).status).toBe(401);
+    const throwing = { ...webhookIo(ok([])), webhookSecret: () => { throw new Error("env_get"); } };
+    expect(handleCartesia(throwing, post(body(), HOOK)).status).toBe(401);
+    expect(requests).toHaveLength(0);
+  });
+
+  test("secretsMatch compares whole strings", () => {
+    expect(secretsMatch(HOOK, HOOK)).toBe(true);
+    expect(secretsMatch("", "")).toBe(true);
+    expect(secretsMatch(HOOK, `${HOOK}\0`)).toBe(false);
+    expect(secretsMatch("abc", "abd")).toBe(false);
+    expect(secretsMatch("abc", "ab")).toBe(false);
+  });
+
+  test("a bad body with the right secret is a 400 and nothing is stored", () => {
     const io = webhookIo(ok([]));
-    expect(handleCartesia(io, "not json").status).toBe(400);
-    expect(handleCartesia(io, "[]").status).toBe(400);
-    expect(handleCartesia(io, body({ sessionId: undefined })).status).toBe(400);
-    expect(handleCartesia(io, body({ utterances: [] })).status).toBe(400);
-    expect(handleCartesia(io, body({ utterances: undefined })).status).toBe(400);
-    expect(handleCartesia(io, body({ utterances: [{ text: "", tStart: 0, tEnd: 1 }] })).status).toBe(400);
-    expect(handleCartesia(io, body({ utterances: [{ text: "x", tStart: 5, tEnd: 1 }] })).status).toBe(400);
-    expect(handleCartesia(io, body({ sessionId: "nope" })).status).toBe(400);
+    expect(handleCartesia(io, post("not json")).status).toBe(400);
+    expect(handleCartesia(io, post("[]")).status).toBe(400);
+    expect(handleCartesia(io, post(body({ sessionId: undefined }))).status).toBe(400);
+    expect(handleCartesia(io, post(body({ utterances: [] }))).status).toBe(400);
+    expect(handleCartesia(io, post(body({ utterances: undefined }))).status).toBe(400);
+    expect(handleCartesia(io, post(body({ utterances: [{ text: "", tStart: 0, tEnd: 1 }] }))).status).toBe(400);
+    expect(handleCartesia(io, post(body({ utterances: [{ text: "x", tStart: 5, tEnd: 1 }] }))).status).toBe(400);
+    expect(handleCartesia(io, post(body({ sessionId: "nope" }))).status).toBe(400);
     expect([...harness.db.segments.sessionId.filter(SESSION)]).toHaveLength(1);
     expect(requests).toHaveLength(0);
   });
 
-  test("the exported handler answers 400 to a bad body without touching the database", () => {
-    const res = (mod.cartesiaWebhook as unknown as (ctx: never, req: Request) => { status: number })(
-      {} as never,
-      new Request("http://localhost/webhook/cartesia", { method: "POST", body: "{}" }),
-    );
-    expect(res.status).toBe(400);
+  test("the exported handler reads the secret from the module env and checks it first", () => {
+    const ctx = { env: { CARTESIA_WEBHOOK_SECRET: HOOK } } as never;
+    expect(exported(ctx, post("{}", null)).status).toBe(401);
+    expect(exported(ctx, post("{}", "nope")).status).toBe(401);
+    expect(exported(ctx, post("{}")).status).toBe(400);
+    expect(exported({} as never, post("{}")).status).toBe(401);
   });
 
   test("a good body inserts the segment, runs the extraction and returns its result", () => {
     const io = webhookIo(ok([toolUse("tu_1", "add_event", { ...walkInput, sources: ["seg_1234"] })]));
-    const out = handleCartesia(io, body());
+    const out = handleCartesia(io, post(body()));
     expect(out.status).toBe(200);
     expect(out.body).toMatchObject({ segmentId: "seg_1234", patchCount: 1, statuses: [{ eventId: "e1", status: "plausible" }] });
     const row = harness.db.segments.rowKey.find(`${SESSION}/seg_1234`)!;
@@ -254,7 +293,7 @@ describe("the Cartesia webhook", () => {
   });
 
   test("an extraction error still returns 200 with the error as a value", () => {
-    const out = handleCartesia(webhookIo(status(500, "{}")), body());
+    const out = handleCartesia(webhookIo(status(500, "{}")), post(body()));
     expect(out.status).toBe(200);
     expect(out.body).toMatchObject({ patchCount: 0, error: "Anthropic API 500" });
   });
