@@ -22,3 +22,5 @@ export { useTimeline } from "./playback/useTimeline";
 export type { TimelineApi } from "./playback/useTimeline";
 export { useSelection } from "./playback/useSelection";
 export type { SelectionApi } from "./playback/useSelection";
+export { Timeline } from "./timeline";
+export type { TimelineProps } from "./timeline";
