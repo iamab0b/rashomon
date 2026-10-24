@@ -4,6 +4,7 @@ import { TestAuth, createModuleTestHarness } from "spacetimedb/server/test-utils
 import type { Patch } from "@rashomon/schema";
 import { robberyGraph } from "@rashomon/schema/fixtures";
 import { eventGraphFromRow } from "./convert";
+import { MAX_BODY_BYTES, MAX_SEGMENT_TEXT_CHARS, MAX_UTTERANCES } from "./limits";
 import * as mod from "./index";
 import { spacetimedb } from "./tables";
 
@@ -82,6 +83,30 @@ describe("insertSegment", () => {
     insert();
     expect(h.db.segments.rowKey.find(`${SESSION}/seg1`)).toMatchObject({ sessionId: SESSION, speaker: "witness", tEnd: 4 });
     expect(h.db.utterances.rowKey.find(`${SESSION}/utt_1`)).toMatchObject({ segmentKey: `${SESSION}/seg1`, text: expect.any(String) });
+  });
+
+  test("insert_segment rejects a segment over the webhook caps", () => {
+    const utterances = Array.from({ length: MAX_UTTERANCES + 1 }, (_, i) => ({ id: `u${i}`, text: "x", tStart: 0, tEnd: 1 }));
+    expect(() => insert({ utterances })).toThrow(/at most 50 utterances per segment/);
+    const bulky = [{ id: "u1", text: "x".repeat(MAX_BODY_BYTES + 1), tStart: 0, tEnd: 1 }];
+    expect(() => insert({ utterances: bulky })).toThrow(/at most 65536 bytes in total/);
+    expect(h.db.segments.rowKey.find(`${SESSION}/seg1`)).toBeNull();
+    expect([...h.db.utterances.sessionId.filter(SESSION)]).toEqual([]);
+  });
+
+  test("insert_segment caps text at the extraction limit", () => {
+    const utterances = [{ id: "u1", text: "x", tStart: 0, tEnd: 1 }];
+    expect(() => insert({ text: "x".repeat(MAX_SEGMENT_TEXT_CHARS + 1), utterances })).toThrow(/at most 32000 characters/);
+    expect(h.db.segments.rowKey.find(`${SESSION}/seg1`)).toBeNull();
+    insert({ text: "x".repeat(MAX_SEGMENT_TEXT_CHARS), utterances });
+    expect(h.db.segments.rowKey.find(`${SESSION}/seg1`)?.text).toHaveLength(MAX_SEGMENT_TEXT_CHARS);
+  });
+
+  test("a segment within the caps still inserts", () => {
+    const utterances = Array.from({ length: MAX_UTTERANCES }, (_, i) => ({ id: `u${i}`, text: "x", tStart: 0, tEnd: 1 }));
+    insert({ text: "x".repeat(MAX_SEGMENT_TEXT_CHARS / 2), utterances });
+    expect(h.db.segments.rowKey.find(`${SESSION}/seg1`)).toMatchObject({ sessionId: SESSION });
+    expect([...h.db.utterances.sessionId.filter(SESSION)]).toHaveLength(MAX_UTTERANCES);
   });
 
   test("rejects an unknown session, a bad speaker or source, a reversed interval and an empty text", () => {

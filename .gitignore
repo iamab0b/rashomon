@@ -5,6 +5,7 @@ dist
 apps/web/public/characters/
 apps/web/public/clips/
 apps/web/public/props/
+apps/web/public/dressing/
 apps/web/shots/
 prep/
 .claude/settings.local.json

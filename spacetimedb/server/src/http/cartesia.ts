@@ -4,14 +4,13 @@ import { eventGraphFromRow } from "../convert";
 import { fnv1a64 } from "../extract/hash";
 import { EXTRACTION_FAILED, UNKNOWN_SESSION, runExtraction, type Extraction, type Io } from "../extract/run";
 import { buildGraph } from "../graph";
-import { insertSegment, key, manifestFor } from "../reducers";
+import { MAX_BODY_BYTES, MAX_UTTERANCES } from "../limits";
+import { insertSegmentRow, key, manifestFor } from "../reducers";
 import { spacetimedb } from "../tables";
 
 export type WebhookIo = Io & { nowMicros: () => bigint; webhookSecret: () => string | undefined };
 
 export const SECRET_HEADER = "x-rashomon-webhook-secret";
-export const MAX_BODY_BYTES = 64 * 1024;
-export const MAX_UTTERANCES = 50;
 export const SECONDS_PER_WORD = 0.4;
 export const RECENT_EVENTS = 5;
 
@@ -137,7 +136,7 @@ export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
         if (u.tStart < tStart) tStart = u.tStart;
         if (u.tEnd > tEnd) tEnd = u.tEnd;
       }
-      insertSegment(ctx, {
+      insertSegmentRow(ctx, {
         id: segmentId,
         sessionId,
         witnessId,

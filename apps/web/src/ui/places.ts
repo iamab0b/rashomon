@@ -1,6 +1,5 @@
-import type { Anchor, Event } from "@rashomon/schema";
-import { robberyGraph, storeScene } from "@rashomon/schema/fixtures";
-import type { GraphMode } from "./graphMode";
+import type { Anchor, Event, EventGraph } from "@rashomon/schema";
+import { storeScene } from "@rashomon/schema/fixtures";
 
 type Vec3 = readonly [number, number, number];
 
@@ -12,10 +11,6 @@ const LANDMARKS: Record<string, readonly Landmark[]> = {
   [storeScene.sceneId]: storeScene.landmarks,
 };
 
-const FIXTURE_EVENTS: Record<string, ReadonlyMap<string, Event>> = {
-  [storeScene.sceneId]: new Map(robberyGraph.events.map((event) => [event.id, event])),
-};
-
 const round = (n: number) => Number(n.toFixed(1));
 
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
@@ -25,12 +20,10 @@ export function placeName(sceneId: string, id: string): string {
 }
 
 export function anchorsFor(
-  mode: GraphMode,
-  sceneId: string,
+  graph: Pick<EventGraph, "events"> | null,
   event: Pick<Event, "id" | "actor" | "action">,
 ): EventAnchors | null {
-  if (mode !== "fixture") return null;
-  const source = FIXTURE_EVENTS[sceneId]?.get(event.id);
+  const source = graph?.events.find((candidate) => candidate.id === event.id);
   return source && source.actor === event.actor && source.action === event.action ? source : null;
 }
 

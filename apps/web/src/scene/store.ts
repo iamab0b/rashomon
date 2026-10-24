@@ -4,6 +4,7 @@ import { create } from "zustand";
 import type { CameraPreset } from "./cameras/presets";
 import type { CharacterHandle } from "./characters/Character";
 import type { GraphSource } from "./playback/graphSource";
+import { NO_STATEMENTS, type StatementStatuses } from "./playback/statementStatus";
 
 export type SceneStatus = "loading" | "ready" | "error";
 
@@ -42,6 +43,8 @@ export type SceneState = {
   connectionError: string | null;
   actionError: string | null;
   errorEpoch: number;
+  liveIdentity: string | null;
+  statements: StatementStatuses;
   actorsReady: boolean;
   characterHandles: ReadonlyMap<string, CharacterHandle>;
   selectedEventId: string | null;
@@ -63,6 +66,8 @@ export type SceneState = {
   setGraph: (snapshot: GraphSnapshot) => void;
   setGraphSource: (source: GraphSource | null) => void;
   setGraphErrors: (errors: GraphErrors) => void;
+  setLiveIdentity: (identity: string | null) => void;
+  setStatements: (statements: StatementStatuses) => void;
   setActionError: (message: string | null) => void;
   setActorsReady: (ready: boolean) => void;
   setCharacterHandle: (actorId: string, handle: CharacterHandle | null) => void;
@@ -117,6 +122,8 @@ export const useSceneStore = create<SceneState>((set) => ({
   connectionError: null,
   actionError: null,
   errorEpoch: 0,
+  liveIdentity: null,
+  statements: NO_STATEMENTS,
   actorsReady: false,
   characterHandles: NO_HANDLES,
   selectedEventId: null,
@@ -162,6 +169,8 @@ export const useSceneStore = create<SceneState>((set) => ({
   setGraphErrors: ({ connection, action }) =>
     set((state) => ({ connectionError: connection, actionError: action, errorEpoch: state.errorEpoch + 1 })),
   setActionError: (actionError) => set({ actionError }),
+  setLiveIdentity: (liveIdentity) => set((state) => (state.liveIdentity === liveIdentity ? state : { liveIdentity })),
+  setStatements: (statements) => set((state) => (state.statements === statements ? state : { statements })),
   setActorsReady: (actorsReady) => set({ actorsReady }),
   setCharacterHandle: (actorId, handle) =>
     set((state) => {

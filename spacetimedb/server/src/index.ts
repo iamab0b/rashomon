@@ -1,4 +1,13 @@
-export { createSession, insertSegment, applyPatches, override, setStatuses, graphForScene } from "./reducers";
+export {
+  createSession,
+  insertSegment,
+  submitStatement,
+  applyPatches,
+  override,
+  setStatuses,
+  graphForScene,
+} from "./reducers";
 export { extractSegment } from "./procedures/extractSegment";
+export { runQueuedExtraction } from "./procedures/runQueuedExtraction";
 export { cartesiaWebhook, endInterviewWebhook, router, sceneContextWebhook } from "./http/cartesia";
 export { spacetimedb as default } from "./tables";

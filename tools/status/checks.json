@@ -35,6 +35,15 @@
       "paths": [
         "spacetimedb/server/src"
       ]
+    },
+    {
+      "id": "insert-segment-cap-2",
+      "due": "16-20",
+      "todo": "After #25: cap insert_segment's text at MAX_SEGMENT_TEXT_CHARS (32,000) so a stored earlier segment can never exceed what extraction accepts (worst-case prompt today ~359K chars), and measure text and utterance texts separately so the webhook's doubled text no longer turns 31K-64K bodies into 400; test named 'insert_segment caps text at the extraction limit'",
+      "grep": "insert_segment caps text at the extraction limit",
+      "paths": [
+        "spacetimedb/server/src"
+      ]
     }
   ],
   "C": [
@@ -83,7 +92,7 @@
       "id": "procedure-followups",
       "from": "Sahil",
       "due": "13-16",
-      "todo": "After PR #16 merged: cap earlier segments in the extraction prompt, retry-safe default segment id, 413 for over-cap text, wrap the key read, drop code comments, PR text on -c=always and the required key",
+      "todo": "Open a PR to main for 060e9c7 on spacetime-procedure (content-derived segment id, key read guard, comments: reviewed clean twice, waiting only on a PR); then cap earlier segments in the prompt, 413 for over-cap text, and rename the resend test to 'a resend without a segmentId does not extract twice'",
       "doc": "tools/status/requests/procedure-followups.md",
       "grep": "a resend without a segmentId does not extract twice",
       "paths": [
@@ -167,6 +176,39 @@
       "grep": "useSceneStatus",
       "paths": [
         "apps/web/src/ui"
+      ]
+    },
+    {
+      "id": "ui-polish-followups",
+      "from": "Sahil",
+      "due": "13-18",
+      "todo": "Leftovers from #22-#24: playhead grab area over block edges, an unapplied override shown as applied in History, 'Override pending' after a live rejection; new branch ui-polish, PR to main",
+      "doc": "tools/status/requests/ui-polish-followups.md",
+      "grep": "not applied by the gate",
+      "paths": [
+        "apps/web/src/ui"
+      ]
+    },
+    {
+      "id": "interview-screen",
+      "from": "Sahil",
+      "due": "16-19",
+      "todo": "Statement box in the right panel: submitStatement(text, witnessName), 'Extracting…' until done, then new events and flags; not-an-editor shows the browser identity; voice button behind a flag until Eric's agent; branch interview-screen, PR to main",
+      "doc": "tools/status/requests/interview-screen.md",
+      "grep": "submitStatement",
+      "paths": [
+        "apps/web/src/ui"
+      ]
+    },
+    {
+      "id": "pitch-fixes",
+      "from": "Sahil",
+      "due": "16-19",
+      "todo": "PR #28: make the pitch and video plan match main (no agent, no statement box, no export label yet; props are placeholder boxes; quote the real flag questions and fixture words); catch in the first 15 s of the 2-minute cut",
+      "doc": "tools/status/requests/pitch-fixes.md",
+      "grep": "real-size placeholder",
+      "paths": [
+        "demo"
       ]
     }
   ],

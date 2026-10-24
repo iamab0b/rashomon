@@ -129,6 +129,14 @@ export const Extraction = __t.object("Extraction", {
 });
 export type Extraction = __Infer<typeof Extraction>;
 
+export const ExtractionQueue = __t.object("ExtractionQueue", {
+  scheduledId: __t.u64(),
+  scheduledAt: __t.scheduleAt(),
+  sessionId: __t.string(),
+  segmentId: __t.string(),
+});
+export type ExtractionQueue = __Infer<typeof ExtractionQueue>;
+
 export const Flag = __t.object("Flag", {
   id: __t.string(),
   eventId: __t.string(),

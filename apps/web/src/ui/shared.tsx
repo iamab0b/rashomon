@@ -26,6 +26,7 @@ export type PanelContext = {
   jumpTo: (eventId: string) => void;
   openOverride: (eventId: string) => void;
   openSource: (sourceId: string) => void;
+  openHistory: (eventId: string) => void;
   notify: (message: string) => void;
   transcript: readonly Utterance[] | null;
 };
@@ -74,7 +75,7 @@ export function eventDetail(graph: ResolvedGraph, event: ResolvedEvent): string 
   return parts.filter(Boolean).join(" · ") || "no target or prop";
 }
 
-function formatEvidence(flag: Flag): string {
+export function formatEvidence(flag: Flag): string {
   return Object.entries(flag.evidence)
     .map(([key, value]) => `${key} ${typeof value === "number" ? Number(value.toFixed(2)) : value}`)
     .join(" · ");
@@ -102,8 +103,7 @@ export function StatusToken({ status, pending = false }: { status: Status; pendi
     <span className={`status-token status-${status}`}>
       {status === "implausible" && <Icon name="warning" size={12} />}
       {status === "overridden" && <span className="status-diamond" />}
-      {status === "proposed" && pending && <span className="spinner" aria-hidden />}
-      {status === "proposed" && pending ? "Checking against the room…" : STATUS_LABELS[status]}
+      {status === "proposed" && pending ? "Awaiting check" : STATUS_LABELS[status]}
     </span>
   );
 }
@@ -140,6 +140,30 @@ export function PlaybackDot({ active, playing }: { active: boolean; playing: boo
   if (!active) return null;
   const label = playbackMarkLabel(playing);
   return <span className="playback-dot" role="img" aria-label={label} title={label} />;
+}
+
+export function SourceMeta({ sources, onOpen }: { sources: string[]; onOpen: (sourceId: string) => void }) {
+  if (sources.length === 0) return <span className="source-meta">Sources: none recorded</span>;
+  return (
+    <span className="source-meta">
+      Sources: Witness statement ·{" "}
+      {sources.map((id, i) => (
+        <Fragment key={id}>
+          {i > 0 && ", "}
+          <button
+            type="button"
+            className="source-ref mono"
+            title={`Show ${id} in the transcript`}
+            aria-label={`Show ${id} in the transcript`}
+            onClick={stop(() => onOpen(id))}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            {id}
+          </button>
+        </Fragment>
+      ))}
+    </span>
+  );
 }
 
 export function FlagCard({

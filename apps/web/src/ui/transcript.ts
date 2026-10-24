@@ -1,6 +1,8 @@
 import robberyTranscript from "../../../../packages/extractor/fixtures/robbery.transcript.json";
 import { storeScene } from "@rashomon/schema/fixtures";
+import type { ResolvedEvent } from "../scene";
 import type { GraphMode } from "./graphMode";
+import { inDisplayOrder } from "./playback";
 
 export type Utterance = { id: string; speaker: string; text: string };
 
@@ -23,4 +25,18 @@ export function sourceLabel(id: string): string {
 export function speakerLabel(speaker: string | undefined): string {
   if (!speaker) return "Witness statement";
   return speaker.charAt(0).toUpperCase() + speaker.slice(1);
+}
+
+export function relatedUtterances(event: Pick<ResolvedEvent, "sources"> | null): ReadonlySet<string> {
+  return new Set(event?.sources ?? []);
+}
+
+export function utteranceEvents<T extends Pick<ResolvedEvent, "id" | "tStart" | "tEnd" | "sources">>(
+  events: readonly T[],
+): ReadonlyMap<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const event of inDisplayOrder(events)) {
+    for (const source of event.sources) map.set(source, [...(map.get(source) ?? []), event]);
+  }
+  return map;
 }

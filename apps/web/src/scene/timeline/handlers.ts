@@ -46,11 +46,16 @@ export type KeyLike = {
   preventDefault: () => void;
 };
 
-export function makeKeyHandler(deps: { t: number; setT: (t: number) => void; toggle: () => void }) {
+export function makeKeyHandler(deps: { t: number; setT: (t: number) => void; toggle: () => void; duration?: number }) {
   return (event: KeyLike) => {
     if (event.key === " " && (event.target as { tagName?: string } | null)?.tagName !== "BUTTON") {
       event.preventDefault();
       deps.toggle();
+      return;
+    }
+    if ((event.key === "Home" || event.key === "End") && deps.duration !== undefined) {
+      event.preventDefault();
+      deps.setT(event.key === "Home" ? 0 : deps.duration);
       return;
     }
     const delta = nudgeDelta(event.key, event.shiftKey);
