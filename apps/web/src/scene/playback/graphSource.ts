@@ -1,4 +1,4 @@
-import type { EventGraph, Patch, SceneManifest } from "@rashomon/schema";
+import type { Event, EventGraph, Patch, SceneManifest } from "@rashomon/schema";
 import { robberyGraph, storeScene } from "@rashomon/schema/fixtures";
 import type { GraphSnapshot } from "../store";
 import { applyPatches } from "./applyPatches";
@@ -10,6 +10,7 @@ export interface GraphSource {
   readonly kind: "fixture" | "live";
   getSnapshot(): GraphSnapshot;
   subscribe(listener: () => void): () => void;
+  eventOf?(id: string): Event | undefined;
 }
 
 export interface FixtureGraphSource extends GraphSource {
@@ -59,6 +60,7 @@ function patchableSource(initial: () => FixtureState, manifest: SceneManifest): 
   return {
     kind: "fixture",
     getSnapshot: () => state().snapshot,
+    eventOf: (id) => state().graph.events.find((event) => event.id === id),
     subscribe(listener) {
       listeners.add(listener);
       return () => {

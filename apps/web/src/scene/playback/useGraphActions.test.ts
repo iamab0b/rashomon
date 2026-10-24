@@ -57,13 +57,13 @@ describe("useGraphActions", () => {
   it("throws when no source is mounted or the source cannot patch locally", () => {
     expect(() => useGraphActions().applyPatches([OVERRIDE_E5])).toThrow(/no graph source is mounted/);
 
-    const live: GraphSource = {
+    const readOnly: GraphSource = {
       kind: "live",
       getSnapshot: () => ({ resolved: null, statuses: {} }),
       subscribe: () => () => undefined,
     };
-    useSceneStore.getState().setGraphSource(live);
-    expect(() => useGraphActions().applyPatches([OVERRIDE_E5])).toThrow(/live graph source does not apply patches/);
+    useSceneStore.getState().setGraphSource(readOnly);
+    expect(() => useGraphActions().applyPatches([OVERRIDE_E5])).toThrow(/live graph source cannot apply patches/);
   });
 
   it("returns the same actions object every call", () => {
