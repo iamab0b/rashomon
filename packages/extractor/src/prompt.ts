@@ -23,7 +23,9 @@ Rules, in priority order:
 10. Objects: match the witness's word to a type in the prop library using its label and aliases. Put their own size or description words in notes, in their words ("maybe eight inches"); never change dimensions. A prop needs an anchor: use the landmark closest to where the prop is, even when someone holds it, and set held_by to the holder.
 11. An event that uses a prop you add in the same turn refers to it by its prop type.
 12. sources must include the statement id given to you. You may also cite earlier statement ids if the new statement depends on them.
-13. If nothing in the statement belongs in the reconstruction, call no_events with a short reason.
+13. If the witness's verb is not one of the actions, choose the nearest action, set actionApproximated to true and put the witness's verb in verb. Never invent a verb the witness did not use.
+14. Set style only when the witness described how the action was done: sneak for walk, scared for run, forward for fall, outward for open_door, behind for look. Otherwise leave it null.
+15. If nothing in the statement belongs in the reconstruction, call no_events with a short reason.
 
 Call one tool per change. Call as many as the statement needs. Every reply must contain at least one tool call: when nothing belongs in the reconstruction, call no_events. Never answer in prose.`;
 
@@ -44,6 +46,8 @@ const eventLine = (e: Event): string => {
   if (e.facing) parts.push(`facing=${e.facing}`);
   if (e.target) parts.push(`target=${e.target}`);
   if (e.prop) parts.push(`prop=${e.prop}`);
+  if (e.style) parts.push(`style=${e.style}`);
+  if (e.actionApproximated) parts.push(e.verb ? `approximated_from=${e.verb}` : "approximated");
   parts.push(`t=[${e.t[0]},${e.t[1]}]`);
   if (e.status === "superseded") parts.push("(superseded)");
   return parts.join(" ");

@@ -1,6 +1,7 @@
-import { ACTIONS } from "@rashomon/schema";
+import { ACTIONS, ACTION_STYLES, MAX_VERB_CHARS, STYLE_ACTION } from "@rashomon/schema";
 import type {
   Action,
+  ActionStyle,
   Actor,
   Anchor,
   Event,
@@ -152,6 +153,32 @@ const checkAction = (raw: string): Action => {
   return raw as Action;
 };
 
+const checkStyle = (raw: string, action: Action): ActionStyle => {
+  if (!ACTION_STYLES.includes(raw as ActionStyle))
+    throw new Invalid(`style: "${raw}" is not one of ${ACTION_STYLES.join(", ")}`);
+  const style = raw as ActionStyle;
+  if (STYLE_ACTION[style] !== action)
+    throw new Invalid(`style: ${style} goes with ${STYLE_ACTION[style]}, not ${action}. Use null`);
+  return style;
+};
+
+const optBoolean = (input: Input, key: string): boolean | undefined => {
+  const v = input[key];
+  if (!present(v)) return undefined;
+  if (typeof v !== "boolean") throw new Invalid(`${key} must be true, false or null`);
+  return v;
+};
+
+const checkVerb = (raw: string | undefined, approximated: boolean): string | undefined => {
+  const verb = raw === "" ? undefined : raw;
+  if (!approximated) return undefined;
+  if (verb === undefined)
+    throw new Invalid("verb: actionApproximated is true, so give the witness's own verb");
+  if (verb.length > MAX_VERB_CHARS)
+    throw new Invalid(`verb: at most ${MAX_VERB_CHARS} characters, got ${verb.length}`);
+  return verb;
+};
+
 const checkFacing = (raw: string, ctx: ExtractContext): string => {
   const lm = resolveLandmarkId(raw, ctx.landmarks);
   if (lm !== null) return lm;
@@ -195,6 +222,14 @@ const addEvent = (
   if (target) event.target = requireActor(target, ctx, "target");
   const prop = optString(input, "prop");
   if (prop) event.prop = checkPropRef(prop, ctx, pendingTypes);
+  const style = optString(input, "style");
+  if (style) event.style = checkStyle(style, event.action);
+  const approximated = optBoolean(input, "actionApproximated") ?? false;
+  const verb = checkVerb(optString(input, "verb"), approximated);
+  if (approximated) {
+    event.actionApproximated = true;
+    event.verb = verb;
+  }
   return { op: "add_event", event };
 };
 
@@ -230,6 +265,16 @@ const updateEvent = (
   if (target) changes.target = requireActor(target, ctx, "target");
   const prop = optString(input, "prop");
   if (prop) changes.prop = checkPropRef(prop, ctx, pendingTypes);
+  const style = optString(input, "style");
+  if (style) changes.style = checkStyle(style, changes.action ?? existing.action);
+  const approximated = optBoolean(input, "actionApproximated");
+  if (approximated !== undefined) changes.actionApproximated = approximated;
+  const rawVerb = optString(input, "verb");
+  if (rawVerb !== undefined || approximated === true) {
+    const nowApproximated = approximated ?? existing.actionApproximated === true;
+    const verb = checkVerb(rawVerb ?? existing.verb, nowApproximated);
+    if (verb !== undefined && verb !== existing.verb) changes.verb = verb;
+  }
   const start = optNumber(input, "t_start");
   const end = optNumber(input, "t_end");
   if (start !== undefined || end !== undefined)

@@ -66,6 +66,9 @@ const walkInput = (over: Record<string, unknown> = {}) => ({
   prop: null,
   t_start: 0,
   t_end: 5,
+  style: null,
+  actionApproximated: false,
+  verb: null,
   t_confidence: "inferred",
   confidence: "high",
   sources: ["utt_2"],
@@ -502,5 +505,155 @@ describe("isPatchList on validated extractor output", () => {
     expect(isPatchList([{ ...good, event: { ...good.event, sources: [] } }])).toBe(false);
     expect(isPatchList([{ ...good, event: { ...good.event, confidence: 0.5 } }])).toBe(false);
     expect(isPatchList([{ op: "teleport" }])).toBe(false);
+  });
+});
+
+describe("approximated verbs and styles", () => {
+  const statement = (id: string, text: string): Segment => ({
+    ...utt("utt_2"),
+    id,
+    text,
+  });
+
+  const stationary = (over: Record<string, unknown>) =>
+    walkInput({ from: null, to: null, at: null, t_start: 10, t_end: 12, ...over });
+
+  const fakeModel = (reply: (text: string) => ToolUseBlock[]): CallModel =>
+    async (req): Promise<ModelResponse> => {
+      expect(req.system[0]?.text).toContain(
+        "If the witness's verb is not one of the actions, choose the nearest action, set actionApproximated to true and put the witness's verb in verb. Never invent a verb the witness did not use.",
+      );
+      const text = JSON.stringify(req.messages[0]);
+      return { content: reply(text), stop_reason: "tool_use" };
+    };
+
+  const verbOf = (text: string): string | null => {
+    const known = /\b(walked|ran|run|crouched|fell|shoved|punched|picked|dropped|threw|opened|looked|said)\b/;
+    if (known.test(text)) return null;
+    return /\bhe (\w+)/i.exec(text)?.[1] ?? null;
+  };
+
+  const approximating = fakeModel((text) => {
+    const raw = /NEW STATEMENT \w+\\n(.*)"/.exec(text)?.[1] ?? "";
+    const verb = verbOf(raw);
+    if (raw.includes("ducked"))
+      return [use("add_event", stationary({ action: "dodge", at: { kind: "behind", landmark: "cooler", second_landmark: null, radius_m: null }, actionApproximated: true, verb }), "duck")];
+    if (raw.includes("ran off scared"))
+      return [use("add_event", walkInput({ action: "run", style: "scared", to: at("front_door"), from: null }), "scared")];
+    return [use("add_event", walkInput({ actionApproximated: verb !== null, verb }), "walked")];
+  });
+
+  test("he ducked behind the cooler becomes an approximated dodge with the witness's verb", async () => {
+    const r = await extractSegment(statement("utt_duck", "He ducked behind the cooler."), baseCtx(), approximating);
+    expect(r.unparsed).toEqual([]);
+    const p = r.patches[0];
+    if (p?.op !== "add_event") throw new Error("expected add_event");
+    expect(["crouch", "dodge"]).toContain(p.event.action);
+    expect(p.event.actionApproximated).toBe(true);
+    expect(p.event.verb).toBe("ducked");
+    expect(p.event.at).toEqual({ kind: "behind", landmark: "cooler" });
+    expect(isPatchList(r.patches)).toBe(true);
+  });
+
+  test("he ran off scared becomes a run with style scared and no approximation", async () => {
+    const r = await extractSegment(statement("utt_scared", "Then he ran off scared."), baseCtx(), approximating);
+    const p = r.patches[0];
+    if (p?.op !== "add_event") throw new Error("expected add_event");
+    expect(p.event.action).toBe("run");
+    expect(p.event.style).toBe("scared");
+    expect(p.event).not.toHaveProperty("actionApproximated");
+    expect(p.event).not.toHaveProperty("verb");
+  });
+
+  test("a known verb never sets actionApproximated", async () => {
+    const r = await extractSegment(statement("utt_known", "Then he walked to the counter."), baseCtx(), approximating);
+    const p = r.patches[0];
+    if (p?.op !== "add_event") throw new Error("expected add_event");
+    expect(p.event.action).toBe("walk");
+    expect(p.event).not.toHaveProperty("actionApproximated");
+    expect(p.event).not.toHaveProperty("verb");
+  });
+
+  test("a verb without actionApproximated is dropped, and actionApproximated without a verb is rejected", () => {
+    const [stray, missing] = validateToolUses(
+      [
+        use("add_event", walkInput({ verb: "strolled" }), "stray"),
+        use("add_event", stationary({ action: "dodge", actionApproximated: true, verb: null }), "missing"),
+      ],
+      utt("utt_2"),
+      baseCtx(),
+    );
+    const p = stray?.patches[0];
+    if (p?.op !== "add_event") throw new Error("expected add_event");
+    expect(p.event).not.toHaveProperty("verb");
+    expect(missing?.error).toContain("verb");
+  });
+
+  test("a verb longer than 40 characters is rejected", () => {
+    const [r] = validateToolUses(
+      [use("add_event", stationary({ action: "dodge", actionApproximated: true, verb: "x".repeat(41) }))],
+      utt("utt_2"),
+      baseCtx(),
+    );
+    expect(r?.error).toContain("40");
+  });
+
+  test("a style is valid only with its own action", () => {
+    const [ok, wrong, unknown] = validateToolUses(
+      [
+        use("add_event", walkInput({ style: "sneak" }), "ok"),
+        use("add_event", walkInput({ style: "scared" }), "wrong"),
+        use("add_event", walkInput({ style: "limping" }), "unknown"),
+      ],
+      utt("utt_2"),
+      baseCtx(),
+    );
+    expect(ok?.error).toBeUndefined();
+    expect(wrong?.error).toContain("scared goes with run, not walk");
+    expect(unknown?.error).toContain("is not one of");
+  });
+
+  test("update_event can set style, actionApproximated and verb, and checks the style against the event's action", () => {
+    const existing = {
+      id: "e1",
+      witnessId: "w1",
+      actor: "suspect",
+      action: "crouch" as const,
+      t: [0, 2] as [number, number],
+      tConfidence: "inferred" as const,
+      confidence: 0.9,
+      sources: ["utt_2"],
+      status: "proposed" as const,
+      flags: [],
+    };
+    const ctx = { ...baseCtx(), events: [existing] };
+    const nulls = { action: null, from: null, to: null, at: null, facing: null, target: null, prop: null, style: null, actionApproximated: null, verb: null, t_start: null, t_end: null, sources: [] };
+    const [approx, styled, wrong, retime] = validateToolUses(
+      [
+        use("update_event", { ...nulls, id: "e1", actionApproximated: true, verb: "ducked" }, "approx"),
+        use("update_event", { ...nulls, id: "e1", action: "walk", style: "sneak" }, "styled"),
+        use("update_event", { ...nulls, id: "e1", style: "sneak" }, "wrong"),
+        use("update_event", { ...nulls, id: "e1", t_start: 1 }, "retime"),
+      ],
+      utt("utt_2"),
+      ctx,
+    );
+    expect(approx?.patches[0]).toMatchObject({ op: "update_event", changes: { actionApproximated: true, verb: "ducked" } });
+    expect(styled?.patches[0]).toMatchObject({ op: "update_event", changes: { action: "walk", style: "sneak" } });
+    expect(wrong?.error).toContain("sneak goes with walk, not crouch");
+    expect(retime?.error).toBeUndefined();
+    expect(isPatchList([...(approx?.patches ?? []), ...(styled?.patches ?? [])])).toBe(true);
+  });
+
+  test("the event tools are strict and type the new fields", () => {
+    const req = buildRequest(utt("utt_1"), baseCtx());
+    const add = req.tools.find((t) => t.name === "add_event")!;
+    const update = req.tools.find((t) => t.name === "update_event")!;
+    const props = add.input_schema.properties as Record<string, Record<string, unknown>>;
+    expect(add.input_schema.required).toEqual(expect.arrayContaining(["style", "actionApproximated", "verb"]));
+    expect(update.input_schema.required).toEqual(expect.arrayContaining(["style", "actionApproximated", "verb"]));
+    expect(props.actionApproximated).toMatchObject({ type: "boolean" });
+    expect(JSON.stringify(props.style)).toContain('"enum":["sneak","scared","forward","outward","behind"]');
+    expect(JSON.stringify(props.action)).toContain('"dodge"');
   });
 });
