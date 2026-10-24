@@ -1,15 +1,18 @@
 import { useEffect, useRef } from "react";
+import type { GraphMode } from "./graphMode";
 import { HistoryTab } from "./HistoryTab";
 import { Icon, type IconName } from "./Icon";
 import type { PanelContext } from "./shared";
+import { StatementSection } from "./StatementSection";
 import { TranscriptView } from "./TranscriptView";
 import "./context-drawer.css";
 
-export type ContextView = "transcript" | "history";
+export type ContextView = "statement" | "transcript" | "history";
 
 export const CONTEXT_DRAWER_ID = "context-drawer";
 
 const VIEWS: { id: ContextView; label: string; icon: IconName }[] = [
+  { id: "statement", label: "Statement", icon: "statement" },
   { id: "transcript", label: "Transcript", icon: "transcript" },
   { id: "history", label: "History", icon: "history" },
 ];
@@ -22,6 +25,7 @@ export function ContextDrawer({
   focusSourceId,
   overrideFocusId = null,
   historyAccent = false,
+  mode = "fixture",
 }: {
   view: ContextView | null;
   onOpen: (view: ContextView) => void;
@@ -30,6 +34,7 @@ export function ContextDrawer({
   focusSourceId: string | null;
   overrideFocusId?: string | null;
   historyAccent?: boolean;
+  mode?: GraphMode;
 }) {
   const open = view !== null;
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -90,7 +95,10 @@ export function ContextDrawer({
             <Icon name="x" size={16} />
           </button>
         </header>
-        <div role="tabpanel" aria-label={view === "history" ? "History" : "Transcript"}>
+        <div role="tabpanel" aria-label="Statement" hidden={view !== "statement"}>
+          <StatementSection graph={context.graph} mode={mode} onSelect={context.jumpTo} />
+        </div>
+        <div role="tabpanel" aria-label={view === "history" ? "History" : "Transcript"} hidden={view === "statement"}>
           {view === "history" ? (
             <HistoryTab {...context} overrideFocusId={overrideFocusId} />
           ) : view === "transcript" ? (

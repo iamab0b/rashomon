@@ -231,6 +231,7 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
         focusSourceId={focusSourceId}
         overrideFocusId={overrideFocusId}
         historyAccent={selectedEvent !== null && statusOf(selectedEvent) === "overridden"}
+        mode={mode}
       />
     </>
   );
