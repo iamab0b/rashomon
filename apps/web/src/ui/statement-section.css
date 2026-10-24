@@ -34,4 +34,4 @@
 .rui .statement-refused { display: grid; gap: 6px; color: var(--text-primary); font-size: var(--fs-sm); }
 .rui .statement-refused p { margin: 0; }
 .rui .statement-identity { display: flex; align-items: center; gap: 8px; }
-.rui .statement-identity code { flex: 1; min-width: 0; overflow: hidden; padding: 4px 6px; color: var(--text-secondary); border: 1px solid var(--border); border-radius: 3px; background: var(--surface); font: var(--fs-2xs) var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.rui .statement-identity code { flex: 1; min-width: 0; overflow: hidden; padding: 4px 6px; color: var(--text-secondary); border: 1px solid var(--border); border-radius: 3px; background: var(--surface); font: var(--fs-2xs) var(--mono); text-overflow: ellipsis; white-space: nowrap; user-select: all; cursor: text; }

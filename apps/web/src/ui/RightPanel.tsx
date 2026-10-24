@@ -22,7 +22,7 @@ import type { PanelContext } from "./shared";
 import { transcriptFor } from "./transcript";
 import { useGraphMode } from "./useGraphMode";
 import { WitnessesTab } from "./WitnessesTab";
-import { isEditorRefusal } from "./statement";
+import { isStatementRejection } from "./statement";
 import "./rashomon-ui.css";
 import "./panel-layout.css";
 
@@ -102,7 +102,12 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
   }, [contextView, dialogEventId]);
 
   useEffect(() => {
-    if (actionError && !isEditorRefusal(actionError)) setToast(`Couldn't apply the change: ${actionError}`);
+    if (!actionError) return;
+    // Wait a tick: the Statement box notes its rejection when the submit promise settles.
+    const id = window.setTimeout(() => {
+      if (!isStatementRejection(actionError)) setToast(`Couldn't apply the change: ${actionError}`);
+    }, 0);
+    return () => window.clearTimeout(id);
   }, [actionError]);
 
   useEffect(() => {

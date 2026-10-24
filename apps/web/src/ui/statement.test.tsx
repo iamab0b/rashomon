@@ -2,7 +2,18 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
 import { selectSource, type FixtureGraphSource } from "../scene";
-import { addedLabel, baselineOf, isEditorRefusal, outcomeSince, voiceInterviewEnabled } from "./statement";
+import {
+  addedLabel,
+  baselineOf,
+  isEditorRefusal,
+  isStatementRejection,
+  noteStatementRejection,
+  outcomeSince,
+  resultOf,
+  statementView,
+  voiceInterviewEnabled,
+  type StatementRun,
+} from "./statement";
 import { StatementSectionView, type StatementSectionViewProps, type StatementView } from "./StatementSection";
 import { gatedRobbery } from "./testGraph";
 
@@ -14,7 +25,7 @@ async function submitOnFixture(text: string) {
   const { segmentId } = await source.submitStatement(text, "Witness");
   const first = source.statementStatuses()[segmentId];
   await vi.waitFor(() => expect(source.statementStatuses()[segmentId]?.state).not.toBe("extracting"));
-  return { first, status: source.statementStatuses()[segmentId]!, baseline, after: source.getSnapshot().resolved };
+  return { source, first, status: source.statementStatuses()[segmentId]!, baseline, after: source.getSnapshot().resolved };
 }
 
 function props(view: StatementView, overrides: Partial<StatementSectionViewProps> = {}): StatementSectionViewProps {
@@ -88,7 +99,7 @@ describe("statement section", () => {
     expect(status.state).toBe("done");
     expect(status.patchCount ?? 0).toBe(0);
     const outcome = outcomeSince(baseline, after);
-    expect(outcome).toEqual({ added: [], changed: [], flags: [] });
+    expect(outcome).toEqual({ added: [], changed: [], props: [], flags: [] });
     const label = addedLabel(status.patchCount, outcome);
     expect(label).toBe("No events found in that statement");
     const view: StatementView = { kind: "done", label, outcome, ...(status.note ? { note: status.note } : {}) };
@@ -129,6 +140,7 @@ describe("statement section", () => {
       return event;
     };
     for (const k of ["2", "5", " ", "ArrowLeft", "Enter"]) expect(key(k).stopPropagation).toHaveBeenCalled();
+    expect(key("Escape").stopPropagation).not.toHaveBeenCalled();
     expect(onSubmit).not.toHaveBeenCalled();
     key("Enter", { ctrlKey: true });
     key("Enter", { metaKey: true });
@@ -137,6 +149,9 @@ describe("statement section", () => {
     const event = { key: "1", stopPropagation: vi.fn() };
     (witness.props.onKeyDown as (e: typeof event) => void)(event);
     expect(event.stopPropagation).toHaveBeenCalled();
+    const escape = { key: "Escape", stopPropagation: vi.fn() };
+    (witness.props.onKeyDown as (e: typeof escape) => void)(escape);
+    expect(escape.stopPropagation).not.toHaveBeenCalled();
   });
 
   test("the voice button is hidden by default and shows only behind the flag", () => {
@@ -152,5 +167,70 @@ describe("statement section", () => {
   test("Submit is disabled while the text is empty", () => {
     expect(renderToStaticMarkup(<StatementSectionView {...props({ kind: "idle" })} />)).toMatch(/disabled=""[^>]*>Submit/);
     expect(renderToStaticMarkup(<StatementSectionView {...props({ kind: "idle" }, { text: "x" })} />)).not.toMatch(/disabled=""[^>]*>Submit/);
+  });
+
+  test("the controller shows extracting, then a result that a later change does not alter", async () => {
+    const source = selectSource("") as FixtureGraphSource;
+    const before = source.getSnapshot().resolved;
+    let run: StatementRun = { sent: CORRECTION, baseline: baselineOf(before), segmentId: null, error: null, result: null };
+    expect(statementView(run, null, before, null, false).kind).toBe("extracting");
+
+    const { segmentId, baseVersion } = await source.submitStatement(CORRECTION, "Witness");
+    run = { ...run, segmentId, baseline: { ...run.baseline, version: baseVersion } };
+    expect(statementView(run, source.statementStatuses()[segmentId] ?? null, source.getSnapshot().resolved, null, false).kind).toBe("extracting");
+    await vi.waitFor(() => expect(source.statementStatuses()[segmentId]?.state).toBe("done"));
+
+    const status = source.statementStatuses()[segmentId]!;
+    const result = resultOf(run.baseline, status, source.getSnapshot().resolved)!;
+    expect(result.label).toBe("Added 4 events");
+    run = { ...run, result };
+
+    // A later change to another event (an edit or another editor's statement; nothing is left to override).
+    source.apply([{ op: "update_event", id: "e2", changes: { t: [0, 12] }, sources: ["utt_2"] }]);
+    const later = source.getSnapshot().resolved;
+    expect(outcomeSince(run.baseline, later).changed.map((e) => e.id)).toContain("e2");
+    const view = statementView(run, status, later, null, false);
+    expect(view.kind === "done" && view.outcome.changed.map((e) => e.id)).not.toContain("e2");
+    expect(view.kind === "done" && view.label).toBe("Added 4 events");
+  });
+
+  test("in live mode a done status waits for the graph row before showing the result", () => {
+    const graph = gatedRobbery();
+    const baseline = baselineOf(graph);
+    const run: StatementRun = { sent: "x", baseline, segmentId: "seg", error: null, result: null };
+    expect(statementView(run, { state: "done", patchCount: 2 }, graph, null, false).kind).toBe("extracting");
+    expect(statementView(run, { state: "done", patchCount: 0 }, graph, null, false)).toMatchObject({ kind: "done", label: "No events found in that statement" });
+    expect(statementView(run, { state: "done", patchCount: 2 }, { ...graph, version: graph.version + 1 }, null, false).kind).toBe("done");
+  });
+
+  test("facing, sources and override count as changes; prop-only patches say Updated N details", () => {
+    const graph = gatedRobbery();
+    const baseline = baselineOf(graph);
+    const [first, ...rest] = graph.events;
+    const moved = { ...graph, events: [{ ...first!, facing: [1, 0, 0] as [number, number, number] }, ...rest] };
+    expect(outcomeSince(baseline, moved).changed.map((e) => e.id)).toEqual([first!.id]);
+    const sourced = { ...graph, events: [{ ...first!, sources: [...first!.sources, "utt_99"] }, ...rest] };
+    expect(outcomeSince(baseline, sourced).changed).toHaveLength(1);
+
+    const prop = graph.props[0];
+    const props = prop ? [{ ...prop, notes: `${prop.notes} (moved)` }, ...graph.props.slice(1)] : [];
+    const outcome = outcomeSince(baseline, { ...graph, props });
+    expect(outcome.added.length + outcome.changed.length).toBe(0);
+    expect(addedLabel(1, outcome)).toBe("Updated 1 detail");
+    expect(addedLabel(3, { added: [], changed: [], props: [], flags: [] })).toBe("Updated 3 details");
+  });
+
+  test("statement rejections are shown inline, so RightPanel skips its toast for them", () => {
+    expect(isStatementRejection("stale baseVersion 7")).toBe(false);
+    noteStatementRejection("stale baseVersion 7");
+    expect(isStatementRejection("stale baseVersion 7")).toBe(true);
+    expect(isStatementRejection("statement rejected: the live graph source is not connected")).toBe(true);
+    expect(isStatementRejection("patches rejected: the live graph source is not connected")).toBe(false);
+  });
+
+  test("Copy says Copied, or asks to select and copy when there is no clipboard", () => {
+    const view: StatementView = { kind: "refused", identity: "c200abcd1234" };
+    expect(renderToStaticMarkup(<StatementSectionView {...props(view, { copyState: "copied" })} />)).toContain(">Copied</button>");
+    expect(renderToStaticMarkup(<StatementSectionView {...props(view, { copyState: "manual" })} />)).toContain("Select and copy the identity above.");
   });
 });

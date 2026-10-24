@@ -4,25 +4,20 @@ import { flagHeadline } from "./flagCopy";
 import { placeName } from "./places";
 import { actorLabel, StatusToken, words } from "./shared";
 import {
-  addedLabel,
   baselineOf,
   DEFAULT_WITNESS_NAME,
-  isEditorRefusal,
-  outcomeSince,
+  noteStatementRejection,
+  resultOf,
   SLOW_AFTER_MS,
+  statementView,
   voiceInterviewEnabled,
-  type GraphBaseline,
-  type StatementOutcome,
+  type StatementRun,
+  type StatementView,
 } from "./statement";
 import "./statement-section.css";
 
-
-export type StatementView =
-  | { kind: "idle" }
-  | { kind: "extracting"; sent: string; slow: boolean }
-  | { kind: "done"; label: string; outcome: StatementOutcome; note?: string; error?: string }
-  | { kind: "failed"; error: string }
-  | { kind: "refused"; identity: string | null };
+export type { StatementView } from "./statement";
+export type CopyState = "idle" | "copied" | "manual";
 
 export type StatementSectionViewProps = {
   graph: ResolvedGraph | null;
@@ -35,6 +30,7 @@ export type StatementSectionViewProps = {
   onSubmit: () => void;
   onSelect: (eventId: string) => void;
   onCopyIdentity: (identity: string) => void;
+  copyState?: CopyState;
 };
 
 function isBusy(view: StatementView): boolean {
@@ -66,9 +62,13 @@ export function StatementSectionView({
   onSubmit,
   onSelect,
   onCopyIdentity,
+  copyState = "idle",
 }: StatementSectionViewProps) {
   const canSubmit = text.trim().length > 0 && !isBusy(view);
-  const stopKeys = (e: KeyboardEvent) => e.stopPropagation();
+  // Scene shortcuts stay out of the fields; Escape still reaches the drawer so it can close.
+  const stopKeys = (e: KeyboardEvent) => {
+    if (e.key !== "Escape") e.stopPropagation();
+  };
 
   return (
     <section className="statement-section" aria-label="Statement">
@@ -90,7 +90,7 @@ export function StatementSectionView({
           placeholder="Type or paste the witness's words"
           onChange={(e) => onText(e.currentTarget.value)}
           onKeyDown={(e) => {
-            e.stopPropagation();
+            stopKeys(e);
             if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
               e.preventDefault();
               if (canSubmit) onSubmit();
@@ -166,18 +166,17 @@ export function StatementSectionView({
               <div className="statement-identity">
                 <code>{view.identity}</code>
                 <button type="button" className="button button--small" onClick={() => onCopyIdentity(view.identity!)}>
-                  Copy
+                  {copyState === "copied" ? "Copied" : "Copy"}
                 </button>
               </div>
             )}
+            {view.identity && copyState === "manual" && <p className="statement-note">Select and copy the identity above.</p>}
           </div>
         )}
       </div>
     </section>
   );
 }
-
-type Run = { sent: string; baseline: GraphBaseline; segmentId: string | null; error: string | null };
 
 const messageOf = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -186,19 +185,17 @@ export function StatementSection({ graph, onSelect }: { graph: ResolvedGraph | n
   const identity = useLiveIdentity();
   const [witness, setWitness] = useState(DEFAULT_WITNESS_NAME);
   const [text, setText] = useState("");
-  const [run, setRun] = useState<Run | null>(null);
+  const [run, setRun] = useState<StatementRun | null>(null);
   const [slow, setSlow] = useState(false);
+  const [copyState, setCopyState] = useState<CopyState>("idle");
   const status = useStatementStatus(run?.segmentId ?? null);
+  const view = statementView(run, status, graph, identity, slow);
 
-  const view: StatementView = (() => {
-    if (!run) return { kind: "idle" };
-    if (run.error) return isEditorRefusal(run.error) ? { kind: "refused", identity } : { kind: "failed", error: run.error };
-    if (!run.segmentId || !status || status.state === "extracting") return { kind: "extracting", sent: run.sent, slow };
-    if (status.state === "failed") return { kind: "failed", error: status.error ?? "Extraction failed." };
-    const outcome = outcomeSince(run.baseline, graph);
-    const label = addedLabel(status.patchCount, outcome);
-    return { kind: "done", label, outcome, ...(status.note ? { note: status.note } : {}), ...(status.error ? { error: status.error } : {}) };
-  })();
+  // Freeze the result the first time it is ready, so later overrides or other statements don't change it.
+  const ready = run && !run.result && !run.error && run.segmentId ? resultOf(run.baseline, status, graph) : null;
+  useEffect(() => {
+    if (ready) setRun((current) => (current && !current.result && current.segmentId === run?.segmentId ? { ...current, result: ready } : current));
+  }, [ready, run?.segmentId]);
 
   const extracting = view.kind === "extracting";
   useEffect(() => {
@@ -206,7 +203,7 @@ export function StatementSection({ graph, onSelect }: { graph: ResolvedGraph | n
     if (!extracting) return;
     const id = window.setTimeout(() => setSlow(true), SLOW_AFTER_MS);
     return () => window.clearTimeout(id);
-  }, [extracting, run]);
+  }, [extracting, run?.sent]);
 
   const done = view.kind === "done";
   useEffect(() => {
@@ -216,17 +213,34 @@ export function StatementSection({ graph, onSelect }: { graph: ResolvedGraph | n
   const onSubmit = () => {
     if (!text.trim() || extracting) return;
     const sent = text;
-    const fresh: Run = { sent, baseline: baselineOf(graph), segmentId: null, error: null };
+    const fresh: StatementRun = { sent, baseline: baselineOf(graph), segmentId: null, error: null, result: null };
     setRun(fresh);
-    const fail = (err: unknown) => setRun((current) => (current === fresh || current?.sent === sent ? { ...fresh, error: messageOf(err) } : current));
+    setCopyState("idle");
+    const fail = (err: unknown) => {
+      const error = messageOf(err);
+      noteStatementRejection(error);
+      setRun((current) => (current === fresh || current?.sent === sent ? { ...fresh, error } : current));
+    };
     try {
       submit(sent, witness.trim() || DEFAULT_WITNESS_NAME).then(
-        (result) => setRun((current) => (current?.sent === sent && !current.error ? { ...current, segmentId: result.segmentId } : current)),
+        ({ segmentId, baseVersion }) =>
+          setRun((current) =>
+            current?.sent === sent && !current.error ? { ...current, segmentId, baseline: { ...current.baseline, version: baseVersion } } : current,
+          ),
         fail,
       );
     } catch (err) {
       fail(err);
     }
+  };
+
+  const onCopyIdentity = (value: string) => {
+    const clipboard = typeof navigator === "undefined" ? undefined : navigator.clipboard;
+    if (!clipboard) return setCopyState("manual");
+    clipboard.writeText(value).then(
+      () => setCopyState("copied"),
+      () => setCopyState("manual"),
+    );
   };
 
   return (
@@ -240,7 +254,8 @@ export function StatementSection({ graph, onSelect }: { graph: ResolvedGraph | n
       onText={setText}
       onSubmit={onSubmit}
       onSelect={onSelect}
-      onCopyIdentity={(value) => void navigator.clipboard?.writeText(value).catch(() => {})}
+      onCopyIdentity={onCopyIdentity}
+      copyState={copyState}
     />
   );
 }
