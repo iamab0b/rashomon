@@ -35,6 +35,14 @@ describe("layout", () => {
     }
     const heldCount = resolved!.props.flatMap((p) => p.heldByIntervals ?? []).length;
     expect(rows[3]!.blocks).toHaveLength(heldCount);
+    for (const block of rows[3]!.blocks) {
+      expect(block.status).toBeUndefined();
+      expect(strokeFor(block.status)).toEqual({ stroke: "#8a94a6", opacity: 1 });
+    }
+    const html = renderWith({ resolved, statuses, duration: resolved!.durationS });
+    const propBlock = html.match(/<g data-block="p_knife:0"[^>]*>/)![0];
+    expect(propBlock).not.toContain("data-status");
+    expect(html).toContain('data-status="implausible"');
     const witness = rows.find((r) => r.blocks.some((b) => b.id === "e5"))!;
     const e5 = witness.blocks.find((b) => b.id === "e5")!;
     expect(e5.status).toBe("implausible");
@@ -131,6 +139,14 @@ describe("drag state machine", () => {
     expect(run("other")).toBe(2);
     const drag = createDrag();
     drag.down(1, 0);
+    expect(drag.move(2)).toBe(false);
+  });
+
+  test("a second down is ignored while a drag is active", () => {
+    const drag = createDrag();
+    drag.down(1, 0);
+    expect(drag.down(2, 0)).toBe(false);
+    expect(drag.move(1)).toBe(true);
     expect(drag.move(2)).toBe(false);
   });
 

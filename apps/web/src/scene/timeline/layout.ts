@@ -11,7 +11,7 @@ export type Block = {
   id: string | null;
   tStart: number;
   tEnd: number;
-  status: Status;
+  status?: Status;
   color: string;
   label: string;
 };
@@ -56,7 +56,6 @@ export function buildRows(resolved: ResolvedGraph | null, statuses: StatusMap): 
       id: null,
       tStart: interval.tStart,
       tEnd: interval.tEnd,
-      status: "plausible" as Status,
       color: PROP_COLOR,
       label: `${prop.id}`,
     })),
@@ -96,7 +95,8 @@ export function nudgeDelta(key: string, shift: boolean): number | null {
   return null;
 }
 
-export function strokeFor(status: Status): { dash?: string; stroke: string; opacity: number } {
+export function strokeFor(status?: Status): { dash?: string; stroke: string; opacity: number } {
+  if (status === undefined) return { stroke: PROP_COLOR, opacity: 1 };
   if (status === "proposed") return { dash: "5 3", stroke: "#ffffff", opacity: 0.4 };
   if (status === "implausible") return { dash: "5 3", stroke: "#ff4d4f", opacity: 1 };
   if (status === "overridden") return { stroke: "#ffffff", opacity: 1 };

@@ -11,7 +11,7 @@ export function createDrag(): Drag {
   let current: number | null = null;
   return {
     down: (pointerId, button) => {
-      if (button !== 0) return false;
+      if (button !== 0 || current !== null) return false;
       current = pointerId;
       return true;
     },
