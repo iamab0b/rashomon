@@ -9,6 +9,7 @@ const upstream = process.env.RASHOMON_WEBHOOK_URL ?? "https://maincloud.spacetim
 const port = Number(process.env.RELAY_PORT ?? 8787);
 const ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
 const MAX_BYTES = 64 * 1024;
+const DRAIN_BYTES = 1024 * 1024;
 
 const reply = (res, status, text, headers) => {
   res.writeHead(status, { "content-type": "application/json", ...headers });
@@ -16,21 +17,31 @@ const reply = (res, status, text, headers) => {
 };
 const fail = (res, status, error, headers) => reply(res, status, JSON.stringify({ error }), headers);
 
-async function readBody(req) {
+const readBody = (req) => new Promise((resolve, reject) => {
   const chunks = [];
   let size = 0;
-  for await (const chunk of req) if ((size += chunk.length) <= MAX_BYTES) chunks.push(chunk);
-  return size > MAX_BYTES ? null : Buffer.concat(chunks).toString();
-}
+  req.on("data", (chunk) => {
+    if ((size += chunk.length) <= MAX_BYTES) return chunks.push(chunk);
+    chunks.length = 0;
+    resolve(null);
+    if (size > MAX_BYTES + DRAIN_BYTES) req.destroy();
+  });
+  req.on("end", () => resolve(Buffer.concat(chunks).toString()));
+  req.on("error", reject);
+  req.on("close", reject);
+});
 
-createServer(async (req, res) => {
+async function handle(req, res) {
   const origin = req.headers.origin;
   if (origin && !ORIGINS.includes(origin)) return fail(res, 403, "origin not allowed");
   const cors = origin ? { "access-control-allow-origin": origin, vary: "Origin", "access-control-allow-methods": "POST, OPTIONS", "access-control-allow-headers": "content-type" } : {};
   if (req.url.split("?")[0] !== "/statement" || !["POST", "OPTIONS"].includes(req.method)) return fail(res, 404, "not found", cors);
   if (req.method === "OPTIONS") return reply(res, 204, "", cors);
   const raw = await readBody(req);
-  if (raw === null) return fail(res, 413, "the body must be at most 65536 bytes", cors);
+  if (raw === null) {
+    res.once("finish", () => setTimeout(() => req.destroy(), 1000).unref());
+    return fail(res, 413, "the body must be at most 65536 bytes", { ...cors, connection: "close" });
+  }
   let body;
   try { body = JSON.parse(raw); } catch { body = null; }
   const { sessionId, text, witnessName } = body ?? {};
@@ -40,9 +51,14 @@ createServer(async (req, res) => {
   const witnessId = typeof witnessName === "string" && witnessName.trim() ? witnessName : "witness";
   const forward = JSON.stringify({ sessionId, witnessId, utterances: [{ text, tStart: 0, tEnd: Math.max(1, words / 2.5) }] });
   try {
-    const upstreamRes = await fetch(upstream, { method: "POST", headers: { "content-type": "application/json", "x-rashomon-webhook-secret": token }, body: forward });
+    const upstreamRes = await fetch(upstream, { method: "POST", redirect: "error", headers: { "content-type": "application/json", "x-rashomon-webhook-secret": token }, body: forward });
     reply(res, upstreamRes.status, await upstreamRes.text(), cors);
   } catch {
     fail(res, 502, "relay could not reach the webhook", cors);
   }
+}
+
+createServer((req, res) => {
+  req.on("error", () => req.destroy());
+  handle(req, res).catch(() => (req.destroy(), res.destroy()));
 }).listen(port, "127.0.0.1", () => console.log(`relay listening on 127.0.0.1:${port}`));

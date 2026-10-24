@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { createServer } from "node:http";
+import { createServer, request as httpRequest } from "node:http";
 import net from "node:net";
 import { networkInterfaces } from "node:os";
 import { after, describe, it } from "node:test";
@@ -28,8 +28,8 @@ async function fakeUpstream(respond = () => ({ status: 200, body: { ok: true } }
     for await (const chunk of req) chunks.push(chunk);
     const call = { method: req.method, url: req.url, headers: req.headers, body: JSON.parse(Buffer.concat(chunks).toString() || "null") };
     calls.push(call);
-    const { status, body } = respond(call);
-    res.writeHead(status, { "content-type": "application/json" });
+    const { status, body, headers } = respond(call);
+    res.writeHead(status, { "content-type": "application/json", ...headers });
     res.end(JSON.stringify(body));
   });
   const port = await listen(server);
@@ -229,5 +229,71 @@ describe("secret and binding", () => {
         socket.on("error", reject);
       }),
     );
+  });
+});
+
+describe("robustness", () => {
+  it("survives a client that disconnects in the middle of its body", async () => {
+    const upstream = await fakeUpstream();
+    const relay = await startRelay(upstream.url);
+
+    await new Promise((resolve, reject) => {
+      const socket = net.connect(relay.port, "127.0.0.1", () => {
+        socket.write('POST /statement HTTP/1.1\r\nHost: relay\r\nContent-Type: application/json\r\nContent-Length: 1000\r\n\r\n{"sessionId":"s","te');
+        setTimeout(() => (socket.destroy(), resolve()), 50);
+      });
+      socket.on("error", reject);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    assert.equal(relay.child.exitCode, null, `the relay exited: ${relay.logs()}`);
+    const res = await post(relay, { sessionId: "s", text: "still alive" });
+    assert.equal(res.status, 200);
+    assert.equal(upstream.calls.length, 1);
+  });
+
+  it("answers 502 on a redirect and never sends the secret to where it points", async () => {
+    const elsewhere = await fakeUpstream();
+    const redirecting = await fakeUpstream(() => ({ status: 302, body: {}, headers: { location: elsewhere.url } }));
+    const relay = await startRelay(redirecting.url);
+
+    const res = await post(relay, { sessionId: "s", text: "hello there" });
+
+    assert.equal(res.status, 502);
+    assert.deepEqual(res.json, { error: "relay could not reach the webhook" });
+    assert.equal(redirecting.calls.length, 1);
+    assert.equal(elsewhere.calls.length, 0);
+  });
+
+  it("answers 413 as soon as the cap is passed, while a 10 MB body is still being sent", async () => {
+    const upstream = await fakeUpstream();
+    const relay = await startRelay(upstream.url);
+    const chunk = Buffer.alloc(64 * 1024, "a");
+    const total = 160;
+    const outcome = await new Promise((resolve) => {
+      const req = httpRequest({ host: "127.0.0.1", port: relay.port, path: "/statement", method: "POST", headers: { "content-type": "application/json" } });
+      let sent = 0;
+      let answered = null;
+      req.on("response", (res) => {
+        answered = { status: res.statusCode, sentWhenAnswered: sent };
+        res.resume();
+        res.on("end", () => resolve(answered));
+      });
+      req.on("error", () => resolve(answered ?? { status: null, sentWhenAnswered: sent }));
+      (async () => {
+        for (let i = 0; i < total && answered === null; i++) {
+          await new Promise((done) => req.write(chunk, done));
+          await new Promise((done) => setTimeout(done, 5));
+          sent += 1;
+        }
+        if (answered === null) req.end();
+      })();
+    });
+
+    assert.equal(outcome.status, 413);
+    assert.ok(outcome.sentWhenAnswered < total / 4, `the relay read ${outcome.sentWhenAnswered} of ${total} chunks before answering`);
+    assert.equal(upstream.calls.length, 0);
+    const res = await post(relay, { sessionId: "s", text: "next one" });
+    assert.equal(res.status, 200);
   });
 });
