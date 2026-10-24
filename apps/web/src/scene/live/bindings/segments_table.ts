@@ -25,5 +25,6 @@ export default __t.row({
   extractPromptHash: __t.option(__t.string()).name("extract_prompt_hash"),
   extractUtteranceIds: __t.option(__t.array(__t.string())).name("extract_utterance_ids"),
   extractedAt: __t.option(__t.timestamp()).name("extracted_at"),
+  extractPatchCount: __t.option(__t.u32()).name("extract_patch_count"),
   extractError: __t.option(__t.string()).name("extract_error"),
 });

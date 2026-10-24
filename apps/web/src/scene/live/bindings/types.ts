@@ -244,6 +244,7 @@ export const Segments = __t.object("Segments", {
   extractPromptHash: __t.option(__t.string()),
   extractUtteranceIds: __t.option(__t.array(__t.string())),
   extractedAt: __t.option(__t.timestamp()),
+  extractPatchCount: __t.option(__t.u32()),
   extractError: __t.option(__t.string()),
 });
 export type Segments = __Infer<typeof Segments>;

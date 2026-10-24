@@ -112,6 +112,7 @@ const segments = table(
     extractPromptHash: t.option(t.string()),
     extractUtteranceIds: t.option(t.array(t.string())),
     extractedAt: t.option(t.timestamp()),
+    extractPatchCount: t.option(t.u32()),
     extractError: t.option(t.string()),
   },
 );

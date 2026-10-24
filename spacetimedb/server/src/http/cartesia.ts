@@ -1,6 +1,6 @@
 import { Router, SyncResponse, type Request } from "spacetimedb/server";
 import { EXTRACTION_FAILED, runExtraction, type Extraction, type Io } from "../extract/run";
-import { insertSegment } from "../reducers";
+import { insertSegment, key } from "../reducers";
 import { spacetimedb } from "../tables";
 
 export type WebhookIo = Io & { nowMicros: () => bigint; webhookSecret: () => string | undefined };
@@ -79,21 +79,25 @@ export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
     utterances.push({ id: firstString(raw, ["id"]) ?? `${segmentId}_u${i + 1}`, text, tStart, tEnd });
   }
 
+  const text = utterances.map((u) => u.text).join(" ");
   try {
-    io.withTx((ctx) =>
+    io.withTx((ctx) => {
+      // A resend of a segment that is already stored (same id, same text) goes straight to the stored result.
+      const existing = ctx.db.segments.rowKey.find(key(sessionId, segmentId));
+      if (existing && existing.sessionId === sessionId && existing.text === text) return;
       insertSegment(ctx, {
         id: segmentId,
         sessionId,
         witnessId,
         speaker: "witness",
-        text: utterances.map((u) => u.text).join(" "),
+        text,
         tStart: Math.min(...utterances.map((u) => u.tStart)),
         tEnd: Math.max(...utterances.map((u) => u.tEnd)),
         source: "live",
         supersedes: undefined,
         utterances,
-      }),
-    );
+      });
+    });
   } catch {
     return bad("the segment could not be stored");
   }

@@ -294,6 +294,7 @@ export const insertSegment = spacetimedb.reducer(
       extractPromptHash: undefined,
       extractUtteranceIds: undefined,
       extractedAt: undefined,
+      extractPatchCount: undefined,
       extractError: undefined,
     });
     for (const u of a.utterances)

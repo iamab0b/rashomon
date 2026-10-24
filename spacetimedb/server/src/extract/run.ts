@@ -59,6 +59,22 @@ const hardFlagsOf = (ctx: ReducerCtx<ModuleSchema>, sessionId: string): HardFlag
     .sort((a, b) => a.seq - b.seq)
     .map(({ id, eventId, check, detail, suggestedQuestion }) => ({ id, eventId, check, detail, suggestedQuestion }));
 
+const statusesOf = (ctx: ReducerCtx<ModuleSchema>, sessionId: string): Extraction["statuses"] =>
+  [...ctx.db.events.sessionId.filter(sessionId)].map((e) => ({ eventId: e.id, status: e.status }));
+
+type SegmentRow = NonNullable<ReturnType<ReducerCtx<ModuleSchema>["db"]["segments"]["rowKey"]["find"]>>;
+
+// A segment that already has extractedAt is answered from what was stored, without calling the model again.
+// Statuses and hard flags are the session's current ones.
+const storedResult = (ctx: ReducerCtx<ModuleSchema>, row: SegmentRow): Extraction =>
+  done(
+    row.id,
+    row.extractPatchCount ?? 0,
+    statusesOf(ctx, row.sessionId),
+    hardFlagsOf(ctx, row.sessionId),
+    row.extractError === undefined ? undefined : EXTRACTION_PARTLY_FAILED,
+  );
+
 const messageOf = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
 const isToolUse = (b: { type: string }): b is ToolUseBlock => b.type === "tool_use";
@@ -66,6 +82,7 @@ const isToolUse = (b: { type: string }): b is ToolUseBlock => b.type === "tool_u
 type Snapshot =
   | { error: string }
   | { skipped: true }
+  | { stored: Extraction }
   | { segment: Segment; context: ExtractContext; utteranceIds: string[] };
 
 function snapshot(io: Io, sessionId: string, segmentId: string): Snapshot {
@@ -75,6 +92,7 @@ function snapshot(io: Io, sessionId: string, segmentId: string): Snapshot {
     const row = ctx.db.segments.rowKey.find(key(sessionId, segmentId));
     if (!row || row.sessionId !== sessionId) return { error: UNKNOWN_SEGMENT };
     if (row.speaker !== "witness") return { skipped: true };
+    if (row.extractedAt !== undefined) return { stored: storedResult(ctx, row) };
     const graphRow = buildGraph(ctx.db, sessionId);
     if (!graphRow) return { error: UNKNOWN_SESSION };
     const graph = eventGraphFromRow(graphRow);
@@ -188,6 +206,7 @@ export function runExtraction(io: Io, sessionId: string, segmentId: string): Ext
   const snap = snapshot(io, sessionId, segmentId);
   if ("error" in snap) return done(segmentId, 0, [], [], snap.error);
   if ("skipped" in snap) return done(segmentId, 0, [], []);
+  if ("stored" in snap) return snap.stored;
 
   const apiKey = io.apiKey();
   if (!apiKey) return recordError(io, sessionId, segmentId, "ANTHROPIC_API_KEY is not set on this module");
@@ -204,6 +223,10 @@ export function runExtraction(io: Io, sessionId: string, segmentId: string): Ext
     return io.withTx((ctx) => {
       const session = ctx.db.sessions.id.find(sessionId);
       if (!session) throw new Error(`unknown session ${sessionId}`);
+      const before = ctx.db.segments.rowKey.find(key(sessionId, segmentId));
+      if (!before) throw new Error(`unknown segment ${segmentId}`);
+      // Another call for the same segment may have finished while this one waited on the model.
+      if (before.extractedAt !== undefined) return storedResult(ctx, before);
       if (patches.length > 0) applyPatchBatch(ctx, sessionId, session.version, patches);
       const row = ctx.db.segments.rowKey.find(key(sessionId, segmentId));
       if (!row) throw new Error(`unknown segment ${segmentId}`);
@@ -213,9 +236,10 @@ export function runExtraction(io: Io, sessionId: string, segmentId: string): Ext
         extractPromptHash: PROMPT_HASH,
         extractUtteranceIds: snap.utteranceIds,
         extractedAt: ctx.timestamp,
+        extractPatchCount: patches.length,
         extractError: partial,
       });
-      const statuses = [...ctx.db.events.sessionId.filter(sessionId)].map((e) => ({ eventId: e.id, status: e.status }));
+      const statuses = statusesOf(ctx, sessionId);
       const hardFlags = hardFlagsOf(ctx, sessionId);
       return done(segmentId, patches.length, statuses, hardFlags, partial === undefined ? undefined : EXTRACTION_PARTLY_FAILED);
     });

@@ -246,6 +246,56 @@ describe("extractSegment", () => {
     expect(segmentRow().extractedAt).toBeUndefined();
   });
 
+  test("a second call for an extracted segment returns the stored result without calling the model", () => {
+    const first = runExtraction(ioFor(ok([toolUse("tu_1", "add_event", walkInput)])), SESSION, "utt_2");
+    const patchRows = [...harness.db.patches.sessionId.filter(SESSION)].length;
+    const extractedAt = segmentRow().extractedAt;
+    const again = runExtraction(ioFor(ok([toolUse("tu_9", "add_event", { ...walkInput, actor: "clerk" })])), SESSION, "utt_2");
+    expect(requests).toHaveLength(1);
+    expect(again).toEqual(first);
+    expect(again.patchCount).toBe(1);
+    expect(segmentRow().extractPatchCount).toBe(1);
+    expect(segmentRow().extractedAt).toEqual(extractedAt);
+    expect(graph().version).toBe(2);
+    expect(graph().events).toHaveLength(1);
+    expect([...harness.db.patches.sessionId.filter(SESSION)]).toHaveLength(patchRows);
+  });
+
+  test("a stored partial result is returned as partly failed with its patch count", () => {
+    let n = 0;
+    const bad = toolUse("tu_2", "add_event", { ...walkInput, from: at("moon_base") });
+    const responder: TestHttpResponder<never> = (test, req, b) =>
+      (n++ === 0 ? ok([toolUse("tu_1", "add_event", walkInput), bad]) : ok([bad]))(test, req, b);
+    const first = runExtraction(ioFor(responder), SESSION, "utt_2");
+    expect(first).toMatchObject({ patchCount: 1, error: "extraction partly failed" });
+    const calls = requests.length;
+    expect(runExtraction(ioFor(responder), SESSION, "utt_2")).toEqual(first);
+    expect(requests).toHaveLength(calls);
+  });
+
+  test("a failed extraction is not stored as done, so the next call tries again", () => {
+    runExtraction(ioFor(status(500, "{}")), SESSION, "utt_2");
+    expect(segmentRow().extractedAt).toBeUndefined();
+    const retry = runExtraction(ioFor(ok([toolUse("tu_1", "add_event", walkInput)])), SESSION, "utt_2");
+    expect(requests).toHaveLength(2);
+    expect(retry).toMatchObject({ patchCount: 1, error: undefined });
+    expect(segmentRow().extractError).toBeUndefined();
+  });
+
+  test("when two calls overlap, only the first to finish applies its patches", () => {
+    let nested: ReturnType<typeof runExtraction> | undefined;
+    const outer: TestHttpResponder<never> = (test, req, b) => {
+      // A second call for the same segment starts and finishes while this one waits on the model.
+      if (!nested) nested = runExtraction(ioFor(ok([toolUse("tu_n", "add_event", walkInput)])), SESSION, "utt_2");
+      return ok([toolUse("tu_o", "add_event", { ...walkInput, actor: "clerk", t_start: 15, t_end: 18 })])(test, req, b);
+    };
+    const result = runExtraction(ioFor(outer), SESSION, "utt_2");
+    expect(nested).toMatchObject({ patchCount: 1, error: undefined });
+    expect(result).toEqual(nested);
+    expect(graph().version).toBe(2);
+    expect(graph().events.map((e) => e.actor)).toEqual(["suspect"]);
+  });
+
   test("no key, an unknown segment and a non-witness segment never reach the model", () => {
     expect(runExtraction(ioFor(ok([]), ""), SESSION, "utt_2").error).toBe(EXTRACTION_FAILED);
     expect(segmentRow().extractError).toMatch(/ANTHROPIC_API_KEY is not set/);
@@ -375,6 +425,19 @@ describe("the Cartesia webhook", () => {
     expect(row).toMatchObject({ speaker: "witness", witnessId: "w1", source: "live", tStart: 7.8, tEnd: 12 });
     expect(row.extractUtteranceIds).toEqual(["seg_1234_u1"]);
     expect(graph().events).toHaveLength(1);
+  });
+
+  test("a resend of the same segment returns the stored result; a different text under its id is a 400", () => {
+    const io = webhookIo(ok([toolUse("tu_1", "add_event", { ...walkInput, sources: ["seg_1"] })]));
+    const first = handleCartesia(io, post(body({ segmentId: "seg_1" })));
+    expect(first.status).toBe(200);
+    const again = handleCartesia(io, post(body({ segmentId: "seg_1" })));
+    expect(again).toEqual(first);
+    expect(requests).toHaveLength(1);
+    expect(graph().events).toHaveLength(1);
+    const changed = handleCartesia(io, post(body({ segmentId: "seg_1", utterances: [{ text: "Something else.", tStart: 1, tEnd: 2 }] })));
+    expect(changed).toEqual({ status: 400, body: { error: "the segment could not be stored" } });
+    expect(requests).toHaveLength(1);
   });
 
   test("an extraction error is a 502 with a generic message, and the detail stays on the segment", () => {
