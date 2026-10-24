@@ -12,3 +12,13 @@ Four items from the third review were not done, and the reviews found one new ga
 6. **PR text.** Say that publishing needs -c=always, because the segments columns have no defaults, and that `spacetime publish` refuses to run without ANTHROPIC_API_KEY set (seen locally). Fix the stale line that says a 500 stores "Anthropic API 500: overloaded"; it now stores `model_error`.
 
 `/team-status` closes this item when a file under `spacetimedb/server/src/` contains the test name `a resend without a segmentId does not extract twice`.
+
+## Review of 84f0c86, 46a852c, 060e9c7 on spacetime-procedure (Sat 12:15 PM)
+
+Two fresh reviews (Opus and Sonnet) found the three commits clean: the content-derived id has no collisions (JSON encoding, sessionId in both the hash and the key), the key read is wrapped, and no comments are left. They are not merged, because there is no PR: PR #16 is already merged, so new commits on spacetime-procedure reach nobody.
+
+1. **Open a PR to main** from spacetime-procedure (or push the same commits to a `procedure-followups` branch). The leader reviews and merges; do not merge it yourself.
+2. **Still open: item 1 (MEDIUM), earlier segments uncapped** (run.ts lines 119 to 129). This is the one that matters for Maincloud: any client can store a huge earlier segment with insert_segment, and every later extraction on that session sends it to Claude.
+3. **Still open: item 3 (LOW), 413 before storing** over-cap text (cartesia.ts lines 58 and 86).
+4. **Rename the resend test** to exactly "a resend without a segmentId does not extract twice" (procedure.test.ts line 458), so the tracker closes the item.
+5. **Optional:** include witnessId in the hashed tuple, so two witnesses with identical words and times in one session are not treated as a resend (cartesia.ts line 50).
