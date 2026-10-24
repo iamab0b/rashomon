@@ -6,7 +6,21 @@ import { gatedSnapshot } from "../playback/graphSource";
 import { useSceneStore, type SceneState } from "../store";
 import { Timeline, createDrag, makeJump, makeKeyHandler } from "./Timeline";
 import { callHook, findElement } from "../testing/hookHost";
-import { assignLanes, buildRows, fillOpacityFor, implausibleStarts, rowHeight, ROW_H, strokeFor } from "./layout";
+import { isValidElement, type ReactNode } from "react";
+import {
+  assignLanes,
+  buildRows,
+  fillOpacityFor,
+  hits,
+  implausibleStarts,
+  LANE_H,
+  rowHeight,
+  rowTops,
+  ROW_H,
+  strokeFor,
+  TOP,
+  xOf,
+} from "./layout";
 
 const initial = useSceneStore.getState();
 const pristine = { ...useSceneStore.getInitialState() };
@@ -240,6 +254,49 @@ describe("event state styling (regression)", () => {
     expect(e2).toMatch(/<polygon [^>]*fill="#ffb020"/);
     expect(fill(e2)).toMatch(new RegExp(`fill="${CLERK}" fill-opacity="0.24"`));
     expect(border(e2)).toMatch(new RegExp(`stroke="${CLERK}"`));
+  });
+});
+
+function collect(node: ReactNode, matches: (props: Record<string, unknown>) => boolean): Record<string, unknown>[] {
+  if (Array.isArray(node)) return node.flatMap((child) => collect(child, matches));
+  if (!isValidElement(node)) return [];
+  const props = node.props as Record<string, unknown>;
+  return [...(matches(props) ? [props] : []), ...collect(props.children as ReactNode, matches)];
+}
+
+describe("playhead hit area", () => {
+  test("after Next flag sets t = 10, a click just inside e5's left edge selects e5 instead of scrubbing", () => {
+    const { api, jump } = drive();
+    api().clear();
+    api().setT(0);
+    jump(1);
+    expect(api().t).toBe(10);
+    api().clear();
+
+    const { resolved, statuses } = snap();
+    const rows = buildRows(resolved, statuses);
+    const witness = rows.findIndex((r) => r.blocks.some((b) => b.id === "e5"));
+    const lane = rows[witness]!.blocks.find((b) => b.id === "e5")!.lane;
+    const duration = api().duration;
+    const px = xOf(10, duration) + 2;
+    const py = rowTops(rows)[witness]! + lane * LANE_H + ROW_H / 2;
+    expect(px).toBeLessThan(xOf(12, duration));
+
+    const tree = callHook(() => Timeline({}));
+    const hitRects = collect(tree, (props) => props["data-playhead-hit"] === true) as unknown as {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }[];
+    expect(hitRects.length).toBe(2);
+    expect(hitRects.some((r) => hits(r, px, py))).toBe(false);
+    expect(hitRects.some((r) => hits(r, xOf(10, duration), TOP / 2))).toBe(true);
+    for (const r of hitRects) if (r.y + r.height > TOP) expect(r.width).toBeLessThanOrEqual(2);
+
+    const e5 = findElement(tree, (props) => props["data-block"] === "e5")!;
+    (e5.props as { onClick: () => void }).onClick();
+    expect(api().selectedEventId).toBe("e5");
   });
 });
 

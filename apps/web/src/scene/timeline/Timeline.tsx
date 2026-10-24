@@ -14,6 +14,7 @@ import {
   buildRows,
   implausibleStarts,
   neighborFlag,
+  playheadHitAreas,
   rowHeight,
   fillOpacityFor,
   rowTops,
@@ -28,7 +29,6 @@ export type TimelineProps = { onOpen?: (id: string) => void };
 
 const SPEEDS = [0.5, 1, 2];
 const AMBER = "#ffb020";
-const PLAYHEAD_HIT_W = 14;
 const BOTTOM_PAD_PX = 14;
 
 const CSS = `
@@ -258,7 +258,9 @@ export function Timeline({ onOpen }: TimelineProps) {
           onPointerCancel={endDrag}
           onLostPointerCapture={endDrag}
         >
-          <rect x={xOf(t, duration) - PLAYHEAD_HIT_W / 2} y={TOP - 10} width={PLAYHEAD_HIT_W} height={height - TOP + 10} fill="transparent" />
+          {playheadHitAreas(xOf(t, duration), height).map((r, i) => (
+            <rect key={i} data-playhead-hit x={r.x} y={r.y} width={r.width} height={r.height} fill="transparent" />
+          ))}
           <rect
             className="rtl-ring"
             x={xOf(t, duration) - 9}
@@ -271,8 +273,8 @@ export function Timeline({ onOpen }: TimelineProps) {
             strokeWidth={2}
             visibility="hidden"
           />
-          <line x1={xOf(t, duration)} x2={xOf(t, duration)} y1={TOP - 6} y2={height} stroke="#ff5d73" strokeWidth={2} />
-          <rect x={xOf(t, duration) - 6} y={TOP - 10} width={12} height={10} rx={2} fill="#ff5d73" />
+          <line x1={xOf(t, duration)} x2={xOf(t, duration)} y1={TOP - 6} y2={height} stroke="#ff5d73" strokeWidth={2} pointerEvents="none" />
+          <rect x={xOf(t, duration) - 6} y={TOP - 10} width={12} height={10} rx={2} fill="#ff5d73" pointerEvents="none" />
         </g>
       </svg>
     </div>
