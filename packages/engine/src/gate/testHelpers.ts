@@ -12,6 +12,7 @@ export const floorPlanGeom = (): SceneGeom => ({
 });
 
 export const ev = (over: Partial<ResolvedEvent> & { id: string }): ResolvedEvent => ({
+  witnessId: "w1",
   actor: "a",
   action: "stand",
   tStart: 0,

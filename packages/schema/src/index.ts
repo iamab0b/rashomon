@@ -147,11 +147,18 @@ export type PropInstance = {
   sources: string[];
 };
 
+export type Witness = {
+  id: string;
+  label: string;
+  actorId?: string;
+};
+
 export type EventGraph = {
   sceneId: string;
   actors: Actor[];
   events: Event[];
   props: PropInstance[];
+  witnesses?: Witness[];
   version: number;
 };
 

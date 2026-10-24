@@ -9,6 +9,7 @@ import { followedActorId } from "../cameras/povSightline";
 import { DIMMED_OPACITY } from "../cameras/visibility";
 import { useSceneStore } from "../store";
 import { actorPosition, actorStatus, actorYaw, type ActorPlayback, type PositionLookup } from "./actorPose";
+import { rigOpacity } from "./witnessLayers";
 
 export const PROPOSED_OPACITY = 0.4;
 const ORIGIN = [0, 0, 0] as const;
@@ -53,7 +54,8 @@ export function ActorRig({ playback, rig, positionOf, onReady }: Props) {
     node.position.set(position[0], position[1], position[2]);
     node.rotation.set(0, actorYaw(playback, t, positionOf), 0);
     const statusOpacity = actorStatus(playback, t) === "proposed" ? PROPOSED_OPACITY : 1;
-    const opacity = state.dimmedActors.has(playback.actorId) ? Math.min(statusOpacity, DIMMED_OPACITY) : statusOpacity;
+    const dimmed = state.dimmedActors.has(playback.actorId) ? Math.min(statusOpacity, DIMMED_OPACITY) : statusOpacity;
+    const opacity = rigOpacity(playback, t, dimmed, state.hiddenWitnesses);
     if (handle && opacity !== appliedOpacity.current) {
       setOpacity(handle.root, opacity);
       appliedOpacity.current = opacity;

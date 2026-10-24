@@ -30,6 +30,7 @@ export type TimelineProps = { onOpen?: (id: string) => void };
 const SPEEDS = [0.5, 1, 2];
 const AMBER = "#ffb020";
 const BOTTOM_PAD_PX = 14;
+const HIDDEN_BLOCK_OPACITY = 0.15;
 
 const CSS = `
 .rtl-root, .rtl-root * { -webkit-user-select: none; user-select: none; }
@@ -65,6 +66,7 @@ export function Timeline({ onOpen }: TimelineProps) {
   const { t, playing, speed, duration, setT, play, pause } = useTimeline();
   const { selectedEventId, select } = useSelection();
   const setSpeed = useSceneStore((s) => s.setSpeed);
+  const hiddenWitnesses = useSceneStore((s) => s.hiddenWitnesses);
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef(createDrag()).current;
   const [scrubbing, setScrubbing] = useState(false);
@@ -210,7 +212,7 @@ export function Timeline({ onOpen }: TimelineProps) {
                     data-event={b.id ? "" : undefined}
                     data-playback-active={playingNow ? "true" : undefined}
                     className="rtl-block"
-                    style={{ cursor: b.id ? "pointer" : "default" }}
+                    style={{ cursor: b.id ? "pointer" : "default", ...(b.witnessId !== undefined && hiddenWitnesses.has(b.witnessId) ? { opacity: HIDDEN_BLOCK_OPACITY } : {}) }}
                     onClick={() => b.id && select(b.id)}
                     onDoubleClick={() => b.id && onOpen?.(b.id)}
                   >

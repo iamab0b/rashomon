@@ -1,9 +1,10 @@
-import type { Action, Flag, Override, Status } from "@rashomon/schema";
+import type { Action, Flag, Override, Status, Witness } from "@rashomon/schema";
 
 export type Vec3 = [number, number, number];
 
 export type ResolvedEvent = {
   id: string;
+  witnessId: string;
   actor: string;
   action: Action;
   tStart: number;
@@ -50,6 +51,7 @@ export type ResolvedGraph = {
   }[];
   events: ResolvedEvent[];
   props: ResolvedProp[];
+  witnesses?: Witness[];
   handwritten?: boolean;
 };
 

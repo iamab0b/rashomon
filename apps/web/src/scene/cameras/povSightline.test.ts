@@ -25,7 +25,7 @@ beforeEach(() => {
 });
 
 function event(id: string, actor: string, action: Action, tStart: number, tEnd: number, extra: Partial<ResolvedEvent> = {}): ResolvedEvent {
-  return { id, actor, action, tStart, tEnd, status: "plausible", flags: [], path: [], pathLengthM: 0, reachable: true, sources: [`utt_${id}`], tInferred: false, ...extra };
+  return { id, witnessId: "w1", actor, action, tStart, tEnd, status: "plausible", flags: [], path: [], pathLengthM: 0, reachable: true, sources: [`utt_${id}`], tInferred: false, ...extra };
 }
 
 function graphOf(events: ResolvedEvent[]): ResolvedGraph {

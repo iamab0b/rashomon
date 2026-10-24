@@ -1,7 +1,7 @@
 import { extractSegment, type CallModel, type ExtractContext } from "@rashomon/extractor";
 import propsJson from "@rashomon/props";
 import type { Event, EventGraph, Patch, PropType, SceneManifest, Segment } from "@rashomon/schema";
-import { robberyGraph, storeScene } from "@rashomon/schema/fixtures";
+import { robberyClerkPatches, robberyClerkWitness, robberyGraph, storeScene } from "@rashomon/schema/fixtures";
 import type { GraphSnapshot } from "../store";
 import { applyPatches } from "./applyPatches";
 import { gatedSnapshot } from "./gatedSnapshot";
@@ -32,6 +32,8 @@ type FixtureState = {
 };
 
 const CORRECTED_SCENARIO = "corrected";
+const TWO_WITNESSES_SCENARIO = "two-witnesses";
+const SCENARIOS: ReadonlySet<string> = new Set([CORRECTED_SCENARIO, TWO_WITNESSES_SCENARIO]);
 const CORRECTION_TIME = 0;
 
 export function robberyCorrectionPatches(): readonly Patch[] {
@@ -54,10 +56,18 @@ function gatedState(graph: EventGraph, manifest: SceneManifest): FixtureState {
   return { graph, snapshot: gatedSnapshot(graph, manifest) };
 }
 
+function twoWitnessGraph(): EventGraph {
+  const patched = applyPatches(robberyGraph, robberyClerkPatches, CORRECTION_TIME, storeScene);
+  return { ...patched, witnesses: [...(robberyGraph.witnesses ?? []), { ...robberyClerkWitness }] };
+}
+
 const FIXTURE_STATES: Readonly<Record<string, () => FixtureState>> = {
   store: memoized("store", () => gatedState(robberyGraph, storeScene)),
   [`store:${CORRECTED_SCENARIO}`]: memoized(`store:${CORRECTED_SCENARIO}`, () =>
     gatedState(applyPatches(robberyGraph, robberyCorrectionPatches(), CORRECTION_TIME, storeScene), storeScene),
+  ),
+  [`store:${TWO_WITNESSES_SCENARIO}`]: memoized(`store:${TWO_WITNESSES_SCENARIO}`, () =>
+    gatedState(twoWitnessGraph(), storeScene),
   ),
 };
 
@@ -153,11 +163,11 @@ function patchableSource(initial: () => FixtureState, manifest: SceneManifest): 
 }
 
 function fixtureKey(fixture: string, scenario: string | null | undefined): string {
-  return scenario === CORRECTED_SCENARIO ? `${fixture}:${CORRECTED_SCENARIO}` : fixture;
+  return scenario ? `${fixture}:${scenario}` : fixture;
 }
 
 export function fixtureGraphSource(fixture: string, scenario?: string | null): FixtureGraphSource | null {
-  if (scenario && scenario !== CORRECTED_SCENARIO) return null;
+  if (scenario && !SCENARIOS.has(scenario)) return null;
   const key = fixtureKey(fixture, scenario);
   const build = Object.hasOwn(FIXTURE_STATES, key) ? FIXTURE_STATES[key] : undefined;
   return build ? patchableSource(build, storeScene) : null;

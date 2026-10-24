@@ -20,6 +20,9 @@ export { useLiveIdentity, useStatementStatus } from "./playback/useStatementStat
 export type { StatementStatus, SubmittedStatement } from "./playback/statementStatus";
 export type { GraphActions } from "./playback/useGraphActions";
 export type { Patch } from "@rashomon/schema";
+export { useWitnessLayers } from "./playback/useWitnessLayers";
+export type { WitnessLayersApi } from "./playback/useWitnessLayers";
+export type { WitnessLayer } from "./playback/witnessLayers";
 export { useTimeline } from "./playback/useTimeline";
 export type { TimelineApi } from "./playback/useTimeline";
 export { useSceneStatus } from "./useSceneStatus";

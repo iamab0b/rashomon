@@ -48,7 +48,7 @@ export function sightlineFlags(
       },
       suggestedQuestion:
         `From the ${nearestLabel(observer, manifest)}, the ${landmarkLabel(chestHit.meshId, manifest)} ` +
-        `would be between you and ${spokenActor(resolved, e.target)}. Where exactly were you standing when you saw that?`,
+        `would be between you and ${spokenActor(resolved, e.target, e.witnessId)}. Where exactly were you standing when you saw that?`,
     });
   }
   return flags;
