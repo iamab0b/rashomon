@@ -1,0 +1,30 @@
+{
+  "statuses": {
+    "e1": "plausible",
+    "e2": "plausible",
+    "e3": "plausible",
+    "e4": "plausible",
+    "e5": "implausible",
+    "e6": "plausible",
+    "e7": "plausible",
+    "e8": "plausible",
+    "e9": "plausible",
+    "e10": "plausible"
+  },
+  "flags": [
+    {
+      "id": "sightline:e5",
+      "eventId": "e5",
+      "check": "sightline",
+      "severity": "hard",
+      "detail": "witness at (1.5, 3.5) cannot see suspect at (7.2, 2.5) at t=11.0s: shelf_a blocks both the chest and head rays, 0.9 m along a 5.8 m line.",
+      "evidence": {
+        "blocker": "shelf_a",
+        "blockerDistanceM": 0.92,
+        "rayLengthM": 5.8,
+        "atTimeS": 11
+      },
+      "suggestedQuestion": "From the chips aisle, the chips shelf would be between you and the suspect. Where exactly were you standing when you saw that?"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "witness": { "id": "w2", "label": "Clerk", "actorId": "clerk" },
+  "segment": {
+    "id": "seg_w2",
+    "sessionId": "s1",
+    "witnessId": "w2",
+    "speaker": "witness",
+    "text": "He wasn't at the counter when he grabbed it. He was back by the drinks cooler. I saw him over there. I'm sure of it.",
+    "t": [0, 12],
+    "source": "live",
+    "utterances": [
+      { "id": "utt_w2_1", "text": "He wasn't at the counter when he grabbed it.", "t": [0, 3] },
+      { "id": "utt_w2_2", "text": "He was back by the drinks cooler.", "t": [3, 6] },
+      { "id": "utt_w2_3", "text": "I saw him over there.", "t": [6, 9] },
+      { "id": "utt_w2_4", "text": "I'm sure of it.", "t": [9, 12] }
+    ]
+  },
+  "patches": [
+    {
+      "op": "add_event",
+      "event": {
+        "witnessId": "w2",
+        "actor": "suspect",
+        "action": "stand",
+        "at": { "kind": "near", "landmark": "cooler", "radiusM": 0.6 },
+        "t": [9, 15],
+        "tConfidence": "stated",
+        "confidence": 0.6,
+        "sources": ["utt_w2_2", "utt_w2_3"]
+      }
+    }
+  ]
+}

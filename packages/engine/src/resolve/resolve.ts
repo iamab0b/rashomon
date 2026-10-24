@@ -168,6 +168,7 @@ export function resolve(
     const facing = facingPoint(e.facing, manifest);
     return {
       id: e.id,
+      witnessId: e.witnessId,
       actor: e.actor,
       action: e.action,
       tStart: round(t.tStart),
@@ -220,6 +221,7 @@ export function resolve(
     }),
     events,
     props,
+    ...(graph.witnesses && graph.witnesses.length > 1 ? { witnesses: graph.witnesses.map((w) => ({ ...w })) } : {}),
     handwritten: false,
   };
 }

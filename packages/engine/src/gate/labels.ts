@@ -23,10 +23,15 @@ export function landmarkLabel(id: string, manifest: SceneManifest): string {
   return manifest.landmarks.find((l) => l.id === id)?.label ?? id;
 }
 
-export function spokenActor(resolved: ResolvedGraph, id: string): string {
+export function spokenActor(resolved: ResolvedGraph, id: string, witnessId?: string): string {
   const actor = resolved.actors.find((a) => a.id === id);
   if (!actor) return id;
-  if (actor.role === "witness") return "you";
+  const witnesses = resolved.witnesses;
+  const isSpeaker =
+    witnesses && witnesses.length > 0 && witnessId !== undefined
+      ? witnesses.find((w) => w.id === witnessId)?.actorId === id
+      : actor.role === "witness";
+  if (isSpeaker) return "you";
   const plain = actor.label.replace(/\s*\([^)]*\)\s*$/, "").trim() || actor.label;
   return `the ${plain.charAt(0).toLowerCase()}${plain.slice(1)}`;
 }
