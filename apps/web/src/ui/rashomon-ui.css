@@ -182,4 +182,6 @@
 .rui .segmented button + button { border-left: 1px solid #3b4243; }
 .rui .segmented button:hover { background: #24292a; }
 .rui .segmented button.active { color: #ecefef; background: #303638; }
-.rui .badge--preview { color: #c7b8f0; border-color: #4f4570; border-style: dashed; background: #1f1b2e; text-decoration: none; cursor: pointer; }
+.rui .waived-question { display: block; margin-top: 4px; color: var(--status-plausible); }
+.rui .dialog-error { margin: 14px 0 0; padding: 8px 10px; color: var(--status-implausible); border: 1px dashed var(--status-implausible); border-radius: 3px; background: color-mix(in srgb, var(--status-implausible) 6%, var(--surface)); font-size: 12px; line-height: 1.45; }
+.rui .pending-note { display: flex; align-items: center; gap: 7px; margin-top: 7px; padding: 6px 7px; color: var(--status-overridden); border: 1px dashed color-mix(in srgb, var(--status-overridden) 60%, transparent); border-radius: 3px; font-size: 11px; }

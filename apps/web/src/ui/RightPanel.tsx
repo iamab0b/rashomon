@@ -1,11 +1,11 @@
 import { useEffect, useState, type ComponentType, type CSSProperties } from "react";
-import { useGraph, useSelection, useTimeline, type ResolvedEvent, type Status } from "../scene";
+import { useGraph, useGraphActions, useSelection, useTimeline, type ResolvedEvent, type Status } from "../scene";
 import { EventsTab } from "./EventsTab";
 import { FlagsTab, openFlagCount } from "./FlagsTab";
 import { HistoryTab } from "./HistoryTab";
 import { OverrideDialog } from "./OverrideDialog";
-import type { Overrides, PanelContext } from "./shared";
-import { isStatusPreview, previewStatuses } from "./statusPreview";
+import { eventDisplay, type PendingOverrides } from "./overridePending";
+import type { PanelContext } from "./shared";
 import { WitnessesTab } from "./WitnessesTab";
 import "./rashomon-ui.css";
 
@@ -29,8 +29,9 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
   const { resolved, statuses } = useGraph();
   const { selectedEventId, select } = useSelection();
   const { setT, pause } = useTimeline();
+  const { applyPatches } = useGraphActions();
   const [activeTab, setActiveTab] = useState(TABS[0]!.id);
-  const [overrides, setOverrides] = useState<Overrides>({});
+  const [pending, setPending] = useState<PendingOverrides>({});
   const [dialogEventId, setDialogEventId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
 
@@ -50,15 +51,7 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
     );
   }
 
-  const gateStatus = (id: string, fallback: Status): Status => statuses[id] ?? fallback;
-  const preview = isStatusPreview(window.location.search)
-    ? previewStatuses(resolved.events, (id) =>
-        gateStatus(id, resolved.events.find((e) => e.id === id)?.status ?? "proposed"),
-      )
-    : {};
-
-  const statusOf = (event: ResolvedEvent): Status =>
-    overrides[event.id] ? "overridden" : (preview[event.id] ?? gateStatus(event.id, event.status));
+  const statusOf = (event: ResolvedEvent): Status => eventDisplay(event, statuses, pending).status;
 
   const jumpTo = (eventId: string) => {
     const event = resolved.events.find((e) => e.id === eventId);
@@ -70,8 +63,8 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
 
   const context: PanelContext = {
     graph: resolved,
-    overrides,
     statusOf,
+    pendingNoteOf: (event) => eventDisplay(event, statuses, pending).pendingNote,
     selectedEventId,
     jumpTo,
     openOverride: setDialogEventId,
@@ -106,10 +99,11 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
           by={by}
           onClose={() => setDialogEventId(null)}
           onConfirm={(override) => {
-            setOverrides((prev) => ({ ...prev, [dialogEvent.id]: override }));
+            applyPatches([{ op: "override", id: dialogEvent.id, reason: override.reason, by: override.by }]);
+            setPending((prev) => ({ ...prev, [dialogEvent.id]: override.reason }));
             setDialogEventId(null);
             select(dialogEvent.id);
-            setToast("Overridden. The badge stays on this event.");
+            setToast("Override sent with your reason.");
           }}
         />
       )}

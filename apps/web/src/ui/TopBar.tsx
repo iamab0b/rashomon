@@ -1,7 +1,5 @@
-import { useEffect, useState } from "react";
 import { useGraph } from "../scene";
 import { GRAPH_MODES, parseMode, searchWithMode, type GraphMode } from "./graphMode";
-import { isStatusPreview, searchWithoutPreview } from "./statusPreview";
 import "./rashomon-ui.css";
 
 const SCENE_LABELS: Record<string, string> = { store_v1: "Corner Store" };
@@ -9,20 +7,11 @@ const SCENE_LABELS: Record<string, string> = { store_v1: "Corner Store" };
 const MODE_LABELS: Record<GraphMode, string> = { fixture: "Fixture", live: "Live" };
 
 export function useGraphMode(): [GraphMode, (mode: GraphMode) => void] {
-  const [mode, setModeState] = useState<GraphMode>(() => parseMode(window.location.search));
-
-  useEffect(() => {
-    const onPop = () => setModeState(parseMode(window.location.search));
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, []);
-
+  const mode = parseMode(window.location.search);
   const setMode = (next: GraphMode) => {
-    const { pathname, search, hash } = window.location;
-    window.history.replaceState(window.history.state, "", `${pathname}${searchWithMode(search, next)}${hash}`);
-    setModeState(next);
+    if (next === mode) return;
+    window.location.search = searchWithMode(window.location.search, next);
   };
-
   return [mode, setMode];
 }
 
@@ -50,15 +39,6 @@ export function TopBar({ liveConnected = false }: { liveConnected?: boolean }) {
         <div className="divider" />
         <span>{sceneLabel}</span>
         <ModeBadge mode={mode} liveConnected={liveConnected} />
-        {isStatusPreview(window.location.search) && (
-          <a
-            className="badge badge--preview"
-            href={`${window.location.pathname}${searchWithoutPreview(window.location.search)}`}
-            title="Some statuses are filled in so every style is visible. Click to show real statuses only."
-          >
-            Status preview · exit
-          </a>
-        )}
       </div>
       <div className="top-actions">
         <span className="field-label" style={{ margin: 0 }}>

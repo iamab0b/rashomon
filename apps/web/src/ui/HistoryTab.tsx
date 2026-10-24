@@ -3,14 +3,15 @@ import {
   eventTime,
   NotConnected,
   OverrideLog,
+  PendingNote,
   StatusToken,
   words,
   type PanelContext,
 } from "./shared";
 
-export function HistoryTab({ graph, overrides, statusOf, selectedEventId }: PanelContext) {
+export function HistoryTab({ graph, statusOf, pendingNoteOf, selectedEventId }: PanelContext) {
   const event = graph.events.find((e) => e.id === selectedEventId) ?? null;
-  const overridden = graph.events.filter((e) => overrides[e.id]);
+  const overridden = graph.events.filter((e) => e.override);
 
   return (
     <>
@@ -45,7 +46,8 @@ export function HistoryTab({ graph, overrides, statusOf, selectedEventId }: Pane
               ))}
             </div>
           </article>
-          {overrides[event.id] && <OverrideLog override={overrides[event.id]!} />}
+          <PendingNote note={pendingNoteOf(event)} />
+          {event.override && <OverrideLog override={event.override} />}
         </div>
       )}
 
@@ -65,7 +67,7 @@ export function HistoryTab({ graph, overrides, statusOf, selectedEventId }: Pane
             <span className="flag-event mono" style={{ marginTop: 10 }}>
               {e.id} · {e.actor} · {words(e.action)}
             </span>
-            <OverrideLog override={overrides[e.id]!} />
+            <OverrideLog override={e.override!} />
           </div>
         ))
       )}

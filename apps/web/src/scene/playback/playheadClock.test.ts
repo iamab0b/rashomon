@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { stepPlayhead, type PlayheadMemo } from "./playhead";
+import { stepPlayhead, type PlayheadMemo } from "./playheadClock";
 
 type Run = { t: number; playing: boolean; memo: PlayheadMemo | null };
 

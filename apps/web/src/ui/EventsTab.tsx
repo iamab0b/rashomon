@@ -1,7 +1,7 @@
 import { Icon } from "./Icon";
-import { actorLabel, eventDetail, eventTime, StatusToken, words, type PanelContext } from "./shared";
+import { actorLabel, eventDetail, eventTime, PendingNote, StatusToken, words, type PanelContext } from "./shared";
 
-export function EventsTab({ graph, statusOf, selectedEventId, jumpTo }: PanelContext) {
+export function EventsTab({ graph, statusOf, pendingNoteOf, selectedEventId, jumpTo }: PanelContext) {
   const events = [...graph.events].sort((a, b) => a.tStart - b.tStart);
 
   return (
@@ -41,6 +41,7 @@ export function EventsTab({ graph, statusOf, selectedEventId, jumpTo }: PanelCon
                   <span>The room rules this out as stated.</span>
                 </div>
               )}
+              <PendingNote note={pendingNoteOf(event)} />
               {status === "overridden" && (
                 <div className="event-override-note">
                   <span className="status-diamond" />

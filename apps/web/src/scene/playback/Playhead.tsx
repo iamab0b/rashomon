@@ -1,7 +1,7 @@
 import { useFrame } from "@react-three/fiber";
 import { useRef } from "react";
 import { useSceneStore } from "../store";
-import { stepPlayhead, type PlayheadMemo } from "./playhead";
+import { stepPlayhead, type PlayheadMemo } from "./playheadClock";
 
 const PLAYHEAD_PRIORITY = -2;
 
