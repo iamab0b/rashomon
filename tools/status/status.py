@@ -131,7 +131,7 @@ def branch_info(b):
     secrets = [p for p in changed if Path(p).name.startswith(".env") or p.endswith(".key")]
     if secrets:
         flags.append({"level": "BLOCK", "msg": f"commits secrets: {', '.join(secrets)}"})
-    r = git("grep", "-l", "-E", "(sk-ant-|sk_car_|AKIA[0-9A-Z]{12}|ghp_[A-Za-z0-9]{20}|xai-[A-Za-z0-9]{20})", b, "--", ".")
+    r = git("grep", "-l", "-E", "(sk-ant-[A-Za-z0-9_-]{20,}|sk_car_[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,}|xai-[A-Za-z0-9_-]{20,})", b, "--", ".")
     if r.returncode == 0 and r.stdout.strip():
         flags.append({"level": "BLOCK", "msg": f"a file on this branch looks like it holds an API key: {r.stdout.strip().splitlines()[0]}"})
     tracks = [t for t in touched if t in MILESTONES["tracks"]]
@@ -204,7 +204,7 @@ def standing_checks(refs, checks_by_track):
 
 def prs():
     r = subprocess.run(["gh", "pr", "list", "--state", "open", "--json", "number,title,headRefName,author,reviewDecision,statusCheckRollup", "--limit", "30"],
-                       capture_output=True, text=True, cwd=ROOT, env=ENV, timeout=30) if shutil_which("gh") else None
+                       capture_output=True, text=True, cwd=ROOT, env=ENV, timeout=90) if shutil_which("gh") else None
     if r is None or r.returncode != 0:
         return {"error": "gh not available or not logged in"}
     try:
