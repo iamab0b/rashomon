@@ -22,6 +22,12 @@ export const REQUEST_TIMEOUT_MS = 60_000;
 export const MAX_RETRIES = 1;
 export const PROMPT_HASH = fnv1a64(`${SYSTEM_PROMPT}\n${JSON.stringify(EXTRACTOR_TOOLS)}`);
 
+// The only error strings a caller ever sees. The detail stays in the segment's extractError.
+export const EXTRACTION_FAILED = "extraction failed";
+export const EXTRACTION_PARTLY_FAILED = "extraction partly failed";
+export const UNKNOWN_SESSION = "unknown session";
+export const UNKNOWN_SEGMENT = "unknown segment";
+
 export type Io = {
   apiKey: () => string | undefined;
   http: { fetch(url: string, init: { method: string; headers: Record<string, string>; body: string; timeout: TimeDuration }): SyncResponse };
@@ -54,12 +60,12 @@ type Snapshot =
 function snapshot(io: Io, sessionId: string, segmentId: string): Snapshot {
   return io.withTx((ctx): Snapshot => {
     const session = ctx.db.sessions.id.find(sessionId);
-    if (!session) return { error: `unknown session ${sessionId}` };
+    if (!session) return { error: UNKNOWN_SESSION };
     const row = ctx.db.segments.rowKey.find(key(sessionId, segmentId));
-    if (!row || row.sessionId !== sessionId) return { error: `unknown segment ${segmentId}` };
+    if (!row || row.sessionId !== sessionId) return { error: UNKNOWN_SEGMENT };
     if (row.speaker !== "witness") return { skipped: true };
     const graphRow = buildGraph(ctx.db, sessionId);
-    if (!graphRow) return { error: `unknown session ${sessionId}` };
+    if (!graphRow) return { error: UNKNOWN_SESSION };
     const graph = eventGraphFromRow(graphRow);
     const toSegment = (s: typeof row): Segment => ({
       id: s.id,
@@ -92,7 +98,7 @@ function recordError(io: Io, sessionId: string, segmentId: string, error: string
     const row = ctx.db.segments.rowKey.find(key(sessionId, segmentId));
     if (row) ctx.db.segments.rowKey.update({ ...row, extractError: error });
   });
-  return done(segmentId, 0, [], error);
+  return done(segmentId, 0, [], EXTRACTION_FAILED);
 }
 
 type Gathered = { patches: Patch[]; unparsed: string[] } | { error: string };
@@ -199,7 +205,7 @@ export function runExtraction(io: Io, sessionId: string, segmentId: string): Ext
         extractError: partial,
       });
       const statuses = [...ctx.db.events.sessionId.filter(sessionId)].map((e) => ({ eventId: e.id, status: e.status }));
-      return done(segmentId, patches.length, statuses, partial);
+      return done(segmentId, patches.length, statuses, partial === undefined ? undefined : EXTRACTION_PARTLY_FAILED);
     });
   } catch (e) {
     return recordError(io, sessionId, segmentId, `applying the patches failed: ${messageOf(e)}`);

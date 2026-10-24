@@ -6,7 +6,7 @@ import type { TestHttpResponder } from "spacetimedb/server/test-utils";
 import { robberyGraph } from "@rashomon/schema/fixtures";
 import { EXTRACTION_MODEL } from "@rashomon/extractor";
 import { MAX_BODY_BYTES, MAX_UTTERANCES, SECRET_HEADER, handleCartesia, secretsMatch } from "./http/cartesia";
-import { PROMPT_HASH, runExtraction, type Io } from "./extract/run";
+import { EXTRACTION_FAILED, PROMPT_HASH, runExtraction, type Io } from "./extract/run";
 import * as mod from "./index";
 import { eventGraphFromRow } from "./convert";
 import { spacetimedb } from "./tables";
@@ -144,7 +144,7 @@ describe("extractSegment", () => {
   test("a 500 writes the error on the segment and changes nothing", () => {
     const before = graph();
     const result = runExtraction(ioFor(status(500, JSON.stringify({ error: { message: "overloaded" } }))), SESSION, "utt_2");
-    expect(result).toMatchObject({ patchCount: 0, statuses: [], error: "Anthropic API 500: overloaded" });
+    expect(result).toEqual({ segmentId: "utt_2", patchCount: 0, statuses: [], error: EXTRACTION_FAILED });
     expect(segmentRow().extractError).toBe("Anthropic API 500: overloaded");
     expect(segmentRow().extractModel).toBeUndefined();
     expect(graph()).toEqual(before);
@@ -152,10 +152,11 @@ describe("extractSegment", () => {
   });
 
   test("a refusal and a response with no tool call are written as errors", () => {
-    expect(runExtraction(ioFor(ok([], { stop_reason: "refusal" })), SESSION, "utt_2").error).toMatch(/refused/);
+    expect(runExtraction(ioFor(ok([], { stop_reason: "refusal" })), SESSION, "utt_2").error).toBe(EXTRACTION_FAILED);
     expect(segmentRow().extractError).toMatch(/refused/);
     const empty = runExtraction(ioFor(ok([{ type: "text", text: "hello" }])), SESSION, "utt_2");
-    expect(empty.error).toMatch(/validation failed: the model returned no tool call/);
+    expect(empty.error).toBe(EXTRACTION_FAILED);
+    expect(segmentRow().extractError).toMatch(/validation failed: the model returned no tool call/);
     expect(graph().events).toEqual([]);
   });
 
@@ -165,8 +166,8 @@ describe("extractSegment", () => {
     expect(requests).toHaveLength(2);
     expect(JSON.parse(requests[1]!.body).messages).toHaveLength(3);
     expect(result.patchCount).toBe(0);
-    expect(result.error).toMatch(/^validation failed: add_event:/);
-    expect(segmentRow().extractError).toBe(result.error);
+    expect(result.error).toBe(EXTRACTION_FAILED);
+    expect(segmentRow().extractError).toMatch(/^validation failed: add_event:/);
     expect(graph().events).toEqual([]);
     expect(graph().version).toBe(1);
   });
@@ -186,17 +187,18 @@ describe("extractSegment", () => {
   test("a failure while applying rolls back and is written as an error", () => {
     const dangling = { ...walkInput, actor: "suspect", target: "nobody" };
     const result = runExtraction(ioFor(ok([toolUse("tu_1", "add_event", dangling)])), SESSION, "utt_2");
-    expect(result.error).toBeDefined();
+    expect(result.error).toBe(EXTRACTION_FAILED);
     expect(result.patchCount).toBe(0);
     expect(graph().events).toEqual([]);
     expect(graph().version).toBe(1);
-    expect(segmentRow().extractError).toBe(result.error);
+    expect(segmentRow().extractError).toMatch(/nobody/);
   });
 
   test("no key, an unknown segment and a non-witness segment never reach the model", () => {
-    expect(runExtraction(ioFor(ok([]), ""), SESSION, "utt_2").error).toMatch(/ANTHROPIC_API_KEY is not set/);
-    expect(runExtraction(ioFor(ok([])), SESSION, "nope").error).toMatch(/unknown segment/);
-    expect(runExtraction(ioFor(ok([])), "nope", "utt_2").error).toMatch(/unknown session/);
+    expect(runExtraction(ioFor(ok([]), ""), SESSION, "utt_2").error).toBe(EXTRACTION_FAILED);
+    expect(segmentRow().extractError).toMatch(/ANTHROPIC_API_KEY is not set/);
+    expect(runExtraction(ioFor(ok([])), SESSION, "nope").error).toBe("unknown segment");
+    expect(runExtraction(ioFor(ok([])), "nope", "utt_2").error).toBe("unknown session");
     insertWitnessSegment("q1", "interviewer");
     expect(runExtraction(ioFor(ok([])), SESSION, "q1")).toMatchObject({ patchCount: 0, error: undefined });
     expect(requests).toHaveLength(0);
@@ -323,9 +325,40 @@ describe("the Cartesia webhook", () => {
     expect(graph().events).toHaveLength(1);
   });
 
-  test("an extraction error still returns 200 with the error as a value", () => {
-    const out = handleCartesia(webhookIo(status(500, "{}")), post(body()));
+  test("an extraction error is a 502 with a generic message, and the detail stays on the segment", () => {
+    const out = handleCartesia(webhookIo(status(500, JSON.stringify({ error: { message: "overloaded" } }))), post(body()));
+    expect(out).toEqual({ status: 502, body: { error: EXTRACTION_FAILED } });
+    expect(harness.db.segments.rowKey.find(`${SESSION}/seg_1234`)?.extractError).toBe("Anthropic API 500: overloaded");
+  });
+
+  test("an upstream message echoing a variant of the key never reaches the caller", () => {
+    const leak = `invalid x-api-key: ${SECRET.toUpperCase()} (${SECRET.slice(0, 12)}...)`;
+    const io = webhookIo(status(401, JSON.stringify({ error: { message: leak } })));
+    const out = handleCartesia(io, post(body()));
+    expect(out).toEqual({ status: 502, body: { error: EXTRACTION_FAILED } });
+    const procedure = runExtraction(ioFor(status(401, JSON.stringify({ error: { message: leak } }))), SESSION, "utt_2");
+    expect(procedure.error).toBe(EXTRACTION_FAILED);
+    for (const text of [JSON.stringify(out), JSON.stringify(procedure)]) {
+      expect(text.toLowerCase()).not.toContain(SECRET.slice(0, 12).toLowerCase());
+      expect(text).not.toMatch(/x-api-key|Anthropic/);
+    }
+  });
+
+  test("a segment the reducer refuses is a 400 with a fixed message, not the reducer's", () => {
+    const out = handleCartesia(webhookIo(ok([])), post(body({ sessionId: "s_secret_name" })));
+    expect(out).toEqual({ status: 400, body: { error: "the segment could not be stored" } });
+    expect(requests).toHaveLength(0);
+  });
+
+  test("a partly rejected batch is a 200 whose error is generic", () => {
+    const good = toolUse("tu_1", "add_event", { ...walkInput, sources: ["seg_1234"] });
+    const badCall = toolUse("tu_2", "add_event", { ...walkInput, from: at("moon_base") });
+    let n = 0;
+    const responder: TestHttpResponder<never> = (test, req, b) => (n++ === 0 ? ok([good, badCall]) : ok([badCall]))(test, req, b);
+    const out = handleCartesia(webhookIo(responder), post(body()));
     expect(out.status).toBe(200);
-    expect(out.body).toMatchObject({ patchCount: 0, error: "Anthropic API 500" });
+    expect(out.body).toMatchObject({ patchCount: 1, error: "extraction partly failed" });
+    expect(JSON.stringify(out.body)).not.toContain("moon_base");
+    expect(harness.db.segments.rowKey.find(`${SESSION}/seg_1234`)?.extractError).toMatch(/^partly rejected: add_event: .*moon_base/);
   });
 });

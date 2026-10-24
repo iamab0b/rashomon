@@ -1,5 +1,5 @@
 import { Router, SyncResponse, type Request } from "spacetimedb/server";
-import { runExtraction, type Extraction, type Io } from "../extract/run";
+import { EXTRACTION_FAILED, runExtraction, type Extraction, type Io } from "../extract/run";
 import { insertSegment } from "../reducers";
 import { spacetimedb } from "../tables";
 
@@ -94,10 +94,12 @@ export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
         utterances,
       }),
     );
-  } catch (e) {
-    return bad(e instanceof Error ? e.message : String(e));
+  } catch {
+    return bad("the segment could not be stored");
   }
-  return { status: 200, body: runExtraction(io, sessionId, segmentId) };
+  const result = runExtraction(io, sessionId, segmentId);
+  if (result.error === EXTRACTION_FAILED) return { status: 502, body: { error: EXTRACTION_FAILED } };
+  return { status: 200, body: result };
 }
 
 export const cartesiaWebhook = spacetimedb.httpHandler((ctx, req) => {
