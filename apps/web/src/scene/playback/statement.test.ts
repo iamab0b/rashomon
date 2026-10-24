@@ -99,8 +99,8 @@ describe("submitStatement on the fixture source", () => {
   });
 });
 
-describe("the fixture source uses the witness name", () => {
-  it("a different name is a different statement, and the events carry the name as their witness", async () => {
+describe("the fixture source keeps witness w1 and uses the typed name only as a label", () => {
+  it("a different name is a different statement, and the events still belong to witness w1", async () => {
     const source = mount();
     const maria = await useGraphActions().submitStatement(CORRECTION_TEXT, "Maria");
     const other = await useGraphActions().submitStatement(CORRECTION_TEXT, "Omar");
@@ -108,7 +108,7 @@ describe("the fixture source uses the witness name", () => {
     expect(maria.segmentId).toBe(statementSegmentId("fixture", "Maria", CORRECTION_TEXT));
     await settled(source, maria.segmentId);
     const added = source.getSnapshot().graph!.events.find((e) => e.id === "e11");
-    expect(added?.witnessId).toBe("Maria");
+    expect(added?.witnessId).toBe("w1");
   });
 });
 

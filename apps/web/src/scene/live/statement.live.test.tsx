@@ -242,6 +242,9 @@ describe("the browser's token", () => {
   });
 });
 
+const tokenRejected = (status: number) =>
+  Object.assign(new Error(`Failed to verify token: ${status}`), { name: "WebSocketTokenError", status });
+
 describe("a saved token the server rejects", () => {
   it("is removed and the connection is retried once without it", () => {
     const storage = memoryStorage({ [tokenKey(DEFAULT_LIVE_OPTIONS)]: "stale-token" });
@@ -255,7 +258,7 @@ describe("a saved token the server rejects", () => {
     expect(bindings.withTokenCalls).toEqual(["stale-token"]);
     expect(bindings.builds).toBe(1);
 
-    bindings.onConnectError?.({}, new Error("unauthorized"));
+    bindings.onConnectError?.({}, tokenRejected(401));
 
     expect(storage.items.has(tokenKey(DEFAULT_LIVE_OPTIONS))).toBe(false);
     expect(bindings.builds).toBe(2);
@@ -273,7 +276,7 @@ describe("a saved token the server rejects", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     spacetimeConnector(DEFAULT_LIVE_OPTIONS, { ...noHandlers, onError });
-    bindings.onConnectError?.({}, new Error("unauthorized"));
+    bindings.onConnectError?.({}, tokenRejected(401));
     bindings.onConnectError?.({}, new Error("still down"));
 
     expect(bindings.builds).toBe(2);
@@ -293,6 +296,47 @@ describe("a saved token the server rejects", () => {
     expect(onError).toHaveBeenCalledTimes(1);
   });
 
+  it("a 403 token rejection is treated the same way", () => {
+    const storage = memoryStorage({ [tokenKey(DEFAULT_LIVE_OPTIONS)]: "stale-token" });
+    vi.stubGlobal("localStorage", { ...storage, removeItem: (k: string) => void storage.items.delete(k) });
+
+    spacetimeConnector(DEFAULT_LIVE_OPTIONS, noHandlers);
+    bindings.onConnectError?.({}, tokenRejected(403));
+
+    expect(storage.items.has(tokenKey(DEFAULT_LIVE_OPTIONS))).toBe(false);
+    expect(bindings.builds).toBe(2);
+  });
+
+  it("a network error keeps the saved token and is reported without a retry", () => {
+    const storage = memoryStorage({ [tokenKey(DEFAULT_LIVE_OPTIONS)]: "editor-token" });
+    const removeItem = vi.fn((k: string) => void storage.items.delete(k));
+    vi.stubGlobal("localStorage", { ...storage, removeItem });
+    const onError = vi.fn();
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    spacetimeConnector(DEFAULT_LIVE_OPTIONS, { ...noHandlers, onError });
+    bindings.onConnectError?.({}, new TypeError("Failed to fetch"));
+
+    expect(storage.items.get(tokenKey(DEFAULT_LIVE_OPTIONS))).toBe("editor-token");
+    expect(removeItem).not.toHaveBeenCalled();
+    expect(bindings.builds).toBe(1);
+    expect(bindings.withTokenCalls).toEqual(["editor-token"]);
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError.mock.calls[0]?.[0]).toMatch(/failed: Failed to fetch/);
+  });
+
+  it("a token error that is not 401 or 403 keeps the saved token", () => {
+    const storage = memoryStorage({ [tokenKey(DEFAULT_LIVE_OPTIONS)]: "editor-token" });
+    vi.stubGlobal("localStorage", { ...storage, removeItem: (k: string) => void storage.items.delete(k) });
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    spacetimeConnector(DEFAULT_LIVE_OPTIONS, noHandlers);
+    bindings.onConnectError?.({}, tokenRejected(503));
+
+    expect(storage.items.get(tokenKey(DEFAULT_LIVE_OPTIONS))).toBe("editor-token");
+    expect(bindings.builds).toBe(1);
+  });
+
   it("a throwing removeItem does not stop the retry", () => {
     vi.stubGlobal("localStorage", {
       getItem: () => "stale-token",
@@ -302,7 +346,7 @@ describe("a saved token the server rejects", () => {
       },
     });
     spacetimeConnector(DEFAULT_LIVE_OPTIONS, noHandlers);
-    expect(() => bindings.onConnectError?.({}, new Error("unauthorized"))).not.toThrow();
+    expect(() => bindings.onConnectError?.({}, tokenRejected(401))).not.toThrow();
     expect(bindings.builds).toBe(2);
   });
 });

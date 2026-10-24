@@ -2,6 +2,11 @@ import { DbConnection } from "./bindings";
 import type { LiveGraphRow } from "./convert";
 import { clearToken, graphQuery, loadToken, saveToken, segmentsQuery, type LiveConnector } from "./liveConnection";
 
+const isAuthRejection = (error: unknown): boolean => {
+  const rejected = error as { name?: unknown; status?: unknown } | null;
+  return rejected?.name === "WebSocketTokenError" && (rejected.status === 401 || rejected.status === 403);
+};
+
 type UpdatableTable = { onUpdate?: (callback: (ctx: unknown, oldRow: LiveGraphRow, newRow: LiveGraphRow) => void) => void };
 
 export const spacetimeConnector: LiveConnector = (options, handlers) => {
@@ -36,7 +41,7 @@ export const spacetimeConnector: LiveConnector = (options, handlers) => {
           .subscribe([graphQuery(options.sessionId), segmentsQuery(options.sessionId)]);
       })
       .onConnectError((_ctx, error) => {
-        if (saved && !retriedWithoutToken && !closing) {
+        if (saved && !retriedWithoutToken && !closing && isAuthRejection(error)) {
           retriedWithoutToken = true;
           clearToken(options);
           connection = open(undefined);

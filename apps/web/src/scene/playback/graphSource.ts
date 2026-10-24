@@ -62,6 +62,7 @@ const FIXTURE_STATES: Readonly<Record<string, () => FixtureState>> = {
 };
 
 const FIXTURE_SESSION = "fixture";
+const FIXTURE_WITNESS = "w1";
 const WORDS_PER_SECOND = 1 / 15;
 
 const recordedModelFor =
@@ -75,7 +76,7 @@ function statementSegment(text: string, witnessName: string): Segment {
   return {
     id: statementSegmentId(FIXTURE_SESSION, name, body),
     sessionId: FIXTURE_SESSION,
-    witnessId: name,
+    witnessId: FIXTURE_WITNESS,
     speaker: "witness",
     text: body,
     t: [0, Math.max(1, words * WORDS_PER_SECOND)],
