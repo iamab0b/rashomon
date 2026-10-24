@@ -2,7 +2,9 @@
 
 The `Action` enum in `packages/schema` is the contract; this table says what the renderer does for each verb. It goes into `apps/web/src/scene/CLAUDE.md` at the bell and into `src/scene/characters/actionMap.ts` as data.
 
-| Action | Clip (GLB) | Loop | Root motion | Duration source | Blend in / out (s) | Facing | Notes |
+Clips are the Mixamo FBX downloads in `apps/web/public/clips/` (`clip_<name>.fbx`), loaded with three's `FBXLoader` at scale 0.01. There is no Blender or GLB conversion step. Root motion is stripped at load: hips X/Z are zeroed and Y is kept, so every clip plays in place and the resolver owns the actor's position.
+
+| Action | Clip (FBX) | Loop | Root motion | Duration source | Blend in / out (s) | Facing | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `stand` | `clip_idle` | yes | none | event `t` | 0.2 / 0.2 | `facing` landmark if set, else keep last | default state between events |
 | `walk` | `clip_walk` | yes | path from resolver, speed = path length / duration | event `t` (resolver infers from 1.4 m/s if unstated) | 0.25 / 0.25 | path tangent | clip plays in place; root follows the path curve |
