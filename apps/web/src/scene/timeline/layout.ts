@@ -1,4 +1,6 @@
-import type { ResolvedGraph, Status } from "../index";
+import type { ResolvedGraph } from "@rashomon/engine";
+import type { Status } from "@rashomon/schema";
+import { statusOf } from "../playback/useGraph";
 
 export const W = 1000;
 export const LABEL_W = 120;
@@ -72,19 +74,22 @@ export function buildRows(resolved: ResolvedGraph | null, statuses: StatusMap): 
   const rows: Row[] = resolved.actors.map((actor, index) => {
     const color = actorColor(actor.id, actor.role, index);
     const mine = resolved.events.filter((event) => event.actor === actor.id);
-    const status = (id: string, fallback: Status) => statuses[id] ?? fallback;
-    const shown = mine.filter((event) => status(event.id, event.status) !== "superseded");
+    const shown = mine.filter((event) => statusOf(statuses, event) !== "superseded");
+    const longestFirst = shown
+      .map((event, order) => ({ event, order }))
+      .sort((a, b) => b.event.tEnd - b.event.tStart - (a.event.tEnd - a.event.tStart) || a.order - b.order)
+      .map(({ event }) => event);
     return {
       id: actor.id,
       label: actor.label,
       hidden: mine.length - shown.length,
       ...assignLanes(
-        shown.map((event) => ({
+        longestFirst.map((event) => ({
           key: event.id,
           id: event.id,
           tStart: event.tStart,
           tEnd: event.tEnd,
-          status: status(event.id, event.status),
+          status: statusOf(statuses, event),
           color,
           label: event.id,
         })),
@@ -115,7 +120,7 @@ export function tOfX(x: number, duration: number): number {
 export function implausibleStarts(resolved: ResolvedGraph | null, statuses: StatusMap): { id: string; tStart: number }[] {
   if (!resolved) return [];
   return resolved.events
-    .filter((event) => (statuses[event.id] ?? event.status) === "implausible")
+    .filter((event) => statusOf(statuses, event) === "implausible")
     .map((event) => ({ id: event.id, tStart: event.tStart }))
     .sort((a, b) => a.tStart - b.tStart);
 }

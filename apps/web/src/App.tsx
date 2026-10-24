@@ -24,7 +24,7 @@ export function App() {
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
           <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
-            <Scene fixture={fixture} debug={debug} t={t} scrubBar={false} />
+            <Scene fixture={fixture} debug={debug} t={t} />
             <ViewSwitcher />
           </div>
           <Timeline />

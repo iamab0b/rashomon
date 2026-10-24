@@ -1,5 +1,8 @@
 import { DbConnection } from "./bindings";
+import type { LiveGraphRow } from "./convert";
 import { graphQuery, type LiveConnector } from "./liveConnection";
+
+type UpdatableTable = { onUpdate?: (callback: (ctx: unknown, oldRow: LiveGraphRow, newRow: LiveGraphRow) => void) => void };
 
 export const spacetimeConnector: LiveConnector = (options, handlers) => {
   let closing = false;
@@ -13,9 +16,12 @@ export const spacetimeConnector: LiveConnector = (options, handlers) => {
     .withUri(options.uri)
     .withDatabaseName(options.databaseName)
     .onConnect((connected) => {
-      connected.db.graphForScene.onInsert((_ctx, row) => {
+      const deliver = (row: LiveGraphRow) => {
         if (!closing) handlers.onRow(row);
-      });
+      };
+      const table = connected.db.graphForScene;
+      table.onInsert((_ctx, row) => deliver(row));
+      (table as UpdatableTable).onUpdate?.((_ctx, _old, row) => deliver(row));
       connected
         .subscriptionBuilder()
         .onError((ctx) =>
@@ -30,6 +36,9 @@ export const spacetimeConnector: LiveConnector = (options, handlers) => {
     disconnect() {
       closing = true;
       connection.disconnect();
+    },
+    applyPatches(baseVersion, patchesJson) {
+      return connection.reducers.applyPatches({ sessionId: options.sessionId, baseVersion, patchesJson });
     },
   };
 };

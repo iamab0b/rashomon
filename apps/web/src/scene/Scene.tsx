@@ -7,6 +7,7 @@ import { CAMERA_PRESETS } from "./cameras/presets";
 import { RigDebug } from "./characters/RigDebug";
 import { RigReportPanel } from "./characters/RigReportPanel";
 import { DebugOverlay } from "./DebugOverlay";
+import { AnchorGizmo } from "./editing/AnchorGizmo";
 import { FloorProbe } from "./FloorProbe";
 import { FpsProbe } from "./FpsProbe";
 import { LabelLayer } from "./landmarks/LabelLayer";
@@ -15,7 +16,6 @@ import { LandmarkMarkers } from "./landmarks/LandmarkMarkers";
 import { loadScene, type LoadedScene } from "./loaders/scene";
 import { Actors } from "./playback/Actors";
 import { Playhead } from "./playback/Playhead";
-import { ScrubBar } from "./playback/ScrubBar";
 import { selectSource } from "./playback/selectSource";
 import { useGraphSource } from "./playback/useGraph";
 import { useSceneStore } from "./store";
@@ -34,7 +34,6 @@ export type SceneProps = {
   fixture?: string;
   debug?: string;
   t?: number;
-  scrubBar?: boolean;
 };
 
 const RIG_DEBUG = "rig";
@@ -113,7 +112,7 @@ function useDebugPreset(debug: string | undefined): void {
   }, [debug, setPreset]);
 }
 
-export function Scene({ fixture, debug, t, scrubBar = true }: SceneProps) {
+export function Scene({ fixture, debug, t }: SceneProps) {
   useSceneKeys();
   useDebugPreset(debug);
   useInitialTime(t, debug);
@@ -154,13 +153,13 @@ export function Scene({ fixture, debug, t, scrubBar = true }: SceneProps) {
             <WitnessView model={loaded.model} manifest={loaded.manifest} />
             <PovRayLine />
             {hasGraph ? <Actors /> : null}
+            {hasGraph ? <AnchorGizmo manifest={loaded.manifest} /> : null}
             {!hasGraph || actorsReady ? <ReadySignal /> : null}
           </>
         ) : null}
       </Canvas>
       {loaded ? <LabelLayer landmarks={loaded.manifest.landmarks} /> : null}
       {isRigDebug ? <RigReportPanel /> : null}
-      {scrubBar ? <ScrubBar /> : null}
       <DebugOverlay />
     </div>
   );

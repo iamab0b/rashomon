@@ -1,5 +1,7 @@
 import { useRef, useState, type PointerEvent } from "react";
-import { useGraph, useSelection, useTimeline } from "../index";
+import { useGraph } from "../playback/useGraph";
+import { useSelection } from "../playback/useSelection";
+import { useTimeline } from "../playback/useTimeline";
 import { useSceneStore } from "../store";
 import { createDrag, makeJump, makeKeyHandler } from "./handlers";
 import {

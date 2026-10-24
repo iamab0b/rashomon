@@ -19,7 +19,7 @@
     "C": {
       "owner": "Eric",
       "aliases": ["Eric", "Eric Liu", "ieatpiYT", "250847818+ieatpiYT@users.noreply.github.com"],
-      "folders": ["packages/extractor", "apps/agent", "apps/web/src/adapters", "spacetimedb/server/src/procedures"],
+      "folders": ["packages/extractor", "apps/agent", "apps/web/src/adapters", "spacetimedb/server/src/procedures", "spacetimedb/server/src/http"],
       "milestones": [
         {"hours": "0-3", "goal": "Extractor core: Claude call with the strict Patch tool, examples 01 and 02 pass against the fixture", "signals": ["packages/extractor/src/*.ts"]},
         {"hours": "3-8", "goal": "All five examples pass; question suggester (Haiku) returns one question per flag", "signals": ["packages/extractor/src/**/*.test.ts"]},

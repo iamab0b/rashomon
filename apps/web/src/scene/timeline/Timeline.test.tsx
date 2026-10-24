@@ -1,9 +1,11 @@
 import { robberyGraph, storeScene } from "@rashomon/schema/fixtures";
+import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { gatedSnapshot } from "../playback/graphSource";
 import { useSceneStore, type SceneState } from "../store";
 import { Timeline, createDrag, makeJump, makeKeyHandler } from "./Timeline";
+import { callHook, findElement } from "../testing/hookHost";
 import { assignLanes, buildRows, fillOpacityFor, implausibleStarts, rowHeight, ROW_H, strokeFor } from "./layout";
 
 const initial = useSceneStore.getState();
@@ -12,7 +14,7 @@ const pristine = { ...useSceneStore.getInitialState() };
 function renderWith(patch: Partial<SceneState>): string {
   Object.assign(useSceneStore.getInitialState(), patch);
   try {
-    return renderToStaticMarkup(<Timeline />);
+    return renderToStaticMarkup(createElement(Timeline));
   } finally {
     Object.assign(useSceneStore.getInitialState(), pristine);
   }
@@ -124,6 +126,35 @@ describe("lanes", () => {
     expect(Object.fromEntries(blocks.map((b) => [b.key, b.lane]))).toEqual({ c: 0, a: 1, b: 2, d: 0 });
     expect(lanes).toBe(3);
     expect(assignLanes([]).lanes).toBe(1);
+  });
+});
+
+describe("nested blocks stay clickable", () => {
+  test("longer blocks are painted first, so e5 sits on top of the e3 block that contains it", () => {
+    const { resolved, statuses } = snap();
+    const witness = buildRows(resolved, statuses).find((r) => r.blocks.some((b) => b.id === "e5"))!;
+    const order = witness.blocks.map((b) => b.id);
+    expect(order.indexOf("e5")).toBeGreaterThan(order.indexOf("e3"));
+    const durations = witness.blocks.map((b) => b.tEnd - b.tStart);
+    expect(durations).toEqual([...durations].sort((a, b) => b - a));
+    const html = renderWith({ resolved, statuses, duration: resolved!.durationS });
+    expect(html.indexOf('data-block="e5"')).toBeGreaterThan(html.indexOf('data-block="e3"'));
+  });
+
+  test("clicking e5's rendered block selects e5, and e3's block selects e3", () => {
+    const tree = callHook(() => Timeline({}));
+    const blockOf = (id: string) => findElement(tree, (props) => props["data-block"] === id);
+    for (const id of ["e5", "e3", "e9"]) {
+      const block = blockOf(id);
+      expect(block, id).not.toBeNull();
+      const onClick = block!.props as { onClick: () => void };
+      onClick.onClick();
+      expect(useSceneStore.getState().selectedEventId).toBe(id);
+      useSceneStore.getState().clear();
+    }
+    expect(blockOf("p_knife:0")).not.toBeNull();
+    (blockOf("p_knife:0")!.props as { onClick: () => void }).onClick();
+    expect(useSceneStore.getState().selectedEventId).toBeNull();
   });
 });
 

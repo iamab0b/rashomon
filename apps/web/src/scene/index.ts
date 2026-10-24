@@ -6,7 +6,7 @@ export { applyViewKey } from "./useSceneKeys";
 export { getPovSightline } from "./cameras/povSightline";
 export type { PovSightline } from "./cameras/povSightline";
 export type { CameraPreset } from "./cameras/presets";
-export { useGraph } from "./playback/useGraph";
+export { useGraph, useGraphErrors } from "./playback/useGraph";
 export type { GraphView } from "./playback/useGraph";
 export type { ResolvedEvent, ResolvedGraph } from "@rashomon/engine";
 export type { Flag, Status } from "@rashomon/schema";
