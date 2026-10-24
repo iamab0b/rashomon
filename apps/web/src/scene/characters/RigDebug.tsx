@@ -9,7 +9,7 @@ import { measureRig } from "./measureRig";
 import { useRigReportStore } from "./rigReportStore";
 import type { Rig } from "./rigs";
 
-const DEBUG_CLIP = "clip_idle";
+const DEBUG_CLIP = "clip_walk";
 const MEASURE_AFTER_FRAMES = 10;
 const FLOOR_SIZE = 10;
 const RULER_X = 4;
@@ -58,7 +58,7 @@ export function RigDebug() {
   const playing = useRef<readonly Playing[]>([]);
   const frames = useRef(0);
   const addReport = useRigReportStore((state) => state.addReport);
-  const setReady = useSceneStore((state) => state.setReady);
+  const setStatus = useSceneStore((state) => state.setStatus);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,7 +104,7 @@ export function RigDebug() {
         `rig ${report.rig}: hip bone ${report.hipBone}, hip y ${report.hipY.toFixed(3)} m, height ${report.height.toFixed(3)} m`,
       );
     }
-    if (current.length === DEBUG_ACTORS.length) setReady(true);
+    if (current.length === DEBUG_ACTORS.length) setStatus("ready");
   });
 
   return (

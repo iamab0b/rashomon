@@ -51,7 +51,11 @@ async function main(): Promise<void> {
     });
     page.on("pageerror", (error) => process.stderr.write(`[pageerror] ${error.message}\n`));
     await page.goto(`http://localhost:${address.port}/?${query.toString()}`);
-    await page.waitForSelector('[data-scene-ready="true"]', { timeout: READY_TIMEOUT_MS });
+    await page.waitForSelector('[data-scene-ready="true"], [data-scene-ready="error"]', {
+      timeout: READY_TIMEOUT_MS,
+    });
+    const state = await page.getAttribute("[data-scene-ready]", "data-scene-ready");
+    if (state === "error") throw new Error("scene reported a load error (data-scene-ready=error)");
     await page.waitForTimeout(SETTLE_MS);
     await mkdir(outDir, { recursive: true });
     await page.screenshot({ path: outFile });

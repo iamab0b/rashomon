@@ -32,23 +32,24 @@ const RIG_DEBUG = "rig";
 
 function useLoadedScene(fixture: string | undefined): LoadedScene | null {
   const [loaded, setLoaded] = useState<LoadedScene | null>(null);
-  const setReady = useSceneStore((state) => state.setReady);
+  const setStatus = useSceneStore((state) => state.setStatus);
 
   useEffect(() => {
     if (!fixture) return;
     let cancelled = false;
-    setReady(false);
+    setStatus("loading");
     loadScene(fixture)
       .then((result) => {
         if (!cancelled) setLoaded(result);
       })
       .catch((error: unknown) => {
         console.error("scene load failed", error);
+        if (!cancelled) setStatus("error");
       });
     return () => {
       cancelled = true;
     };
-  }, [fixture, setReady]);
+  }, [fixture, setStatus]);
 
   return loaded;
 }
@@ -75,11 +76,11 @@ function Lights() {
 }
 
 function ReadySignal() {
-  const setReady = useSceneStore((state) => state.setReady);
+  const setStatus = useSceneStore((state) => state.setStatus);
   useEffect(() => {
-    const frame = requestAnimationFrame(() => requestAnimationFrame(() => setReady(true)));
+    const frame = requestAnimationFrame(() => requestAnimationFrame(() => setStatus("ready")));
     return () => cancelAnimationFrame(frame);
-  }, [setReady]);
+  }, [setStatus]);
   return null;
 }
 
@@ -95,13 +96,13 @@ export function Scene({ fixture, debug }: SceneProps) {
   useDebugPreset(debug);
   const isRigDebug = debug === RIG_DEBUG;
   const loaded = useLoadedScene(isRigDebug ? undefined : fixture);
-  const ready = useSceneStore((state) => state.ready);
+  const status = useSceneStore((state) => state.status);
   const initial = CAMERA_PRESETS[useSceneStore.getState().preset];
 
   return (
     <div
       style={{ position: "relative", width: "100%", height: "100%" }}
-      data-scene-ready={ready ? "true" : "false"}
+      data-scene-ready={status === "ready" ? "true" : status === "error" ? "error" : "false"}
     >
       <Canvas
         shadows="percentage"

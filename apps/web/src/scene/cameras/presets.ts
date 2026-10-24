@@ -29,5 +29,5 @@ export const PRESET_KEYS: Readonly<Record<string, CameraPreset>> = {
 };
 
 export function isCameraPreset(value: string | null | undefined): value is CameraPreset {
-  return value != null && value in CAMERA_PRESETS;
+  return value != null && Object.hasOwn(CAMERA_PRESETS, value);
 }

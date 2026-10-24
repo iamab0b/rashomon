@@ -6,6 +6,7 @@ import { CAMERA_PRESETS } from "./presets";
 
 export function CameraRig() {
   const preset = useSceneStore((state) => state.preset);
+  const poseResetCount = useSceneStore((state) => state.poseResetCount);
   const camera = useThree((state) => state.camera);
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
 
@@ -15,7 +16,7 @@ export function CameraRig() {
     camera.lookAt(...pose.lookAt);
     controls.current?.target.set(...pose.lookAt);
     controls.current?.update();
-  }, [preset, camera]);
+  }, [preset, poseResetCount, camera]);
 
   return <OrbitControls ref={controls} makeDefault />;
 }

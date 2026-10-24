@@ -7,6 +7,7 @@ const DEBUG_KEY = "`";
 export function useSceneKeys(): void {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
       const target = event.target;
       if (target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
       const state = useSceneStore.getState();

@@ -18,7 +18,6 @@ export const CLIP_NAMES = [
 
 export type ClipName = (typeof CLIP_NAMES)[number];
 
-export const ROOT_MOTION_CLIPS: ReadonlySet<string> = new Set(["clip_walk", "clip_run"]);
 export const HIPS_POSITION_TRACK = "mixamorigHips.position";
 const VECTOR3_STRIDE = 3;
 
@@ -38,8 +37,7 @@ function stripHorizontalHips(track: KeyframeTrack): KeyframeTrack {
 }
 
 export function prepareClip(name: string, source: AnimationClip): AnimationClip {
-  const tracks = ROOT_MOTION_CLIPS.has(name) ? source.tracks.map(stripHorizontalHips) : source.tracks;
-  return new AnimationClip(name, source.duration, tracks);
+  return new AnimationClip(name, source.duration, source.tracks.map(stripHorizontalHips));
 }
 
 async function loadClip(name: string): Promise<AnimationClip> {
@@ -49,10 +47,11 @@ async function loadClip(name: string): Promise<AnimationClip> {
   return prepareClip(name, first);
 }
 
-async function loadAllClips(): Promise<ReadonlyMap<string, AnimationClip>> {
-  const results = await Promise.allSettled(CLIP_NAMES.map(loadClip));
+async function loadMissingClips(): Promise<ReadonlyMap<string, AnimationClip>> {
+  const missing = CLIP_NAMES.filter((name) => !clipCache.has(name));
+  const results = await Promise.allSettled(missing.map(loadClip));
   results.forEach((result, index) => {
-    const name = CLIP_NAMES[index];
+    const name = missing[index];
     if (result.status === "rejected") {
       console.warn(`clip ${name} failed to load`, result.reason);
       return;
@@ -65,8 +64,19 @@ async function loadAllClips(): Promise<ReadonlyMap<string, AnimationClip>> {
 }
 
 export function loadClips(): Promise<ReadonlyMap<string, AnimationClip>> {
-  if (!loadingAll) loadingAll = loadAllClips();
-  return loadingAll;
+  if (loadingAll) return loadingAll;
+  const pending = loadMissingClips().then(
+    (clips) => {
+      if (CLIP_NAMES.some((name) => !clips.has(name))) loadingAll = null;
+      return clips;
+    },
+    (error: unknown) => {
+      loadingAll = null;
+      throw error;
+    },
+  );
+  loadingAll = pending;
+  return pending;
 }
 
 export function getClip(name: string): AnimationClip | undefined {

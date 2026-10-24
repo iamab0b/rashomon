@@ -1,12 +1,11 @@
 import { useEffect } from "react";
-import { Scene, useCamera } from "./scene";
-import { isCameraPreset } from "./scene/cameras/presets";
+import { isCameraPreset, Scene, useCamera } from "./scene";
 
 const PANEL_WIDTH_PX = 360;
 
 export function App() {
   const params = new URLSearchParams(window.location.search);
-  const fixture = params.get("fixture") ?? undefined;
+  const fixture = params.get("fixture") ?? "store";
   const debug = params.get("debug") ?? undefined;
   const cam = params.get("cam");
   const { setPreset } = useCamera();
