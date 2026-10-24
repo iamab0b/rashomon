@@ -1,0 +1,8 @@
+.rui .modal-backdrop--confirm { z-index: 1002; background: rgba(4, 6, 7, .45); backdrop-filter: none; }
+.rui .modal--confirm { width: min(420px, 100%); }
+.rui .modal--confirm:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+.rui .modal--confirm .confirm-body { margin: 10px 0 0; color: var(--text-secondary); font-size: var(--fs-md); line-height: 1.5; }
+.rui .modal--confirm .override-event { margin-top: 14px; }
+.rui .confirm-findings { margin: 8px 0 0; color: var(--text-secondary); font-size: var(--fs-sm); }
+.rui .confirm-reason { margin: 10px 0 0; padding: 8px 10px; color: var(--text-primary); border-left: 2px solid var(--status-overridden); background: var(--surface); font-size: var(--fs-md); line-height: 1.45; overflow-wrap: anywhere; }
+.rui .modal--confirm .button:disabled { opacity: .5; cursor: default; }
