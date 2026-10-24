@@ -16,6 +16,11 @@ export type GraphSnapshot = {
 export const DEFAULT_SPEED = 1;
 const EMPTY_STATUSES: StatusMap = {};
 
+export type GraphErrors = {
+  readonly connection: string | null;
+  readonly action: string | null;
+};
+
 export type SceneState = {
   preset: CameraPreset;
   poseResetCount: number;
@@ -30,6 +35,9 @@ export type SceneState = {
   resolved: ResolvedGraph | null;
   statuses: StatusMap;
   graphSource: GraphSource | null;
+  connectionError: string | null;
+  actionError: string | null;
+  errorEpoch: number;
   actorsReady: boolean;
   selectedEventId: string | null;
   povFollow: boolean;
@@ -49,6 +57,8 @@ export type SceneState = {
   setResolved: (resolved: ResolvedGraph | null) => void;
   setGraph: (snapshot: GraphSnapshot) => void;
   setGraphSource: (source: GraphSource | null) => void;
+  setGraphErrors: (errors: GraphErrors) => void;
+  setActionError: (message: string | null) => void;
   setActorsReady: (ready: boolean) => void;
   select: (id: string) => void;
   clear: () => void;
@@ -95,6 +105,9 @@ export const useSceneStore = create<SceneState>((set) => ({
   resolved: null,
   statuses: EMPTY_STATUSES,
   graphSource: null,
+  connectionError: null,
+  actionError: null,
+  errorEpoch: 0,
   actorsReady: false,
   selectedEventId: null,
   povFollow: false,
@@ -134,6 +147,9 @@ export const useSceneStore = create<SceneState>((set) => ({
       };
     }),
   setGraphSource: (graphSource) => set({ graphSource }),
+  setGraphErrors: ({ connection, action }) =>
+    set((state) => ({ connectionError: connection, actionError: action, errorEpoch: state.errorEpoch + 1 })),
+  setActionError: (actionError) => set({ actionError }),
   setActorsReady: (actorsReady) => set({ actorsReady }),
   select: (id) => set((state) => ({ selectedEventId: survivingSelection(id, state.resolved) ?? state.selectedEventId })),
   clear: () => set({ selectedEventId: null }),

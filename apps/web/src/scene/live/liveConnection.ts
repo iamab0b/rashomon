@@ -13,6 +13,7 @@ export type LiveHandlers = {
 
 export interface LiveConnection {
   disconnect(): void;
+  applyPatches(baseVersion: number, patchesJson: string): Promise<void>;
 }
 
 export type LiveConnector = (options: LiveOptions, handlers: LiveHandlers) => LiveConnection;

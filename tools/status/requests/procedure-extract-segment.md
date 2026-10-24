@@ -22,4 +22,29 @@ Until the module exists, build it as a plain async function in `packages/extract
 
 Install the two Spacetime skills in your Claude Code first (commands in the design doc's "Start here"). API keys live in the Spacetime module's environment or `.env`, never in the repo.
 
-`/team-status` closes this item when a file under `spacetimedb/` contains `extractSegment`.
+## Review of PR #16 (spacetime-procedure at 4b5ef76): fix before merge and before any publish
+
+Sahil built the procedure and the webhook and handed them to you. PR #16 now targets main. The leader's review approved its foundations:
+- The key is read from `ctx.env` and sent only in `x-api-key`.
+- The Claude call sits outside the transaction, with patch, regate and provenance in one `withTx`.
+- The patch goes through `applyPatchBatch`, the same body as the reducer.
+- Prop ids are minted as `p_<type>`.
+- The hash is deterministic.
+- The new dependencies are workspace links.
+- The bindings match a fresh generate.
+
+It is not merged. Push fixes to branch `spacetime-procedure` (no force-push, no rebase). Each fix needs a test that fails without it.
+
+1. **Shared-secret check on the webhook (http/cartesia.ts lines 76 to 90).** Today anyone who finds the URL can POST `{sessionId, utterances}` for any existing session, spend Claude credits with the module's key, and write patches.
+   - Declare a second module env var, `CARTESIA_WEBHOOK_SECRET`, in the schema env, set at publish like the Anthropic key.
+   - Reject any request whose secret header (for example `x-rashomon-webhook-secret`) does not match, using a constant-time comparison. Return 401, and do not call Claude.
+   - Configure the same secret in the Cartesia dashboard. Never put it in the repo.
+2. **Bound the request.** Cap the body size and the utterance count, for example at 64 KB and 50 utterances, with a 413 or 400 response. `Math.min(...)` over an unbounded `utterances` array (line 63) can throw a RangeError.
+3. **Return the hard flags to the agent (cartesia.ts line 73).** The response carries statuses only. Return the session's hard flags after the gate as `{ id, eventId, check, detail, suggestedQuestion }`, so the Cartesia agent can ask the suggested question on its next turn.
+4. **Idempotency (procedures/extractSegment.ts, extract/run.ts line 170).** Calling extractSegment again for an already-extracted segment re-spends credits and re-applies patches. `extractedAt` is written but never read. If a segment has `extractedAt` set, return the stored result without calling Claude.
+5. **Generic errors to callers (cartesia.ts line 71, run.ts line 205).** Upstream Anthropic messages and "applying the patches failed: ..." go back to an anonymous caller, and the key is scrubbed only by exact match. Return a generic error ("extraction failed") with a status code, and keep the detail only in the segment's `extractError`.
+6. **A real rollback test (procedure.test.ts line 185).** The current test uses one dangling-target patch that fails before any write. Use a two-patch batch whose second patch fails, and assert the first patch, the version and the statuses are all unchanged.
+7. **The demo path test.** No test covers the robbery. Feed the robbery's first-witness segment through runExtraction with a faked Claude response: the recorded tool output that produces the robbery patches. Assert e5 comes back implausible with `sightline:e5` and its suggestedQuestion is in the webhook response.
+8. **Decision to note in the PR.** run.ts line 190 applies at the session's current version, so the stale-version check can never fail on this path. That is acceptable, because the procedure owns the read and the write. Say so in the PR description so nobody relies on the check there.
+
+`/team-status` closes this item when a file under `spacetimedb/server/src/` contains `CARTESIA_WEBHOOK_SECRET`, the shared-secret check from fix 1.

@@ -7,6 +7,7 @@ import { CAMERA_PRESETS } from "./cameras/presets";
 import { RigDebug } from "./characters/RigDebug";
 import { RigReportPanel } from "./characters/RigReportPanel";
 import { DebugOverlay } from "./DebugOverlay";
+import { AnchorGizmo } from "./editing/AnchorGizmo";
 import { FloorProbe } from "./FloorProbe";
 import { FpsProbe } from "./FpsProbe";
 import { LabelLayer } from "./landmarks/LabelLayer";
@@ -15,10 +16,10 @@ import { LandmarkMarkers } from "./landmarks/LandmarkMarkers";
 import { loadScene, type LoadedScene } from "./loaders/scene";
 import { Actors } from "./playback/Actors";
 import { Playhead } from "./playback/Playhead";
-import { ScrubBar } from "./playback/ScrubBar";
 import { selectSource } from "./playback/selectSource";
 import { useGraphSource } from "./playback/useGraph";
 import { useSceneStore } from "./store";
+import { Timeline } from "./timeline";
 import { useSceneKeys } from "./useSceneKeys";
 
 const BACKGROUND = "#0b0d10";
@@ -37,6 +38,16 @@ export type SceneProps = {
 };
 
 const RIG_DEBUG = "rig";
+
+const TIMELINE_SLOT = {
+  position: "absolute",
+  left: 12,
+  right: 12,
+  bottom: 12,
+  zIndex: 30,
+  borderRadius: 6,
+  overflow: "hidden",
+} as const;
 
 function useLoadedScene(fixture: string | undefined): LoadedScene | null {
   const [loaded, setLoaded] = useState<LoadedScene | null>(null);
@@ -153,13 +164,18 @@ export function Scene({ fixture, debug, t }: SceneProps) {
             <WitnessView model={loaded.model} manifest={loaded.manifest} />
             <PovRayLine />
             {hasGraph ? <Actors /> : null}
+            {hasGraph ? <AnchorGizmo manifest={loaded.manifest} /> : null}
             {!hasGraph || actorsReady ? <ReadySignal /> : null}
           </>
         ) : null}
       </Canvas>
       {loaded ? <LabelLayer landmarks={loaded.manifest.landmarks} /> : null}
       {isRigDebug ? <RigReportPanel /> : null}
-      <ScrubBar />
+      {hasGraph ? (
+        <div style={TIMELINE_SLOT}>
+          <Timeline />
+        </div>
+      ) : null}
       <DebugOverlay />
     </div>
   );
