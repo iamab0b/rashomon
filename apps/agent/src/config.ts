@@ -63,7 +63,7 @@ export function toolDefinition(s: Settings, name: ToolName): WebhookTool {
     description =
       "Record what the witness just said. Call it after every witness turn with their exact words. If the result's hardFlags is not empty, ask the first flag's suggestedQuestion next.";
     preToolSpeech = "auto";
-    timeout = 60;
+    timeout = 120;
   } else if (name === "get_scene_context") {
     description =
       "Get the scene's landmark names, the last five recorded events and nextQuestion, the follow-up to ask. Call it when you need the next question.";

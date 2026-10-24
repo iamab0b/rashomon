@@ -17,7 +17,7 @@ import {
   secretsMatch,
 } from "./http/cartesia";
 import { MAX_BODY_BYTES, MAX_SEGMENT_TEXT_CHARS, MAX_UTTERANCES } from "./limits";
-import { EXTRACTION_FAILED, PROMPT_HASH, runExtraction, type Io } from "./extract/run";
+import { EXTRACTION_FAILED, MAX_RETRIES, PROMPT_HASH, REQUEST_TIMEOUT_MS, runExtraction, type Io } from "./extract/run";
 import { NOT_THE_MODULE, extractAs } from "./procedures/extractSegment";
 import * as mod from "./index";
 import { eventGraphFromRow } from "./convert";
@@ -140,7 +140,7 @@ describe("extractSegment", () => {
     expect(PROMPT_HASH).toMatch(/^[0-9a-f]{16}$/);
   });
 
-  test("the request goes to the Messages API with the key in a header only and a 60 second timeout", () => {
+  test("the request goes to the Messages API with the key in a header only", () => {
     const result = runExtraction(ioFor(ok([toolUse("tu_1", "add_event", walkInput)])), SESSION, "utt_2");
     expect(requests).toHaveLength(1);
     expect(requests[0]?.headers).toContain(`x-api-key:${SECRET}`);
@@ -341,7 +341,7 @@ describe("the Cartesia webhook", () => {
     ...ioFor(responder),
     webhookSecret: () => secret,
   });
-  const SEG = defaultSegmentId(SESSION, [{ text: "A guy came in the front door.", tStart: 7.8, tEnd: 12 }], 1);
+  const SEG = defaultSegmentId(SESSION, "w1", [{ text: "A guy came in the front door.", tStart: 7.8, tEnd: 12 }], 1);
   const body = (over: Record<string, unknown> = {}) =>
     JSON.stringify({
       sessionId: SESSION,
@@ -427,7 +427,7 @@ describe("the Cartesia webhook", () => {
     const out = handleCartesia(io, post(body({ utterances: fifty })));
     expect(out.status).toBe(200);
     const id = (out.body as { segmentId: string }).segmentId;
-    expect(id).toBe(defaultSegmentId(SESSION, fifty, 1));
+    expect(id).toBe(defaultSegmentId(SESSION, "w1", fifty, 1));
     expect(harness.db.segments.rowKey.find(`${SESSION}/${id}`)).toMatchObject({ tStart: 0, tEnd: 49.5 });
   });
 
@@ -478,11 +478,11 @@ describe("the Cartesia webhook", () => {
 
   test("the default segment id changes with the session, the text, the times or the session's segment count", () => {
     const u = { text: "A guy came in the front door.", tStart: 7.8, tEnd: 12 };
-    expect(defaultSegmentId(SESSION, [u], 1)).toBe(SEG);
-    expect(defaultSegmentId("s2", [u], 1)).not.toBe(SEG);
-    expect(defaultSegmentId(SESSION, [{ ...u, text: "A guy came in the back door." }], 1)).not.toBe(SEG);
-    expect(defaultSegmentId(SESSION, [{ ...u, tEnd: 12.5 }], 1)).not.toBe(SEG);
-    expect(defaultSegmentId(SESSION, [u], 2)).not.toBe(SEG);
+    expect(defaultSegmentId(SESSION, "w1", [u], 1)).toBe(SEG);
+    expect(defaultSegmentId("s2", "w1", [u], 1)).not.toBe(SEG);
+    expect(defaultSegmentId(SESSION, "w1", [{ ...u, text: "A guy came in the back door." }], 1)).not.toBe(SEG);
+    expect(defaultSegmentId(SESSION, "w1", [{ ...u, tEnd: 12.5 }], 1)).not.toBe(SEG);
+    expect(defaultSegmentId(SESSION, "w1", [u], 2)).not.toBe(SEG);
   });
 
   test("a key read that throws is a generic 502 and never reaches the model", () => {
@@ -534,7 +534,7 @@ describe("the Cartesia webhook", () => {
     expect(lastLog()).toMatch(/partly_rejected: partly rejected: add_event: .*moon_base/);
   });
   const STATEMENT = "A guy came in the front door.";
-  const plainId = defaultSegmentId(SESSION, [{ text: STATEMENT }], 1);
+  const plainId = defaultSegmentId(SESSION, "witness", [{ text: STATEMENT }], 1);
   const plain = (over: Record<string, unknown> = {}) => JSON.stringify({ sessionId: SESSION, text: STATEMENT, ...over });
 
   test("a plain text body is stored as one utterance after the session's last segment and extracted", () => {
@@ -560,9 +560,9 @@ describe("the Cartesia webhook", () => {
   });
 
   test("a second identical answer after another statement is a new segment, while a retry is deduplicated", () => {
-    const no = defaultSegmentId(SESSION, [{ text: "No." }], 1);
-    const other = defaultSegmentId(SESSION, [{ text: "He had a knife." }], 2);
-    const noAgain = defaultSegmentId(SESSION, [{ text: "No." }], 3);
+    const no = defaultSegmentId(SESSION, "witness", [{ text: "No." }], 1);
+    const other = defaultSegmentId(SESSION, "witness", [{ text: "He had a knife." }], 2);
+    const noAgain = defaultSegmentId(SESSION, "witness", [{ text: "No." }], 3);
     let n = 0;
     const sources = [no, other, noAgain];
     const responder: TestHttpResponder<never> = (test, req, b) =>
@@ -586,7 +586,7 @@ describe("the Cartesia webhook", () => {
     const first = handleCartesia(io, post(body()));
     expect(handleCartesia(io, post(body()))).toEqual(first);
     const later = { utterances: [{ text: "A guy came in the front door.", tStart: 40, tEnd: 44 }] };
-    const laterId = defaultSegmentId(SESSION, later.utterances, 2);
+    const laterId = defaultSegmentId(SESSION, "w1", later.utterances, 2);
     const out = handleCartesia(webhookIo(ok([toolUse("tu_2", "add_event", { ...walkInput, sources: [laterId] })])), post(body(later)));
     expect(out.body).toMatchObject({ segmentId: laterId });
     expect([...harness.db.segments.sessionId.filter(SESSION)]).toHaveLength(3);
@@ -662,6 +662,38 @@ describe("the Cartesia webhook", () => {
     const out = handleEndInterview(webhookIo(ok([])), ask(JSON.stringify({ sessionId: SESSION })));
     expect(out).toEqual({ status: 200, body: { ended: true, statements: 1, events: robberyGraph.events.length, openQuestions: 1 } });
     expect([...harness.db.segments.sessionId.filter(SESSION)]).toHaveLength(1);
+  });
+
+  test("two witnesses saying the same words in a row get two segments", () => {
+    const first = defaultSegmentId(SESSION, "w1", [{ text: STATEMENT }], 1);
+    const second = defaultSegmentId(SESSION, "w2", [{ text: STATEMENT }], 2);
+    expect(defaultSegmentId(SESSION, "w2", [{ text: STATEMENT }], 1)).not.toBe(first);
+    let n = 0;
+    const sources = [first, second];
+    const responder: TestHttpResponder<never> = (test, req, b) =>
+      ok([toolUse(`tu_${n}`, "add_event", { ...walkInput, sources: [sources[n++]] })])(test, req, b);
+    const io = webhookIo(responder);
+    expect(handleCartesia(io, post(plain({ witness_id: "w1" }))).body).toMatchObject({ segmentId: first });
+    expect(handleCartesia(io, post(plain({ witness_id: "w2" }))).body).toMatchObject({ segmentId: second });
+    expect(requests).toHaveLength(2);
+    expect(harness.db.segments.rowKey.find(`${SESSION}/${second}`)).toMatchObject({ witnessId: "w2", text: STATEMENT });
+  });
+
+  test("an overridden event's hard flag is not sent back as an open question anywhere", () => {
+    applyRobberyEvents();
+    call((ctx) => mod.override(ctx, { sessionId: SESSION, eventId: "e5", reason: "investigator checked the angle", by: "u1" }));
+    expect([...harness.db.flags.sessionId.filter(SESSION)].some((f) => f.eventId === "e5" && f.severity === "hard")).toBe(true);
+    const context = handleSceneContext(webhookIo(ok([])), ask(JSON.stringify({ sessionId: SESSION })));
+    expect(context.body).toMatchObject({ openQuestions: [], nextQuestion: null });
+    const ended = handleEndInterview(webhookIo(ok([])), ask(JSON.stringify({ sessionId: SESSION })));
+    expect(ended.body).toMatchObject({ openQuestions: 0 });
+    const out = handleCartesia(webhookIo(ok([toolUse("tu_1", "add_event", { ...walkInput, sources: [plainId] })])), post(plain()));
+    expect(out.status).toBe(200);
+    expect(out.body).toMatchObject({ hardFlags: [] });
+  });
+
+  test("both extraction attempts finish inside Cartesia's 120 second tool limit", () => {
+    expect((MAX_RETRIES + 1) * REQUEST_TIMEOUT_MS).toBeLessThan(120_000);
   });
 
   test("the exported scene context and end interview handlers check the module secret first", () => {

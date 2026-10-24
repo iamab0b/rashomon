@@ -13,13 +13,13 @@ import type { Patch, PropType, Segment } from "@rashomon/schema";
 import { TimeDuration } from "spacetimedb";
 import type { ReducerCtx, SyncResponse } from "spacetimedb/server";
 import { eventGraphFromRow } from "../convert";
-import { buildGraph, type ModuleSchema } from "../graph";
+import { buildGraph, type ModuleSchema, type ReadDb } from "../graph";
 import { applyPatchBatch, key, manifestFor } from "../reducers";
 import { MAX_SEGMENT_TEXT_CHARS } from "../limits";
 import { fnv1a64 } from "./hash";
 import { mintPropIds } from "./props";
 
-export const REQUEST_TIMEOUT_MS = 60_000;
+export const REQUEST_TIMEOUT_MS = 55_000;
 export const MAX_RETRIES = 1;
 export const PROMPT_HASH = fnv1a64(`${SYSTEM_PROMPT}\n${JSON.stringify(EXTRACTOR_TOOLS)}`);
 
@@ -63,11 +63,17 @@ const done = (
   error?: string,
 ): Extraction => ({ segmentId, patchCount, statuses, hardFlags, error });
 
-const hardFlagsOf = (ctx: ReducerCtx<ModuleSchema>, sessionId: string): HardFlag[] =>
-  [...ctx.db.flags.sessionId.filter(sessionId)]
-    .filter((f) => f.severity === "hard")
+export const openHardFlags = (db: ReadDb, sessionId: string): HardFlag[] => {
+  const closed = new Set(
+    [...db.events.sessionId.filter(sessionId)]
+      .filter((e) => e.status === "overridden" || e.status === "superseded" || e.supersededBy !== undefined)
+      .map((e) => e.id),
+  );
+  return [...db.flags.sessionId.filter(sessionId)]
+    .filter((f) => f.severity === "hard" && !closed.has(f.eventId))
     .sort((a, b) => a.seq - b.seq)
     .map(({ id, eventId, check, detail, suggestedQuestion }) => ({ id, eventId, check, detail, suggestedQuestion }));
+};
 
 const statusesOf = (ctx: ReducerCtx<ModuleSchema>, sessionId: string): Extraction["statuses"] =>
   [...ctx.db.events.sessionId.filter(sessionId)].map((e) => ({ eventId: e.id, status: e.status }));
@@ -79,7 +85,7 @@ const storedResult = (ctx: ReducerCtx<ModuleSchema>, row: SegmentRow): Extractio
     row.id,
     row.extractPatchCount ?? 0,
     statusesOf(ctx, row.sessionId),
-    hardFlagsOf(ctx, row.sessionId),
+    openHardFlags(ctx.db, row.sessionId),
     row.extractError === undefined ? undefined : EXTRACTION_PARTLY_FAILED,
   );
 
@@ -261,7 +267,7 @@ export function runExtraction(io: Io, sessionId: string, segmentId: string): Ext
         extractError: partial,
       });
       const statuses = statusesOf(ctx, sessionId);
-      const hardFlags = hardFlagsOf(ctx, sessionId);
+      const hardFlags = openHardFlags(ctx.db, sessionId);
       return done(segmentId, patches.length, statuses, hardFlags, partial === undefined ? undefined : EXTRACTION_PARTLY_FAILED);
     });
   } catch (e) {

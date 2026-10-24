@@ -258,7 +258,7 @@ describe("the webhook still works with no editors listed", () => {
       utterances: [{ text, tStart: 0, tEnd: 30 }],
     });
     expect(new TextEncoder().encode(body).length).toBeGreaterThanOrEqual(40_000);
-    const segmentId = defaultSegmentId(SESSION, [{ text, tStart: 0, tEnd: 30 }], [...harness.db.segments.sessionId.filter(SESSION)].length);
+    const segmentId = defaultSegmentId(SESSION, "w1", [{ text, tStart: 0, tEnd: 30 }], [...harness.db.segments.sessionId.filter(SESSION)].length);
     const walk = {
       actor: "suspect",
       action: "walk",

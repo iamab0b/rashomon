@@ -28,6 +28,10 @@ describe("tool definitions", () => {
     expect(def.api_schema.request_body_schema.properties.witness_id).toEqual({ type: "string", constant_value: "w1" });
   });
 
+  test("record_statement waits Cartesia's maximum, enough for an extraction and its one retry", () => {
+    expect(toolDefinition(settings, "record_statement").response_timeout_secs).toBe(120);
+  });
+
   test("get_scene_context and end_interview take nothing from the model", () => {
     expect(modelParams("get_scene_context")).toEqual([]);
     expect(modelParams("end_interview")).toEqual([]);

@@ -2,7 +2,7 @@ import { Router, SyncResponse, type Request } from "spacetimedb/server";
 import type { Anchor } from "@rashomon/schema";
 import { eventGraphFromRow } from "../convert";
 import { fnv1a64 } from "../extract/hash";
-import { EXTRACTION_FAILED, UNKNOWN_SESSION, runExtraction, type Extraction, type Io } from "../extract/run";
+import { EXTRACTION_FAILED, UNKNOWN_SESSION, openHardFlags, runExtraction, type Extraction, type Io } from "../extract/run";
 import { buildGraph, type ReadDb } from "../graph";
 import { MAX_BODY_BYTES, MAX_UTTERANCES } from "../limits";
 import { insertSegmentRow, key, manifestFor } from "../reducers";
@@ -62,19 +62,25 @@ const readSecret = (io: WebhookIo): string | undefined => {
 
 export const defaultSegmentId = (
   sessionId: string,
+  witnessId: string,
   utterances: { text: string; tStart?: number; tEnd?: number }[],
   priorSegments: number,
 ): string =>
-  `seg_${fnv1a64(JSON.stringify([sessionId, priorSegments, utterances.map((u) => [u.text, u.tStart ?? null, u.tEnd ?? null])]))}`;
+  `seg_${fnv1a64(JSON.stringify([sessionId, witnessId, priorSegments, utterances.map((u) => [u.text, u.tStart ?? null, u.tEnd ?? null])]))}`;
 
-export function resolveSegmentId(db: ReadDb, sessionId: string, parts: { text: string; tStart?: number; tEnd?: number }[]): string {
+export function resolveSegmentId(
+  db: ReadDb,
+  sessionId: string,
+  witnessId: string,
+  parts: { text: string; tStart?: number; tEnd?: number }[],
+): string {
   let prior = 0;
   for (const s of db.segments.sessionId.filter(sessionId)) if (s.sessionId === sessionId) prior++;
   if (prior > 0) {
-    const previous = defaultSegmentId(sessionId, parts, prior - 1);
+    const previous = defaultSegmentId(sessionId, witnessId, parts, prior - 1);
     if (db.segments.rowKey.find(key(sessionId, previous))) return previous;
   }
-  return defaultSegmentId(sessionId, parts, prior);
+  return defaultSegmentId(sessionId, witnessId, parts, prior);
 }
 
 type Authorized = { body: Record<string, unknown>; sessionId: string };
@@ -134,7 +140,7 @@ export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
   let segmentId: string;
   try {
     segmentId = io.withTx((ctx) => {
-      const id = givenId ?? resolveSegmentId(ctx.db, sessionId, parsed ?? [{ text }]);
+      const id = givenId ?? resolveSegmentId(ctx.db, sessionId, witnessId, parsed ?? [{ text }]);
       const existing = ctx.db.segments.rowKey.find(key(sessionId, id));
       if (existing && existing.sessionId === sessionId && existing.text === text) return id;
       let lines: { id: string; text: string; tStart: number; tEnd: number }[];
@@ -200,9 +206,7 @@ export function handleSceneContext(io: WebhookIo, req: Request): WebhookOutcome 
         status: e.status,
       };
     });
-    const openQuestions = live
-      .filter((e) => e.status !== "overridden")
-      .flatMap((e) => e.flags.filter((f) => f.severity === "hard").map((f) => ({ eventId: e.id, question: f.suggestedQuestion })));
+    const openQuestions = openHardFlags(ctx.db, sessionId).map((f) => ({ eventId: f.eventId, question: f.suggestedQuestion }));
     return {
       landmarks: manifest.landmarks.map((l) => ({ id: l.id, label: l.label })),
       recentEvents,
@@ -222,7 +226,7 @@ export function handleEndInterview(io: WebhookIo, req: Request): WebhookOutcome 
     if (!ctx.db.sessions.id.find(sessionId)) return undefined;
     const statements = [...ctx.db.segments.sessionId.filter(sessionId)].filter((s) => s.speaker === "witness").length;
     const events = [...ctx.db.events.sessionId.filter(sessionId)].filter((e) => e.status !== "superseded").length;
-    const openQuestions = [...ctx.db.flags.sessionId.filter(sessionId)].filter((f) => f.severity === "hard").length;
+    const openQuestions = openHardFlags(ctx.db, sessionId).length;
     return { ended: true, statements, events, openQuestions };
   });
   if (!summary) return bad(UNKNOWN_SESSION);
