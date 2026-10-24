@@ -1,5 +1,5 @@
 import { canOverride } from "./overridePending";
-import { actorLabel, FlagCard, PendingNote, words, type PanelContext } from "./shared";
+import { actorLabel, eventTime, FlagCard, PendingNote, words, type PanelContext } from "./shared";
 
 export function openFlagCount({ graph, statusOf }: Pick<PanelContext, "graph" | "statusOf">): number {
   return graph.events
@@ -16,7 +16,7 @@ async function copyText(text: string, notify: (message: string) => void) {
   }
 }
 
-export function FlagsTab({ graph, statusOf, pendingNoteOf, selectedEventId, jumpTo, openOverride, notify }: PanelContext) {
+export function FlagsTab({ graph, statusOf, pendingNoteOf, selectedEventId, playbackActive, playing, jumpTo, openOverride, notify }: PanelContext) {
   const flagged = graph.events
     .filter((event) => event.flags.length > 0 && statusOf(event) !== "overridden")
     .sort((a, b) => b.tStart - a.tStart);
@@ -43,8 +43,11 @@ export function FlagsTab({ graph, statusOf, pendingNoteOf, selectedEventId, jump
                 <FlagCard
                   flag={flag}
                   sceneId={graph.sceneId}
-                  eventLabel={`${actorLabel(graph, event.actor)} · ${words(event.action)} · ${event.tStart.toFixed(1)} s`}
+                  eventLabel={`${event.id} · ${actorLabel(graph, event.actor)} · ${words(event.action)}`}
+                  eventTimeLabel={eventTime(event)}
                   selected={selectedEventId === event.id}
+                  playbackActive={playbackActive.has(event.id)}
+                  playing={playing}
                   onSelect={() => jumpTo(event.id)}
                   onOverride={canOverride(statusOf(event)) ? () => openOverride(event.id) : undefined}
                   onCopy={(text) => void copyText(text, notify)}

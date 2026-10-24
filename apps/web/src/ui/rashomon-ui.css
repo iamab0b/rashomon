@@ -10,6 +10,8 @@
   --border: #303a46;
   --text-primary: #e8edf2;
   --text-secondary: #98a4b3;
+  --playback-accent: #5cc8e6;
+  --selection: #ffffff;
   --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --fs-scale: 1;
   --fs-2xs: calc(9px * var(--fs-scale));
@@ -57,10 +59,10 @@
 .rui .event-head .event-meta { color: var(--text-secondary); font-size: var(--fs-sm); }
 
 .rui .flag-list { display: grid; gap: 8px; }
-.rui .hard-flag { padding: 12px; background: var(--surface-raised); border: 1px dashed var(--status-implausible); border-radius: 4px; cursor: pointer; transition: border-color .15s, background-color .15s; }
-.rui .hard-flag:hover { border-style: solid; border-color: color-mix(in srgb, var(--status-implausible) 75%, var(--text-primary)); background: color-mix(in srgb, var(--status-implausible) 4%, var(--surface-raised)); }
+.rui .hard-flag { padding: 12px; background: var(--surface-raised); border: 1px dashed var(--status-implausible); border-radius: 4px; cursor: pointer; transition: background-color .15s, box-shadow .2s; }
+.rui .hard-flag:hover:not([data-playback-active]) { background: color-mix(in srgb, var(--status-implausible) 4%, var(--surface-raised)); }
 .rui .hard-flag:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
-.rui .hard-flag.selected { border-style: solid; box-shadow: inset 3px 0 0 var(--status-implausible); }
+.rui .hard-flag.selected { outline: 2px solid var(--selection); outline-offset: 2px; }
 .rui .view-in-scene { display: inline-flex; align-items: center; gap: 4px; color: var(--text-primary); opacity: 0; transition: opacity .15s; }
 .rui .hard-flag:hover .view-in-scene,
 .rui .hard-flag:focus-visible .view-in-scene { opacity: 1; }
@@ -148,9 +150,10 @@
 .rui .flags-empty p { margin: 0; color: var(--text-secondary); font-size: var(--fs-sm); }
 
 .rui .investigation-events { display: grid; gap: 7px; }
-.rui .investigation-event { width: 100%; padding: 9px 10px; color: var(--text-primary); text-align: left; border: 1px solid var(--border); border-radius: 4px; background: var(--surface-raised); font: inherit; cursor: pointer; }
-.rui .investigation-event:hover { border-color: #526071; background: #1e2732; }
-.rui .investigation-event__top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+.rui .investigation-event { width: 100%; padding: 9px 10px; color: var(--text-primary); text-align: left; border: 1px solid var(--border); border-radius: 4px; background: var(--surface-raised); font: inherit; cursor: pointer; transition: background-color .15s, box-shadow .2s; }
+.rui .investigation-event:hover:not([data-playback-active]) { background: #1e2732; }
+.rui .investigation-event__top { display: flex; align-items: center; margin-bottom: 7px; }
+.rui .investigation-event__status { display: flex; margin-top: 7px; }
 .rui .investigation-event__top time { color: var(--text-secondary); font-size: var(--fs-xs); }
 .rui .investigation-event:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
 .rui .investigation-event__body { display: grid; gap: 3px; }
@@ -159,7 +162,7 @@
 .rui .event-anchor { display: block; overflow: hidden; color: var(--text-secondary); font-size: var(--fs-xs); text-overflow: ellipsis; white-space: nowrap; }
 .rui .investigation-event__source { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 7px; padding-top: 6px; color: #687585; border-top: 1px solid var(--border); font-size: var(--fs-xs); }
 .rui .investigation-event__source > small { color: #5d6875; font-size: var(--fs-2xs); }
-.rui .source-refs { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; color: #7d8896; font-size: var(--fs-xs); }
+.rui .source-refs { display: block; min-width: 0; color: #7d8896; font-size: var(--fs-xs); }
 .rui .source-ref { display: inline-flex; align-items: baseline; gap: 4px; padding: 0; color: var(--text-secondary); border: 0; border-bottom: 1px dotted #5d6875; background: transparent; font: inherit; cursor: pointer; }
 .rui .source-ref:hover,
 .rui .source-ref:focus-visible { color: var(--text-primary); border-bottom-color: var(--text-primary); outline: 0; }
@@ -174,8 +177,12 @@
 .rui .event-ruling { color: var(--status-implausible); border: 1px dashed var(--status-implausible); background: color-mix(in srgb, var(--status-implausible) 7%, var(--surface)); }
 .rui .event-override-note { padding: 0; color: var(--status-overridden); font-weight: 500; }
 .rui .investigation-event.status-overridden { border-left: 3px solid var(--status-overridden); }
-.rui .investigation-event.selected { outline: 2px solid var(--text-primary); outline-offset: 2px; }
-.rui .investigation-event.status-implausible.selected { outline-color: var(--status-implausible); }
+.rui .investigation-event.selected { outline: 2px solid var(--selection); outline-offset: 2px; }
+.rui .investigation-event__top { gap: 8px; }
+.rui .event-inferred { color: var(--text-secondary); font-size: var(--fs-2xs); }
+.rui .event-place--missing { color: var(--text-secondary); font-style: italic; }
+.rui .event-flag { display: flex; align-items: flex-start; gap: 7px; margin-top: 7px; color: var(--status-implausible); font-size: var(--fs-xs); line-height: 1.4; }
+.rui .event-flag .check-chip { flex: 0 0 auto; height: 17px; padding: 0 6px; font-size: var(--fs-2xs); }
 
 .rui .version-list { display: grid; gap: 7px; }
 .rui .version-card { padding: 9px 10px; color: var(--status-plausible); border: 1px solid var(--border); border-radius: 4px; background: var(--surface-raised); }
@@ -249,3 +256,15 @@
 .rui .waived-question { display: block; margin-top: 4px; color: var(--status-plausible); }
 .rui .dialog-error { margin: 14px 0 0; padding: 8px 10px; color: var(--status-implausible); border: 1px dashed var(--status-implausible); border-radius: 3px; background: color-mix(in srgb, var(--status-implausible) 6%, var(--surface)); font-size: var(--fs-md); line-height: 1.45; }
 .rui .pending-note { display: flex; align-items: center; gap: 7px; margin-top: 7px; padding: 6px 7px; color: var(--status-overridden); border: 1px dashed color-mix(in srgb, var(--status-overridden) 60%, transparent); border-radius: 3px; font-size: var(--fs-sm); }
+
+.rui .flag-related { display: grid; gap: 2px; }
+.rui .flag-related__event { color: var(--text-primary); }
+.rui .playback-when { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.rui .playback-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--playback-accent); }
+
+.rui .investigation-event[data-playback-active],
+.rui .hard-flag[data-playback-active] { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--playback-accent) 7%, transparent); }
+@media (prefers-reduced-motion: reduce) {
+  .rui .hard-flag,
+  .rui .investigation-event { transition: none; }
+}

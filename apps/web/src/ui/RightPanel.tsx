@@ -5,6 +5,9 @@ import { FlagsTab, openFlagCount } from "./FlagsTab";
 import { HistoryTab } from "./HistoryTab";
 import { OverrideDialog } from "./OverrideDialog";
 import { eventDisplay, type PendingOverrides } from "./overridePending";
+import { anchorsFor, eventPlace } from "./places";
+import { playbackActiveIds } from "./playback";
+import { usePlaybackKeys } from "./usePlaybackKeys";
 import type { PanelContext } from "./shared";
 import { transcriptFor } from "./transcript";
 import { TranscriptDrawer } from "./TranscriptDrawer";
@@ -31,7 +34,8 @@ const TOAST_MS = 2200;
 export function RightPanel({ by = "investigator" }: { by?: string }) {
   const { resolved, statuses } = useGraph();
   const { selectedEventId, select } = useSelection();
-  const { setT, pause } = useTimeline();
+  const { t, playing, setT, play, pause } = useTimeline();
+  usePlaybackKeys(() => (playing ? pause() : play()));
   const { applyPatches } = useGraphActions();
   const [mode] = useGraphMode();
   const [activeTab, setActiveTab] = useState(TABS[0]!.id);
@@ -74,6 +78,9 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
     pendingNoteOf: (event) => eventDisplay(event, statuses, pending).pendingNote,
     isPending: (event) => awaitingGate && statusOf(event) === "proposed",
     selectedEventId,
+    playbackActive: playbackActiveIds(resolved.events, t, statusOf),
+    playing,
+    placeOf: (event) => eventPlace(resolved.sceneId, event.action, anchorsFor(mode, resolved.sceneId, event)),
     jumpTo,
     openOverride: setDialogEventId,
     openSource: setSourceId,

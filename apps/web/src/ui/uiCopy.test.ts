@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Flag } from "../scene";
 import { BASIS_LABELS, checkBasis, flagHeadline } from "./flagCopy";
-import { eventPlace, placeName } from "./places";
+import { anchorsFor, eventCoordinates, eventPlace, placeName } from "./places";
 import { sourceLabel, speakerLabel, transcriptFor } from "./transcript";
 
 const CHECKS: Flag["check"][] = [
@@ -32,11 +32,34 @@ describe("flag copy", () => {
 });
 
 describe("places", () => {
-  test("uses a landmark label only on an exact position match", () => {
-    expect(eventPlace("store_v1", { at: [1.5, 0, 3.5] })).toBe("chips aisle");
-    expect(eventPlace("store_v1", { at: [7.2, 0, 2.5] })).toBe("(7.2, 2.5)");
-    expect(eventPlace("store_v1", { from: [7.2, 0, 2.5], to: [1.5, 0, 0.4] })).toBe("(7.2, 2.5) → front door");
-    expect(eventPlace("other", {})).toBe("no place recorded");
+  test("names places from the event's landmark anchors, never from coordinates", () => {
+    expect(eventPlace("store_v1", "stand", { at: { kind: "at", landmark: "behind_counter" } })).toBe("Behind the counter");
+    expect(eventPlace("store_v1", "stand", { at: { kind: "at", landmark: "aisle_chips" } })).toBe("At chips aisle");
+    expect(eventPlace("store_v1", "speak", { at: { kind: "near", landmark: "counter", radiusM: 0.6 } })).toBe("Near counter");
+    expect(eventPlace("store_v1", "look", { at: { kind: "at", landmark: "aisle_chips" } })).toBe("From chips aisle");
+    expect(
+      eventPlace("store_v1", "walk", {
+        from: { kind: "at", landmark: "front_door" },
+        to: { kind: "near", landmark: "counter", radiusM: 0.6 },
+      }),
+    ).toBe("Front door → near counter");
+    expect(eventPlace("store_v1", "stand", { at: { kind: "xyz", position: [7.2, 0, 2.5] } })).toBeNull();
+    expect(eventPlace("store_v1", "stand", null)).toBeNull();
+  });
+
+  test("anchors come from the fixture graph only in fixture mode and only for the same event", () => {
+    expect(anchorsFor("fixture", "store_v1", { id: "e2", actor: "clerk", action: "stand" })?.at).toEqual({
+      kind: "at",
+      landmark: "behind_counter",
+    });
+    expect(anchorsFor("fixture", "store_v1", { id: "e2", actor: "suspect", action: "stand" })).toBeNull();
+    expect(anchorsFor("live", "store_v1", { id: "e2", actor: "clerk", action: "stand" })).toBeNull();
+  });
+
+  test("coordinates are kept as text for tooltips", () => {
+    expect(eventCoordinates({ at: [7.2, 0, 2.5] })).toBe("(7.2, 2.5)");
+    expect(eventCoordinates({ from: [7.2, 0, 2.5], to: [1.5, 0, 0.4] })).toBe("(7.2, 2.5) → (1.5, 0.4)");
+    expect(eventCoordinates({})).toBeNull();
   });
 });
 
