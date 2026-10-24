@@ -188,6 +188,17 @@
       "paths": [
         "apps/web/src/ui"
       ]
+    },
+    {
+      "id": "interview-screen",
+      "from": "Sahil",
+      "due": "16-19",
+      "todo": "Statement box in the right panel: submitStatement(text, witnessName), 'Extracting…' until done, then new events and flags; not-an-editor shows the browser identity; voice button behind a flag until Eric's agent; branch interview-screen, PR to main",
+      "doc": "tools/status/requests/interview-screen.md",
+      "grep": "submitStatement",
+      "paths": [
+        "apps/web/src/ui"
+      ]
     }
   ],
   "runtime": [
