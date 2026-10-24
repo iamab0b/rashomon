@@ -208,7 +208,6 @@ const EVENT_CHANGE_KEYS = new Set([
   "t",
   "tConfidence",
   "confidence",
-  "supersededBy",
 ]);
 
 export function eventChangesFrom(changes: unknown): { keys: string[]; fields: Partial<EventFields> } {
@@ -230,8 +229,6 @@ export function eventChangesFrom(changes: unknown): { keys: string[]; fields: Pa
   if ("tConfidence" in changes)
     fields.tConfidence = oneOf(changes.tConfidence, ["stated", "inferred"] as const, "changes.tConfidence");
   if ("confidence" in changes) fields.confidence = confidenceOf(changes.confidence, "changes.confidence");
-  if ("supersededBy" in changes)
-    fields.supersededBy = changes.supersededBy === null ? undefined : optionalString(changes.supersededBy, "changes.supersededBy");
   return { keys, fields };
 }
 

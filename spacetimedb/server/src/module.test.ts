@@ -25,6 +25,11 @@ const flag = (id: string, eventId: string, severity: "hard" | "soft" = "hard") =
   suggestedQuestion: "Where exactly were you standing when you saw that?",
 });
 
+const judgedAway = <T extends { status?: unknown; flags?: unknown }>(e: T) => {
+  const { status: _s, flags: _f, ...rest } = e;
+  return rest;
+};
+
 const eventPatches = (): Patch[] => [
   ...robberyGraph.actors.map((actor): Patch => ({ op: "add_actor", actor })),
   ...robberyGraph.props.map((prop): Patch => ({ op: "add_prop", prop })),
@@ -132,9 +137,7 @@ describe("applyPatches", () => {
     expect(g.sceneId).toBe(robberyGraph.sceneId);
     expect(g.version).toBe(1);
     expect(g.actors).toEqual(robberyGraph.actors);
-    expect(g.events).toEqual(
-      robberyGraph.events.map((e) => ({ ...e, status: "proposed", flags: [] })),
-    );
+    expect(g.events.map(judgedAway)).toEqual(robberyGraph.events.map(judgedAway));
     expect(g.props).toEqual(robberyGraph.props);
     const e6 = g.events.find((e) => e.id === "e6")!;
     expect(g.props.map((p) => p.id)).toContain(e6.prop);
@@ -158,10 +161,10 @@ describe("applyPatches", () => {
     );
     apply(eventPatches(), 0);
     const g = graph();
-    expect(g).toEqual({
+    expect({ ...g, events: g.events.map(judgedAway) }).toEqual({
       sceneId: robberyGraph.sceneId,
       actors: robberyGraph.actors,
-      events: robberyGraph.events.map((e) => ({ ...e, status: "proposed", flags: [] })),
+      events: robberyGraph.events.map(judgedAway),
       props: robberyGraph.props,
       version: 1,
     });
@@ -237,7 +240,7 @@ describe("applyPatches", () => {
     expect(() => other([{ op: "update_prop", id: `${SESSION}/p_knife`, changes: { notes: "x" }, sources: ["utt_1"] }])).toThrow(
       /"\/"/,
     );
-    expect(eventRow("e1")?.status).toBe("proposed");
+    expect(eventRow("e1")?.status).toBe("plausible");
     expect(h.db.props.rowKey.find(`${SESSION}/p_knife`)?.notes).not.toBe("x");
   });
 
@@ -303,16 +306,9 @@ describe("applyPatches", () => {
     expect(graph().events[0]?.to).toEqual({ kind: "behind", landmark: "counter" });
   });
 
-  test("update_event merges changes, unions sources and puts the event back to proposed", () => {
+  test("update_event merges changes, unions sources and the gate re-judges the event", () => {
     apply(eventPatches(), 0);
-    call((ctx) =>
-      mod.setStatuses(ctx, {
-        sessionId: SESSION,
-        baseVersion: 1,
-        statuses: [{ eventId: "e5", status: "plausible" }],
-        flags: [],
-      }),
-    );
+    expect(eventRow("e5")?.status).toBe("implausible");
     apply(
       [
         {
@@ -327,7 +323,8 @@ describe("applyPatches", () => {
     const e5 = graph().events.find((e) => e.id === "e5")!;
     expect(e5.at).toEqual({ kind: "at", landmark: "window_front" });
     expect(e5.sources).toEqual(["utt_6", "utt_7", "utt_12"]);
-    expect(e5.status).toBe("proposed");
+    expect(e5.status).toBe("plausible");
+    expect(e5.flags.some((f) => f.severity === "hard")).toBe(false);
     expect(e5.target).toBe("suspect");
   });
 
@@ -338,7 +335,9 @@ describe("applyPatches", () => {
     const g = graph();
     expect(g.version).toBe(2);
     expect(g.events).toHaveLength(robberyGraph.events.length + 1);
-    expect(g.events.at(-1)).toMatchObject({ id: "e11", action: "walk", status: "proposed" });
+    expect(g.events.at(-1)).toMatchObject({ id: "e11", action: "walk", status: "plausible" });
+    expect(g.events.map((e) => e.status)).toEqual(g.events.map(() => "plausible"));
+    expect(g.events.flatMap((e) => e.flags)).toEqual([]);
     expect(g.events.find((e) => e.id === "e3")?.t).toEqual([0, 9]);
   });
 
@@ -362,20 +361,7 @@ describe("applyPatches", () => {
 });
 
 describe("override", () => {
-  const gated = () => {
-    apply(eventPatches(), 0);
-    call((ctx) =>
-      mod.setStatuses(ctx, {
-        sessionId: SESSION,
-        baseVersion: 1,
-        statuses: [
-          { eventId: "e5", status: "implausible" },
-          { eventId: "e1", status: "plausible" },
-        ],
-        flags: [flag("sightline:e5", "e5")],
-      }),
-    );
-  };
+  const gated = () => apply(eventPatches(), 0);
   const override = (over: Partial<{ eventId: string; reason: string; by: string }> = {}) =>
     call((ctx) =>
       mod.override(ctx, {
@@ -437,7 +423,7 @@ describe("override", () => {
       2,
     );
     const e5 = graph().events.find((e) => e.id === "e5")!;
-    expect(e5.status).toBe("proposed");
+    expect(e5.status).toBe("plausible");
     expect(e5.override).toBeUndefined();
   });
 });
@@ -481,8 +467,8 @@ describe("setStatuses", () => {
   });
 
   test("a hard flag on an event that is not implausible is refused", () => {
-    expect(() => set([{ eventId: "e5", status: "plausible" }], [flag("sightline:e5", "e5")])).toThrow(/hard flag/);
-    expect(() => set([], [flag("sightline:e5", "e5")])).toThrow(/hard flag/);
+    expect(() => set([{ eventId: "e1", status: "plausible" }], [flag("sightline:e1", "e1")])).toThrow(/hard flag/);
+    expect(() => set([], [flag("sightline:e1", "e1")])).toThrow(/hard flag/);
     set([{ eventId: "e5", status: "plausible" }], [flag("sightline:e5", "e5", "soft")]);
     expect(eventRow("e5")?.status).toBe("plausible");
   });
@@ -491,7 +477,7 @@ describe("setStatuses", () => {
     expect(() => set([{ eventId: "e5", status: "overridden" }])).toThrow(/cannot set overridden/);
     expect(() => set([{ eventId: "e5", status: "superseded" }])).toThrow(/cannot set superseded/);
     expect(() => set([{ eventId: "e5", status: "approved" }])).toThrow(/status/);
-    expect(eventRow("e5")?.status).toBe("proposed");
+    expect(eventRow("e5")?.status).toBe("implausible");
   });
 
   test("overridden and superseded events keep their status through a gate run", () => {
@@ -514,12 +500,13 @@ describe("setStatuses", () => {
   });
 
   test("an unknown event, a bad flag and a duplicate flag id are refused and nothing is written", () => {
+    const before = [...h.db.flags.iter()];
     expect(() => set([{ eventId: "e404", status: "plausible" }])).toThrow(/unknown event/);
     expect(() => set([], [flag("x", "e404", "soft")])).toThrow(/unknown event/);
     expect(() => set([], [{ ...flag("x", "e1", "soft"), check: "vibes" }])).toThrow(/check/);
     expect(() => set([], [{ ...flag("x", "e1", "soft"), evidence: "[1]" }])).toThrow(/evidence/);
     expect(() => set([], [flag("x", "e1", "soft"), flag("x", "e2", "soft")])).toThrow(/duplicate/);
-    expect([...h.db.flags.iter()]).toEqual([]);
+    expect([...h.db.flags.iter()]).toEqual(before);
   });
 });
 
@@ -539,18 +526,11 @@ describe("graphForScene", () => {
 });
 
 describe("stale gate results", () => {
-  test("a setStatuses for an older version is refused and does not overwrite proposed", () => {
+  test("a setStatuses for an older version is refused and does not overwrite the gate's verdict", () => {
     apply(eventPatches(), 0);
-    call((ctx) =>
-      mod.setStatuses(ctx, {
-        sessionId: SESSION,
-        baseVersion: 1,
-        statuses: [{ eventId: "e5", status: "plausible" }],
-        flags: [],
-      }),
-    );
+    expect(eventRow("e5")?.status).toBe("implausible");
     apply([{ op: "update_event", id: "e5", changes: { at: { kind: "at", landmark: "window_front" } }, sources: ["utt_12"] }], 1);
-    expect(eventRow("e5")?.status).toBe("proposed");
+    expect(eventRow("e5")?.status).toBe("plausible");
     expect(() =>
       call((ctx) =>
         mod.setStatuses(ctx, {
@@ -561,7 +541,7 @@ describe("stale gate results", () => {
         }),
       ),
     ).toThrow(/stale baseVersion 1/);
-    expect(eventRow("e5")?.status).toBe("proposed");
+    expect(eventRow("e5")?.status).toBe("plausible");
     call((ctx) =>
       mod.setStatuses(ctx, {
         sessionId: SESSION,
@@ -601,14 +581,6 @@ describe("retracting an overridden event", () => {
   test("keeps the override row but graphForScene no longer reports it", () => {
     apply(eventPatches(), 0);
     call((ctx) =>
-      mod.setStatuses(ctx, {
-        sessionId: SESSION,
-        baseVersion: 1,
-        statuses: [{ eventId: "e5", status: "implausible" }],
-        flags: [flag("sightline:e5", "e5")],
-      }),
-    );
-    call((ctx) =>
       mod.override(ctx, { sessionId: SESSION, eventId: "e5", reason: "written reason here", by: "u1" }),
     );
     expect(graph().events.find((e) => e.id === "e5")?.override).toBeDefined();
@@ -621,21 +593,22 @@ describe("retracting an overridden event", () => {
 });
 
 describe("identity", () => {
-  const statusesFor = (who: TestAuth) =>
+  const statusesFor = (who: TestAuth, status = "implausible") =>
     h.withReducerTx(who, ((ctx: never) =>
       mod.setStatuses(ctx, {
         sessionId: SESSION,
         baseVersion: 1,
-        statuses: [{ eventId: "e5", status: "implausible" }],
+        statuses: [{ eventId: "e5", status }],
         flags: [],
       })) as never);
 
   test("a stranger's setStatuses is refused and the creator's is accepted", () => {
     apply(eventPatches(), 0);
-    expect(() => statusesFor(stranger)).toThrow(/creator/);
-    expect(eventRow("e5")?.status).toBe("proposed");
-    statusesFor(auth);
     expect(eventRow("e5")?.status).toBe("implausible");
+    expect(() => statusesFor(stranger, "plausible")).toThrow(/creator/);
+    expect(eventRow("e5")?.status).toBe("implausible");
+    statusesFor(auth, "plausible");
+    expect(eventRow("e5")?.status).toBe("plausible");
   });
 
   test("the session's creator can set statuses even when it is not the module", () => {
@@ -663,7 +636,6 @@ describe("identity", () => {
 
   test("an override records the sender's identity beside the display name", () => {
     apply(eventPatches(), 0);
-    statusesFor(auth);
     h.withReducerTx(stranger, ((ctx: never) =>
       mod.override(ctx, { sessionId: SESSION, eventId: "e5", reason: "written reason here", by: "Investigator Ruiz" })) as never);
     const row = h.db.overrides.rowKey.find(`${SESSION}/e5`)!;
@@ -671,5 +643,180 @@ describe("identity", () => {
     expect(row.sender).toMatch(/^[0-9a-f]{64}$/);
     expect(row.sender).not.toBe(h.db.sessions.id.find(SESSION)?.creator);
     expect(graph().events.find((e) => e.id === "e5")?.override?.by).toBe("Investigator Ruiz");
+  });
+});
+
+describe("the module judges its own writes", () => {
+  const robbery = () => apply(eventPatches(), 0);
+  const doOverride = (reason: string, by = "Investigator Ruiz", who: TestAuth = auth) =>
+    h.withReducerTx(who, ((ctx: never) =>
+      mod.override(ctx, { sessionId: SESSION, eventId: "e5", reason, by })) as never);
+
+  test("applyPatches alone makes e5 implausible with one sightline flag and the rest plausible", () => {
+    robbery();
+    const g = graph();
+    const e5 = g.events.find((e) => e.id === "e5")!;
+    expect(e5.status).toBe("implausible");
+    expect(e5.flags).toHaveLength(1);
+    expect(e5.flags[0]).toMatchObject({ id: "sightline:e5", check: "sightline", severity: "hard" });
+    expect(e5.flags[0]?.evidence).toMatchObject({ blocker: "shelf_a" });
+    const others = g.events.filter((e) => e.id !== "e5");
+    expect(others.every((e) => e.status === "plausible" && e.flags.length === 0)).toBe(true);
+  });
+
+  test("an override with a written reason makes e5 overridden, keeps its flag and records the sender", () => {
+    robbery();
+    doOverride("witness later confirmed the view", "Investigator Ruiz", stranger);
+    const e5 = graph().events.find((e) => e.id === "e5")!;
+    expect(e5.status).toBe("overridden");
+    expect(e5.flags.map((f) => f.id)).toEqual(["sightline:e5"]);
+    expect(e5.override).toMatchObject({ by: "Investigator Ruiz", reason: "witness later confirmed the view", flagIds: ["sightline:e5"] });
+    const row = h.db.overrides.rowKey.find(`${SESSION}/e5`)!;
+    expect(row.sender).toMatch(/^[0-9a-f]{64}$/);
+    expect(row.sender).not.toBe(h.db.sessions.id.find(SESSION)?.creator);
+    expect(graph().version).toBe(1);
+  });
+
+  test("an override with a short reason is refused and e5 stays implausible", () => {
+    robbery();
+    expect(() => doOverride("too short")).toThrow(/at least 10/);
+    expect(eventRow("e5")?.status).toBe("implausible");
+    expect(h.db.overrides.rowKey.find(`${SESSION}/e5`)).toBeNull();
+  });
+
+  test("the correction patch makes every event plausible with no flags", () => {
+    robbery();
+    const { patches } = (robberyGraph as unknown as { correctionPatch: { patches: Patch[] } }).correctionPatch;
+    apply(patches, 1);
+    const g = graph();
+    expect(g.events.every((e) => e.status === "plausible")).toBe(true);
+    expect(g.events.flatMap((e) => e.flags)).toEqual([]);
+  });
+
+  const namesE3 = (f: { eventId: string; conflictsWith?: string[] }) =>
+    f.eventId === "e3" || (f.conflictsWith ?? []).includes("e3");
+
+  test("retracting e3 makes it superseded and removes a real contradiction involving it", () => {
+    robbery();
+    const { id: _i, status: _s, flags: _f, ...e3Fields } = robberyGraph.events.find((e) => e.id === "e3")!;
+    apply(
+      [
+        {
+          op: "add_event",
+          event: { ...e3Fields, id: "e3_conflict", at: { kind: "at", landmark: "counter" }, t: [0, 9], sources: ["utt_30"] } as never,
+        },
+      ],
+      1,
+    );
+    const contradictions = () => graph().events.flatMap((e) => e.flags).filter((f) => f.check === "contradiction");
+    expect(contradictions().some(namesE3)).toBe(true);
+    apply([{ op: "retract_event", id: "e3", sources: ["utt_20"] }], 2);
+    const e3 = graph().events.find((e) => e.id === "e3")!;
+    expect(e3.status).toBe("superseded");
+    expect(e3.supersededBy).toBe("utt_20");
+    expect(contradictions().some(namesE3)).toBe(false);
+  });
+
+  test("a row already superseded without a supersededBy stays superseded after an unrelated write", () => {
+    robbery();
+    const row = h.db.events.rowKey.find(`${SESSION}/e9`)!;
+    call((ctx) => ctx.db.events.rowKey.update({ ...row, status: "superseded", supersededBy: undefined }));
+    apply([{ op: "update_prop", id: "p_knife", changes: { notes: "a paring knife" }, sources: ["utt_13"] }], 1);
+    expect(eventRow("e9")?.status).toBe("superseded");
+    expect(() => apply([{ op: "update_event", id: "e9", changes: { confidence: 0.6 }, sources: ["utt_13"] }], 2)).toThrow(
+      /retracted/,
+    );
+  });
+
+  test("a retracted event rejects later edits and overrides in the same batch, in either order", () => {
+    robbery();
+    const retract: Patch = { op: "retract_event", id: "e3", sources: ["utt_20"] };
+    const edit: Patch = { op: "update_event", id: "e3", changes: { confidence: 0.6 }, sources: ["utt_21"] };
+    expect(() => apply([retract, edit], 1)).toThrow(/retracted/);
+    expect(graph().version).toBe(1);
+    expect(eventRow("e3")?.supersededBy).toBeUndefined();
+    apply([edit, retract], 1);
+    expect(graph().events.find((e) => e.id === "e3")).toMatchObject({ status: "superseded", supersededBy: "utt_20", confidence: 0.6 });
+    expect(() =>
+      apply([{ op: "retract_event", id: "e5", sources: ["utt_22"] }, { op: "override", id: "e5", reason: "a written reason here", by: "u1" }], 2),
+    ).toThrow(/retracted/);
+    expect(eventRow("e5")?.status).toBe("implausible");
+  });
+
+  test("update_event never accepts supersededBy, status, flags or override in its changes", () => {
+    robbery();
+    for (const changes of [{ supersededBy: null }, { supersededBy: "x" }, { status: "plausible" }, { flags: [] }, { override: null }]) {
+      expect(() => apply([{ op: "update_event", id: "e3", changes: changes as never, sources: ["utt_21"] }], 1)).toThrow(
+        /cannot change/,
+      );
+    }
+    expect(graph().version).toBe(1);
+  });
+
+  test("an override after an edit to the same event is checked against the fresh verdict", () => {
+    robbery();
+    const fix: Patch = { op: "update_event", id: "e5", changes: { at: { kind: "at", landmark: "window_front" } }, sources: ["utt_12"] };
+    const over: Patch = { op: "override", id: "e5", reason: "a written reason here", by: "u1" };
+    expect(() => apply([fix, over], 1)).toThrow(/only implausible/);
+    expect(graph().version).toBe(1);
+    expect(eventRow("e5")?.status).toBe("implausible");
+    expect(h.db.overrides.rowKey.find(`${SESSION}/e5`)).toBeNull();
+    apply([over], 1);
+    expect(eventRow("e5")?.status).toBe("overridden");
+  });
+
+  test("a batch may add an event before the actor it names, and an override in between is judged", () => {
+    robbery();
+    const { id: _i, status: _s, flags: _f, ...event } = robberyGraph.events[0]!;
+    const batch = (withActor: boolean): Patch[] => [
+      { op: "add_event", event: { ...event, actor: "lookout" } },
+      { op: "update_event", id: "e5", changes: { confidence: 0.6 }, sources: ["utt_12"] },
+      { op: "override", id: "e5", reason: "witness later confirmed the view", by: "u1" },
+      ...(withActor ? [{ op: "add_actor", actor: { id: "lookout", label: "Lookout", role: "other", rig: "mixamo_ybot" } } as Patch] : []),
+    ];
+    const eventsBefore = [...h.db.events.iter()];
+    expect(() => apply(batch(false), 1)).toThrow(/unknown actor lookout/);
+    expect(graph().version).toBe(1);
+    expect([...h.db.events.iter()]).toEqual(eventsBefore);
+    expect(h.db.overrides.rowKey.find(`${SESSION}/e5`)).toBeNull();
+    apply(batch(true), 1);
+    expect(graph().version).toBe(2);
+    expect(eventRow("e5")?.status).toBe("overridden");
+    expect(graph().events.find((e) => e.id === "e11")?.actor).toBe("lookout");
+  });
+
+  test("a resolve failure on a between anchor with an unknown landmark rolls the whole batch back", () => {
+    robbery();
+    const eventsBefore = [...h.db.events.iter()];
+    const flagsBefore = [...h.db.flags.iter()];
+    const { id: _i, status: _s, flags: _f, ...event } = robberyGraph.events[0]!;
+    expect(() =>
+      apply(
+        [
+          { op: "add_actor", actor: { id: "extra", label: "Extra", role: "other", rig: "mixamo_ybot" } },
+          { op: "add_event", event: { ...event, id: "e_bad", from: { kind: "between", a: "nowhere_a", b: "nowhere_b" } } },
+        ],
+        1,
+      ),
+    ).toThrow(/unknown landmark id/);
+    expect(h.db.sessions.id.find(SESSION)?.version).toBe(1);
+    expect(h.db.actors.rowKey.find(`${SESSION}/extra`)).toBeNull();
+    expect(h.db.events.rowKey.find(`${SESSION}/e_bad`)).toBeNull();
+    expect([...h.db.events.iter()]).toEqual(eventsBefore);
+    expect([...h.db.flags.iter()]).toEqual(flagsBefore);
+    expect([...h.db.patches.iter()]).toHaveLength(eventPatches().length);
+  });
+
+  test("a client that is neither the module nor the creator still cannot call setStatuses", () => {
+    robbery();
+    expect(() =>
+      h.withReducerTx(stranger, ((ctx: never) =>
+        mod.setStatuses(ctx, { sessionId: SESSION, baseVersion: 1, statuses: [], flags: [] })) as never),
+    ).toThrow(/creator/);
+  });
+
+  test("an unknown sceneId is refused when the session is created", () => {
+    expect(() => call((ctx) => mod.createSession(ctx, { id: "s9", sceneId: "mall_v2" }))).toThrow(/unknown sceneId mall_v2/);
+    expect(h.db.sessions.id.find("s9")).toBeNull();
   });
 });
