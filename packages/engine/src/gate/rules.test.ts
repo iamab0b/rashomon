@@ -1,4 +1,5 @@
 import type { SceneManifest } from "@rashomon/schema";
+import { storeScene } from "@rashomon/schema/fixtures";
 import { describe, expect, test } from "vitest";
 import type { SceneGeom } from "../types";
 import { missingTimeFlags, unanchoredFlags } from "./completeness";
@@ -7,7 +8,7 @@ import { gate } from "./index";
 import { boxMesh } from "./occluders";
 import { reachabilityFlags } from "./reachability";
 import { sightlineFlags } from "./sightline";
-import { ev, graphOf } from "./testHelpers";
+import { ev, floorPlanGeom, graphOf } from "./testHelpers";
 import { timeDistanceFlags } from "./timeDistance";
 
 const lmk = (
@@ -114,6 +115,63 @@ describe("sightline", () => {
     expect(sightlineFlags(withGap, manifest(), wall)).toEqual([]);
   });
 
+  test("a look during a walk uses the walker's position on the path, not the position the look inherited", () => {
+    const aisle: [number, number, number] = [1.5, 0, 3.5];
+    const window: [number, number, number] = [4.5, 0, 1];
+    const counter: [number, number, number] = [7.2, 0, 2.5];
+    const walk = ev({
+      id: "walk",
+      actor: "w",
+      action: "walk",
+      from: aisle,
+      to: window,
+      path: [aisle, window],
+      pathLengthM: 3.9,
+      tStart: 0,
+      tEnd: 6,
+    });
+    const inherited = ev({
+      id: "look",
+      actor: "w",
+      action: "look",
+      target: "c",
+      at: aisle,
+      tStart: 5.5,
+      tEnd: 6,
+    });
+    const clerk = ev({ id: "clerk", actor: "c", at: counter, tStart: 0, tEnd: 6 });
+    const geom = floorPlanGeom();
+    const moving = graphOf([walk, inherited, clerk], ["w", "c"]);
+    expect(sightlineFlags(moving, storeScene, geom)).toEqual([]);
+    const out = gate(moving, storeScene, geom);
+    expect(out.statuses.look).not.toBe("implausible");
+    expect(out.flags.some((f) => f.check === "sightline")).toBe(false);
+    const standing = graphOf([inherited, clerk], ["w", "c"]);
+    const flags = sightlineFlags(standing, storeScene, geom);
+    expect(flags).toHaveLength(1);
+    expect(flags[0]!.evidence).toMatchObject({ blocker: "shelf_a" });
+  });
+
+  test("a moving target is also taken from its path, and a walk with no path leaves the position unknown", () => {
+    const geom: SceneGeom = { meshes: [boxMesh("wall", [4, 0, 0], [5, 2, 10])] };
+    const looker = ev({ id: "l", actor: "a", action: "look", target: "b", at: [1, 0, 5], tStart: 4, tEnd: 6 });
+    const crossing = ev({
+      id: "w",
+      actor: "b",
+      action: "walk",
+      from: [8, 0, 5],
+      to: [2, 0, 5],
+      path: [[8, 0, 5], [2, 0, 5]],
+      pathLengthM: 6,
+      tStart: 0,
+      tEnd: 10,
+    });
+    expect(sightlineFlags(graphOf([looker, crossing]), manifest(), geom)).toHaveLength(1);
+    const toOnly = ev({ ...crossing, from: undefined, path: [[2, 0, 5]], pathLengthM: 0 });
+    const still = ev({ id: "s", actor: "b", at: [8, 0, 5], tStart: 0, tEnd: 10 });
+    expect(sightlineFlags(graphOf([looker, toOnly, still]), manifest(), geom)).toEqual([]);
+  });
+
   test("a clear look and non-actor targets give no flag", () => {
     expect(sightlineFlags(graphOf([look(), seen([4, 0, 12])]), manifest(), wall)).toEqual([]);
     expect(sightlineFlags(graphOf([look("shelf_x")]), manifest(), wall)).toEqual([]);
@@ -159,9 +217,12 @@ describe("reachability", () => {
     expect(reachabilityFlags(walk(false, "stand"), manifest())).toEqual([]);
   });
 
-  test("an unreachable walk missing an endpoint is still a hard flag", () => {
-    const g = graphOf([ev({ id: "m", action: "walk", reachable: false })]);
-    expect(reachabilityFlags(g, manifest())).toHaveLength(1);
+  test("an unreachable walk missing an endpoint is skipped, not flagged hard", () => {
+    const noEnd = graphOf([ev({ id: "m", action: "walk", from: [2, 0, 2], reachable: false })]);
+    const noStart = graphOf([ev({ id: "m", action: "run", to: [2, 0, 8], reachable: false })]);
+    const neither = graphOf([ev({ id: "m", action: "walk", reachable: false })]);
+    for (const g of [noEnd, noStart, neither]) expect(reachabilityFlags(g, manifest())).toEqual([]);
+    expect(gate(neither, manifest(), empty).statuses.m).toBe("proposed");
   });
 });
 
@@ -359,6 +420,22 @@ describe("unanchored and missing_time", () => {
       ev({ id: "m", action: "shove", at: [1, 0, 1], tInferred: true, tStart: 3, tEnd: 4 }),
     ]);
     expect(missingTimeFlags(withLive)[0]!.suggestedQuestion).toBe("Was that before or after the stand by a?");
+  });
+
+  test("an unanchored event's question names the two landmarks nearest the actor's last known position", () => {
+    const later = graphOf([
+      ev({ id: "earlier", at: [0.5, 0, 0.5], tStart: 0, tEnd: 1 }),
+      ev({ id: "u", tStart: 2, tEnd: 3 }),
+    ]);
+    const [flag] = unanchoredFlags(later, manifest());
+    expect(flag!.suggestedQuestion).toBe("Where in the room was that? Closer to the the zone or the the block?");
+    const first = graphOf([ev({ id: "u", tStart: 0, tEnd: 1 })]);
+    expect(unanchoredFlags(first, manifest())[0]!.suggestedQuestion).toBe("Where in the room was that?");
+    const overlapping = graphOf([
+      ev({ id: "overlaps", at: [0.5, 0, 0.5], tStart: 0, tEnd: 5 }),
+      ev({ id: "u", tStart: 2, tEnd: 3 }),
+    ]);
+    expect(unanchoredFlags(overlapping, manifest())[0]!.suggestedQuestion).toBe("Where in the room was that?");
   });
 
   test("a movement with one anchor is unanchored", () => {

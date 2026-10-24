@@ -1,6 +1,6 @@
 import type { SceneManifest } from "@rashomon/schema";
 import type { FlagDraft, ResolvedGraph, Vec3 } from "../types";
-import { actorLabel, landmarkLabel, nearestLabel, nearestLandmarks } from "./labels";
+import { landmarkLabel, nearestLabel, nearestLandmarks } from "./labels";
 import { blockersFor } from "./occluders";
 import { segmentBlocked } from "./raycast";
 
@@ -20,18 +20,7 @@ export function reachabilityFlags(resolved: ResolvedGraph, manifest: SceneManife
   for (const e of resolved.events) {
     if (e.status === "superseded") continue;
     if ((e.action !== "walk" && e.action !== "run") || e.reachable) continue;
-    const who = actorLabel(resolved, e.actor);
-    if (!e.from || !e.to) {
-      flags.push({
-        eventId: e.id,
-        check: "reachability",
-        severity: "hard",
-        detail: `${e.actor} has no walkable route for ${e.id}, which is missing 1 or more endpoints.`,
-        evidence: { missingEndpoints: Number(!e.from) + Number(!e.to) },
-        suggestedQuestion: `Where did ${who} start and where did they end up?`,
-      });
-      continue;
-    }
+    if (!e.from || !e.to) continue;
     const straight = Math.hypot(e.to[0] - e.from[0], e.to[2] - e.from[2]);
     const blocker = blockerOnLine(e.from, e.to, manifest);
     flags.push({

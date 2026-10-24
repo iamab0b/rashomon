@@ -1,7 +1,16 @@
 import type { SceneManifest } from "@rashomon/schema";
-import type { FlagDraft, ResolvedGraph } from "../types";
+import type { FlagDraft, ResolvedEvent, ResolvedGraph, Vec3 } from "../types";
 import { actorLabel, nearestLandmarks } from "./labels";
-import { actorPositionAt, endPoint, startPoint } from "./positions";
+import { endPoint, startPoint } from "./positions";
+
+function lastKnownPosition(resolved: ResolvedGraph, e: ResolvedEvent): Vec3 | undefined {
+  let latest: ResolvedEvent | undefined;
+  for (const o of resolved.events) {
+    if (o === e || o.status === "superseded" || o.tEnd > e.tStart || !endPoint(o)) continue;
+    if (!latest || o.tEnd >= latest.tEnd) latest = o;
+  }
+  return latest ? endPoint(latest) : undefined;
+}
 
 export function unanchoredFlags(resolved: ResolvedGraph, manifest: SceneManifest): FlagDraft[] {
   const flags: FlagDraft[] = [];
@@ -14,7 +23,7 @@ export function unanchoredFlags(resolved: ResolvedGraph, manifest: SceneManifest
         ? 0
         : 1;
     if (!missing) continue;
-    const near = actorPositionAt(resolved.events, e.actor, e.tStart);
+    const near = lastKnownPosition(resolved, e);
     const [first, second] = near ? nearestLandmarks(near, manifest, 2) : [];
     flags.push({
       eventId: e.id,
