@@ -1,9 +1,6 @@
 import type { Anchor, Landmark, SceneManifest } from "@rashomon/schema";
 import type { Vec3 } from "../types";
 
-/** The schema's Anchor plus `behind`, which only the resolver understands. */
-export type ResolverAnchor = Anchor | { kind: "behind"; landmark: string };
-
 export const NEAR_OFFSET_M = 0.6;
 
 type Bounds = { min: Vec3; max: Vec3 };
@@ -33,6 +30,8 @@ export function roomCenter(manifest: SceneManifest): Vec3 {
   const { min, max } = interiorOf(manifest);
   return [(min[0] + max[0]) / 2, 0, (min[2] + max[2]) / 2];
 }
+
+const floorPoint = (p: Vec3): Vec3 => [p[0], 0, p[2]];
 
 const floorCenter = (b: Bounds): Vec3 => [
   (b.min[0] + b.max[0]) / 2,
@@ -79,12 +78,12 @@ function clampToInterior(p: Vec3, manifest: SceneManifest): Vec3 {
 
 /** World point (y = 0) for an anchor. Throws on an unknown landmark id. */
 export function anchorToPoint(
-  anchor: ResolverAnchor,
+  anchor: Anchor,
   manifest: SceneManifest,
 ): Vec3 {
   switch (anchor.kind) {
     case "at":
-      return floorCenter(landmarkOf(anchor.landmark, manifest).bounds);
+      return floorPoint(landmarkOf(anchor.landmark, manifest).position);
     case "near": {
       const lm = landmarkOf(anchor.landmark, manifest);
       return offsetFromFace(lm.bounds, manifest, anchor.radiusM ?? NEAR_OFFSET_M, 1);

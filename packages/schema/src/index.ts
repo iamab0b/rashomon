@@ -45,6 +45,7 @@ export type Actor = {
 export type Anchor =
   | { kind: "at"; landmark: string }
   | { kind: "near"; landmark: string; radiusM?: number }
+  | { kind: "behind"; landmark: string }
   | { kind: "between"; a: string; b: string }
   | { kind: "xyz"; position: [number, number, number] };
 

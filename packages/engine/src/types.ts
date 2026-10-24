@@ -22,11 +22,14 @@ export type ResolvedEvent = {
   handwritten?: boolean;
 };
 
+export type HeldInterval = { actor: string; tStart: number; tEnd: number };
+
 export type ResolvedProp = {
   id: string;
   type: string;
   position: Vec3;
   heldBy?: string;
+  heldByIntervals?: HeldInterval[];
   notes: string;
 };
 
@@ -34,7 +37,13 @@ export type ResolvedGraph = {
   sceneId: string;
   version: number;
   durationS: number;
-  actors: { id: string; label: string; role: string; rig: string }[];
+  actors: {
+    id: string;
+    label: string;
+    role: string;
+    rig: string;
+    position?: Vec3;
+  }[];
   events: ResolvedEvent[];
   props: ResolvedProp[];
   handwritten?: boolean;

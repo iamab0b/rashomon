@@ -1,21 +1,14 @@
 import type { Event, EventGraph, SceneManifest } from "@rashomon/schema";
 import type {
+  HeldInterval,
   ResolvedEvent,
   ResolvedGraph,
   ResolvedProp,
   Vec3,
 } from "../types";
-import { anchorToPoint, type ResolverAnchor } from "./anchors";
+import { anchorToPoint } from "./anchors";
 import { pathLength, shortestPath } from "./portals";
 import { resolveInterval } from "./time";
-
-export type HeldInterval = { actor: string; tStart: number; tEnd: number };
-export type ResolverActor = ResolvedGraph["actors"][number] & { position?: Vec3 };
-export type ResolverProp = ResolvedProp & { heldByIntervals?: HeldInterval[] };
-export type ResolverGraph = Omit<ResolvedGraph, "actors" | "props"> & {
-  actors: ResolverActor[];
-  props: ResolverProp[];
-};
 
 const MOVEMENT = new Set(["walk", "run"]);
 
@@ -34,13 +27,13 @@ function facingPoint(
 export function resolve(
   graph: EventGraph,
   manifest: SceneManifest,
-): ResolverGraph {
+): ResolvedGraph {
   const portals = manifest.portals;
   const obstacles = manifest.landmarks
     .filter((l) => l.occludes)
     .map((l) => l.bounds);
   const point = (a: Event["at"]) =>
-    a ? roundVec(anchorToPoint(a as ResolverAnchor, manifest)) : undefined;
+    a ? roundVec(anchorToPoint(a, manifest)) : undefined;
 
   const lastPos = new Map<string, Vec3>();
   const firstPos = new Map<string, Vec3>();
@@ -103,8 +96,8 @@ export function resolve(
 
   const durationS = events.reduce((m, e) => Math.max(m, e.tEnd), 0);
 
-  const props: ResolverProp[] = graph.props.map((p) => {
-    const position = roundVec(anchorToPoint(p.anchor as ResolverAnchor, manifest));
+  const props: ResolvedProp[] = graph.props.map((p) => {
+    const position = roundVec(anchorToPoint(p.anchor, manifest));
     const handoffs = events
       .filter((e) => e.prop === p.id && (e.action === "pick_up" || e.action === "drop"))
       .sort((a, b) => a.tStart - b.tStart);

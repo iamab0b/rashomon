@@ -17,11 +17,16 @@ const box = (id: string): Landmark => {
   return l;
 };
 
-const lm = (id: string, min: [number, number], max: [number, number]): Landmark => ({
+const lm = (
+  id: string,
+  min: [number, number],
+  max: [number, number],
+  position: [number, number, number] = [0, 0, 0],
+): Landmark => ({
   id,
   label: id,
   aliases: [],
-  position: [0, 0, 0],
+  position,
   bounds: { min: [min[0], 0, min[1]], max: [max[0], 1, max[1]] },
   kind: "furniture",
   occludes: true,
@@ -35,7 +40,7 @@ const synth: SceneManifest = {
   unitsPerMeter: 1,
   eyeHeight: 1.6,
   landmarks: [
-    lm("west", [0, 4], [1, 6]), // against the west wall, room is to its +X
+    lm("west", [0, 4], [1, 6], [1.5, 0, 5.5]), // against the west wall, room is to its +X
     lm("south", [4, 0], [6, 1]), // room is to its +Z
     lm("mid", [4, 4], [6, 6]),
   ],
@@ -46,8 +51,8 @@ const synth: SceneManifest = {
 };
 
 describe("anchorToPoint", () => {
-  test("at: landmark center on the floor", () => {
-    expect(anchorToPoint({ kind: "at", landmark: "west" }, synth)).toEqual([0.5, 0, 5]);
+  test("at: the landmark's position field on the floor, not the box center", () => {
+    expect(anchorToPoint({ kind: "at", landmark: "west" }, synth)).toEqual([1.5, 0, 5.5]);
   });
   test("near: 0.6 m off the face that looks at the room center", () => {
     const p = anchorToPoint({ kind: "near", landmark: "west" }, synth);
@@ -73,7 +78,7 @@ describe("anchorToPoint", () => {
     expect(m[0]).toBeCloseTo(2);
     expect(m[2]).toBeCloseTo(0.4);
   });
-  test("between: midpoint of two landmark centers", () => {
+  test("between: midpoint of two landmark box centers", () => {
     expect(anchorToPoint({ kind: "between", a: "west", b: "south" }, synth)).toEqual([2.75, 0, 2.75]);
   });
   test("xyz is flattened to the floor", () => {
@@ -199,7 +204,7 @@ describe("robbery fixture", () => {
   test("e1 length is a plausible detour (see PR: the 7-10 m expectation does not match the floor plan)", () => {
     const len = pathLength(ev("e1").path);
     expect(len).toBeCloseTo(ev("e1").pathLengthM, 5);
-    expect(len).toBeGreaterThan(6.1); // longer than the straight line
+    expect(len).toBeGreaterThan(Math.hypot(7.2 - 1.5, 2.5 - 0.4)); // longer than the straight line
     expect(len).toBeLessThanOrEqual(7.5); // floor plan: "longer than 7.5 m = wrong side of a shelf"
   });
 
