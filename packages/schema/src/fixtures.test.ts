@@ -3,6 +3,7 @@ import storeJson from "../fixtures/store.scene.json";
 import robberyJson from "../fixtures/robbery.graph.json";
 import { ACTIONS } from "./index";
 import type { Anchor, Event, EventGraph, SceneManifest } from "./index";
+import { robberyGraph, storeScene } from "./fixtures";
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
@@ -39,6 +40,7 @@ const isAnchor = (v: unknown): v is Anchor => {
   if (!isRecord(v)) return false;
   if (v.kind === "at") return typeof v.landmark === "string";
   if (v.kind === "near") return typeof v.landmark === "string";
+  if (v.kind === "behind") return typeof v.landmark === "string";
   if (v.kind === "between")
     return typeof v.a === "string" && typeof v.b === "string";
   if (v.kind === "xyz") return isVec3(v.position);
@@ -82,7 +84,8 @@ const isGraph = (v: unknown): v is EventGraph =>
   );
 
 const anchorLandmarks = (a: Anchor): string[] => {
-  if (a.kind === "at" || a.kind === "near") return [a.landmark];
+  if (a.kind === "at" || a.kind === "near" || a.kind === "behind")
+    return [a.landmark];
   if (a.kind === "between") return [a.a, a.b];
   return [];
 };
@@ -122,5 +125,19 @@ describe("fixtures", () => {
     ];
     for (const a of anchors)
       for (const id of anchorLandmarks(a)) expect(ids.has(id)).toBe(true);
+  });
+
+  test("every confidence is one of the extractor's three values", () => {
+    const allowed = [0.3, 0.6, 0.9];
+    const patches = (robberyJson as { correctionPatch: { patches: { event?: { confidence: number } }[] } })
+      .correctionPatch.patches.flatMap((p) => (p.event ? [p.event] : []));
+    for (const e of [...robberyGraph.events, ...patches])
+      expect(allowed).toContain(e.confidence);
+  });
+
+  test("the fixtures entry point exposes the store with its interior", () => {
+    expect(storeScene.sceneId).toBe("store_v1");
+    expect(storeScene.interior).toEqual({ min: [0, 0, 0], max: [9, 3, 7] });
+    expect(robberyGraph.events).toHaveLength(10);
   });
 });

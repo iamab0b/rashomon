@@ -13,13 +13,13 @@
   "events": [
     { "id": "e1", "witnessId": "w1", "actor": "suspect", "action": "walk", "from": { "kind": "at", "landmark": "front_door" }, "to": { "kind": "near", "landmark": "counter", "radiusM": 0.6 }, "t": [0, 5], "tConfidence": "inferred", "confidence": 0.9, "sources": ["utt_2"], "status": "proposed", "flags": [] },
     { "id": "e2", "witnessId": "w1", "actor": "clerk", "action": "stand", "at": { "kind": "at", "landmark": "behind_counter" }, "facing": "counter", "t": [0, 13], "tConfidence": "inferred", "confidence": 0.9, "sources": ["utt_2"], "status": "proposed", "flags": [] },
-    { "id": "e3", "witnessId": "w1", "actor": "witness", "action": "stand", "at": { "kind": "at", "landmark": "aisle_chips" }, "facing": "shelf_a", "t": [0, 11], "tConfidence": "stated", "confidence": 0.95, "sources": ["utt_1"], "status": "proposed", "flags": [] },
+    { "id": "e3", "witnessId": "w1", "actor": "witness", "action": "stand", "at": { "kind": "at", "landmark": "aisle_chips" }, "facing": "shelf_a", "t": [0, 11], "tConfidence": "stated", "confidence": 0.9, "sources": ["utt_1"], "status": "proposed", "flags": [] },
     { "id": "e4", "witnessId": "w1", "actor": "suspect", "action": "speak", "at": { "kind": "near", "landmark": "counter", "radiusM": 0.6 }, "target": "clerk", "t": [5, 9], "tConfidence": "stated", "confidence": 0.9, "sources": ["utt_3", "utt_4"], "status": "proposed", "flags": [] },
-    { "id": "e5", "witnessId": "w1", "actor": "witness", "action": "look", "at": { "kind": "at", "landmark": "aisle_chips" }, "target": "suspect", "t": [10, 12], "tConfidence": "stated", "confidence": 0.8, "sources": ["utt_6", "utt_7"], "status": "proposed", "flags": [] },
-    { "id": "e6", "witnessId": "w1", "actor": "suspect", "action": "pick_up", "at": { "kind": "near", "landmark": "counter", "radiusM": 0.6 }, "prop": "p_knife", "t": [9, 11], "tConfidence": "stated", "confidence": 0.85, "sources": ["utt_5"], "status": "proposed", "flags": [] },
-    { "id": "e7", "witnessId": "w1", "actor": "suspect", "action": "shove", "at": { "kind": "near", "landmark": "counter", "radiusM": 0.6 }, "target": "clerk", "t": [12, 13], "tConfidence": "stated", "confidence": 0.7, "sources": ["utt_8"], "status": "proposed", "flags": [] },
-    { "id": "e8", "witnessId": "w1", "actor": "clerk", "action": "fall", "at": { "kind": "at", "landmark": "behind_counter" }, "t": [13, 15], "tConfidence": "inferred", "confidence": 0.7, "sources": ["utt_8"], "status": "proposed", "flags": [] },
-    { "id": "e9", "witnessId": "w1", "actor": "witness", "action": "crouch", "at": { "kind": "at", "landmark": "aisle_chips" }, "t": [13, 24], "tConfidence": "stated", "confidence": 0.8, "sources": ["utt_9"], "status": "proposed", "flags": [] },
+    { "id": "e5", "witnessId": "w1", "actor": "witness", "action": "look", "at": { "kind": "at", "landmark": "aisle_chips" }, "target": "suspect", "t": [10, 12], "tConfidence": "stated", "confidence": 0.9, "sources": ["utt_6", "utt_7"], "status": "proposed", "flags": [] },
+    { "id": "e6", "witnessId": "w1", "actor": "suspect", "action": "pick_up", "at": { "kind": "near", "landmark": "counter", "radiusM": 0.6 }, "prop": "p_knife", "t": [9, 11], "tConfidence": "stated", "confidence": 0.9, "sources": ["utt_5"], "status": "proposed", "flags": [] },
+    { "id": "e7", "witnessId": "w1", "actor": "suspect", "action": "shove", "at": { "kind": "near", "landmark": "counter", "radiusM": 0.6 }, "target": "clerk", "t": [12, 13], "tConfidence": "stated", "confidence": 0.6, "sources": ["utt_8"], "status": "proposed", "flags": [] },
+    { "id": "e8", "witnessId": "w1", "actor": "clerk", "action": "fall", "at": { "kind": "at", "landmark": "behind_counter" }, "t": [13, 15], "tConfidence": "inferred", "confidence": 0.6, "sources": ["utt_8"], "status": "proposed", "flags": [] },
+    { "id": "e9", "witnessId": "w1", "actor": "witness", "action": "crouch", "at": { "kind": "at", "landmark": "aisle_chips" }, "t": [13, 24], "tConfidence": "stated", "confidence": 0.9, "sources": ["utt_9"], "status": "proposed", "flags": [] },
     { "id": "e10", "witnessId": "w1", "actor": "suspect", "action": "run", "from": { "kind": "near", "landmark": "counter", "radiusM": 0.6 }, "to": { "kind": "at", "landmark": "front_door" }, "t": [20, 23], "tConfidence": "stated", "confidence": 0.9, "sources": ["utt_10"], "status": "proposed", "flags": [] }
   ],
   "expectedAfterGate": {
@@ -36,7 +36,7 @@
     "patches": [
       { "op": "update_event", "id": "e5", "changes": { "at": { "kind": "at", "landmark": "window_front" } }, "sources": ["utt_12"] },
       { "op": "update_event", "id": "e3", "changes": { "t": [0, 9] }, "sources": ["utt_12"] },
-      { "op": "add_event", "event": { "witnessId": "w1", "actor": "witness", "action": "walk", "from": { "kind": "at", "landmark": "aisle_chips" }, "to": { "kind": "at", "landmark": "window_front" }, "t": [8, 11], "tConfidence": "inferred", "confidence": 0.8, "sources": ["utt_12"] } },
+      { "op": "add_event", "event": { "witnessId": "w1", "actor": "witness", "action": "walk", "from": { "kind": "at", "landmark": "aisle_chips" }, "to": { "kind": "at", "landmark": "window_front" }, "t": [8, 11], "tConfidence": "inferred", "confidence": 0.9, "sources": ["utt_12"] } },
       { "op": "update_event", "id": "e9", "changes": { "at": { "kind": "at", "landmark": "window_front" } }, "sources": ["utt_12"] }
     ]
   }

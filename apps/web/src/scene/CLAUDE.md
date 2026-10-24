@@ -14,7 +14,7 @@ three 0.186.1 · @react-three/fiber 9.8.2 · @react-three/drei 10.7.9 · React 1
 
 ## Coordinate frame
 
-Meters, Y up. Origin at the store's inside front-left corner at floor level; +X along the front wall toward the counter; +Z into the store toward the cooler. Interior 9 x 7 x 3 m. Eye height 1.6, chest 1.2. The scene GLB is already in this frame with no root transform. The landmark map (`SceneManifest`) is loaded from `packages/schema/fixtures/store.scene.json` in fixture mode.
+Meters, Y up. Origin at the store's inside front-left corner at floor level; +X along the front wall toward the counter; +Z into the store toward the cooler. Interior 9 x 7 x 3 m. Eye height 1.6, chest 1.2. The scene GLB is already in this frame with no root transform. The landmark map (`SceneManifest`) is `storeScene` from `@rashomon/schema/fixtures` in fixture mode.
 
 ## Files and ownership (three worktrees, one agent each)
 
@@ -38,7 +38,7 @@ One `t` (seconds) in the zustand store. Everything derives from `t` in `useFrame
 
 ## Clip-to-action map
 
-See `characters/actionMap.ts` (data). Characters are Mixamo Y Bot (witness, suspect) and X Bot (clerk) from `public/characters/`; clips from `public/clips/`, one GLB each, bound by bone name. Hip bone after GLTFLoader is `mixamorigHips`. Props attach to `mixamorigRightHand`.
+The clip table is `docs/clip-action-map.md`; `characters/actionMap.ts` carries it as data. Characters are Mixamo Y Bot (witness, suspect) and X Bot (clerk) from `public/characters/` (`ybot.fbx`, `xbot.fbx`); clips from `public/clips/`, one `clip_<name>.fbx` each, bound by bone name. All of them are FBX loaded with three's `FBXLoader` at scale 0.01 (Mixamo exports centimeters). Hip bone after FBXLoader is `mixamorigHips`. Each rig loads with two skeletons, one a duplicate chain nested under the other; the mixer root is the SkinnedMesh with the primary skeleton (`findPrimarySkinnedMesh` in `characters/rigs.ts`). Every clip has its `mixamorigHips.position` X/Z zeroed at load in `characters/clips.ts` (Y is kept), so no clip carries root motion and the actor stays on the resolver path. Props attach to `mixamorigRightHand`.
 
 ## Physics (props only)
 
@@ -50,7 +50,7 @@ See `characters/actionMap.ts` (data). Characters are Mixamo Y Bot (witness, susp
 
 ## Fixtures
 
-`packages/schema/fixtures/store.scene.json` (11 landmarks) and `robbery.graph.json` (3 actors, 10 events, 2 props). The resolved version for render tests is `robbery.resolved.json`, produced by `pnpm -F engine resolve-fixture`. Expected after the gate: `e5` implausible with a `sightline` flag blocked by `shelf_a`; everything else plausible. If your render shows the witness seeing the counter from the chips aisle, something upstream is wrong, not your code.
+`storeScene` (11 landmarks) and `robberyGraph` (3 actors, 10 events, 2 props), both imported from `@rashomon/schema/fixtures`. The resolved version for render tests is `packages/schema/fixtures/robbery.resolved.json`, which the package does not export, produced by `pnpm -F engine resolve-fixture`. Expected after the gate: `e5` implausible with a `sightline` flag blocked by `shelf_a`; everything else plausible. If your render shows the witness seeing the counter from the chips aisle, something upstream is wrong, not your code.
 
 ## Style
 
