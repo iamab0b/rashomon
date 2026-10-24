@@ -1,11 +1,11 @@
 import { useEffect, useState, type ComponentType, type CSSProperties } from "react";
-import { useGraph, useSelection, useTimeline, type ResolvedEvent, type Status } from "../scene";
+import { useGraph, useGraphActions, useSelection, useTimeline, type ResolvedEvent, type Status } from "../scene";
 import { EventsTab } from "./EventsTab";
 import { FlagsTab, openFlagCount } from "./FlagsTab";
 import { HistoryTab } from "./HistoryTab";
 import { OverrideDialog } from "./OverrideDialog";
-import type { Overrides, PanelContext } from "./shared";
-import { isStatusPreview, previewStatuses } from "./statusPreview";
+import { eventDisplay, type PendingOverrides } from "./overridePending";
+import type { PanelContext } from "./shared";
 import { transcriptFor } from "./transcript";
 import { TranscriptDrawer } from "./TranscriptDrawer";
 import { useGraphMode } from "./useGraphMode";
@@ -32,9 +32,10 @@ export function RightPanel({ by = "investigator", liveConnected = false }: { by?
   const { resolved, statuses } = useGraph();
   const { selectedEventId, select } = useSelection();
   const { setT, pause } = useTimeline();
+  const { applyPatches } = useGraphActions();
   const [mode] = useGraphMode();
   const [activeTab, setActiveTab] = useState(TABS[0]!.id);
-  const [overrides, setOverrides] = useState<Overrides>({});
+  const [pending, setPending] = useState<PendingOverrides>({});
   const [dialogEventId, setDialogEventId] = useState<string | null>(null);
   const [sourceId, setSourceId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
@@ -55,18 +56,9 @@ export function RightPanel({ by = "investigator", liveConnected = false }: { by?
     );
   }
 
-  const statusPreview = isStatusPreview(window.location.search);
-  const gateStatus = (id: string, fallback: Status): Status => statuses[id] ?? fallback;
-  const preview = statusPreview
-    ? previewStatuses(resolved.events, (id) =>
-        gateStatus(id, resolved.events.find((e) => e.id === id)?.status ?? "proposed"),
-      )
-    : {};
+  const statusOf = (event: ResolvedEvent): Status => eventDisplay(event, statuses, pending).status;
 
-  const statusOf = (event: ResolvedEvent): Status =>
-    overrides[event.id] ? "overridden" : (preview[event.id] ?? gateStatus(event.id, event.status));
-
-  const awaitingGate = mode === "live" && (liveConnected || statusPreview);
+  const awaitingGate = mode === "live" && liveConnected;
 
   const jumpTo = (eventId: string) => {
     const event = resolved.events.find((e) => e.id === eventId);
@@ -78,8 +70,8 @@ export function RightPanel({ by = "investigator", liveConnected = false }: { by?
 
   const context: PanelContext = {
     graph: resolved,
-    overrides,
     statusOf,
+    pendingNoteOf: (event) => eventDisplay(event, statuses, pending).pendingNote,
     isPending: (event) => awaitingGate && statusOf(event) === "proposed",
     selectedEventId,
     jumpTo,
@@ -135,10 +127,11 @@ export function RightPanel({ by = "investigator", liveConnected = false }: { by?
           by={by}
           onClose={() => setDialogEventId(null)}
           onConfirm={(override) => {
-            setOverrides((prev) => ({ ...prev, [dialogEvent.id]: override }));
+            applyPatches([{ op: "override", id: dialogEvent.id, reason: override.reason, by: override.by }]);
+            setPending((prev) => ({ ...prev, [dialogEvent.id]: override.reason }));
             setDialogEventId(null);
             select(dialogEvent.id);
-            setToast("Overridden. Reason recorded in History.");
+            setToast("Override sent. Reason recorded in History.");
           }}
         />
       )}

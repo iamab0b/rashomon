@@ -5,13 +5,14 @@ import {
   actorLabel,
   eventDetail,
   eventTime,
+  PendingNote,
   SourceRefs,
   StatusToken,
   words,
   type PanelContext,
 } from "./shared";
 
-export function EventsTab({ graph, statusOf, isPending, selectedEventId, jumpTo, openSource }: PanelContext) {
+export function EventsTab({ graph, statusOf, pendingNoteOf, isPending, selectedEventId, jumpTo, openSource }: PanelContext) {
   const events = [...graph.events].sort((a, b) => a.tStart - b.tStart);
 
   return (
@@ -50,6 +51,7 @@ export function EventsTab({ graph, statusOf, isPending, selectedEventId, jumpTo,
                   <span>Not supported by current scene data.</span>
                 </div>
               )}
+              <PendingNote note={pendingNoteOf(event)} />
               {status === "overridden" && (
                 <div className="event-override-note">
                   <span className="status-diamond" />

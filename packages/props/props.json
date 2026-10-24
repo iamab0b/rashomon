@@ -3,119 +3,125 @@
     "type": "knife_chef",
     "label": "chef's knife",
     "aliases": [
-      "knife",
+      "a big knife",
       "kitchen knife",
-      "blade",
-      "a big knife"
+      "the knife",
+      "a blade",
+      "butcher knife"
     ],
     "modelUrl": "/props/knife_chef.glb",
     "dimensionsM": {
-      "l": 0.33,
-      "w": 0.051,
+      "l": 0.335,
+      "w": 0.053,
       "h": 0.02
     },
-    "massKg": 0.25,
+    "massKg": 0.165,
     "graspable": true,
     "collider": "cuboid",
     "gripOffset": [
       0,
       0,
-      0.08
+      -0.1
     ],
-    "defaultNotes": "Blade 203 mm (8 in). Dimensions are for a typical chef's knife; the witness's estimate is in the instance notes.",
-    "source": ""
+    "defaultNotes": "A typical 8-inch chef's knife: 335 mm long with a 200 mm blade and 140 mm handle.",
+    "source": "https://cutleryandmore.com/products/victorinox-fibrox-chefs-knife-42192"
   },
   {
     "type": "knife_paring",
     "label": "paring knife",
     "aliases": [
-      "small knife",
-      "little knife",
-      "pocket knife"
+      "a small knife",
+      "a little knife",
+      "paring knife",
+      "a short blade"
     ],
     "modelUrl": "/props/knife_paring.glb",
     "dimensionsM": {
-      "l": 0.19,
+      "l": 0.188,
       "w": 0.03,
       "h": 0.015
     },
-    "massKg": 0.08,
+    "massKg": 0.02,
     "graspable": true,
     "collider": "cuboid",
     "gripOffset": [
       0,
       0,
-      0.05
+      -0.042
     ],
-    "defaultNotes": "Typical paring knife, about 190 mm overall.",
-    "source": ""
+    "defaultNotes": "A typical paring knife: 188 mm long with an 83 mm (3.25 in) blade.",
+    "source": "https://www.gpknives.com/victorinox-3-25-parer-black-nylon-handle-6-7603"
   },
   {
     "type": "handgun",
     "label": "handgun",
     "aliases": [
-      "gun",
-      "pistol",
-      "weapon"
+      "a gun",
+      "the pistol",
+      "a handgun",
+      "his gun",
+      "a piece"
     ],
     "modelUrl": "/props/handgun.glb",
     "dimensionsM": {
-      "l": 0.187,
+      "l": 0.185,
       "w": 0.128,
-      "h": 0.032
+      "h": 0.034
     },
-    "massKg": 0.65,
+    "massKg": 0.67,
     "graspable": true,
     "collider": "cuboid",
     "gripOffset": [
       0,
-      0,
-      0.04
+      -0.03,
+      -0.04
     ],
-    "defaultNotes": "Generic pistol, 187 mm long. The witness's description is in the instance notes.",
-    "source": ""
+    "defaultNotes": "A compact 9 mm pistol: 185 mm long and 128 mm tall, about 0.67 kg unloaded.",
+    "source": "https://us.glock.com/en/Pistols/G19-Gen5-FS-US"
   },
   {
     "type": "bat",
     "label": "baseball bat",
     "aliases": [
-      "bat",
-      "club",
-      "a stick"
+      "a bat",
+      "baseball bat",
+      "a club",
+      "a wooden bat"
     ],
     "modelUrl": "/props/bat.glb",
     "dimensionsM": {
-      "l": 0.85,
-      "w": 0.066,
-      "h": 0.066
+      "l": 0.838,
+      "w": 0.0667,
+      "h": 0.0667
     },
-    "massKg": 0.9,
+    "massKg": 0.85,
     "graspable": true,
-    "collider": "cuboid",
+    "collider": "hull",
     "gripOffset": [
       0,
       0,
-      0.15
+      -0.32
     ],
-    "defaultNotes": "Typical baseball bat, 0.85 m long.",
-    "source": ""
+    "defaultNotes": "An adult wood baseball bat: 33 in (838 mm) long, 2 5/8 in barrel, 30 oz.",
+    "source": "https://sidelineswap.com/gear/baseball/bats/12339517-victus-2025-mlb-pro-reserve-maple-bw7-maple-bat-sz-33-new"
   },
   {
     "type": "phone",
     "label": "phone",
     "aliases": [
-      "cell phone",
-      "cellphone",
-      "smartphone",
-      "mobile"
+      "his phone",
+      "a cell phone",
+      "a phone",
+      "a mobile",
+      "a smartphone"
     ],
     "modelUrl": "/props/phone.glb",
     "dimensionsM": {
-      "l": 0.15,
-      "w": 0.072,
-      "h": 0.008
+      "l": 0.1476,
+      "w": 0.0716,
+      "h": 0.0078
     },
-    "massKg": 0.19,
+    "massKg": 0.171,
     "graspable": true,
     "collider": "cuboid",
     "gripOffset": [
@@ -123,16 +129,17 @@
       0,
       0
     ],
-    "defaultNotes": "Typical smartphone slab.",
-    "source": ""
+    "defaultNotes": "A typical smartphone: 148 x 72 x 8 mm, 171 g.",
+    "source": "https://support.apple.com/en-ng/111831"
   },
   {
     "type": "bottle_beer",
     "label": "beer bottle",
     "aliases": [
-      "bottle",
-      "beer",
-      "longneck"
+      "a beer bottle",
+      "a beer",
+      "a bottle",
+      "a glass bottle"
     ],
     "modelUrl": "/props/bottle_beer.glb",
     "dimensionsM": {
@@ -140,82 +147,86 @@
       "w": 0.061,
       "h": 0.061
     },
-    "massKg": 0.6,
+    "massKg": 0.55,
     "graspable": true,
-    "collider": "cuboid",
+    "collider": "hull",
     "gripOffset": [
       0,
       0,
-      0.06
+      -0.045
     ],
-    "defaultNotes": "Longneck bottle, 231 mm tall.",
-    "source": ""
+    "defaultNotes": "A 12 oz longneck: 231 mm tall, 61 mm across, about 0.55 kg full.",
+    "source": "https://www.dimensions.com/element/beer-bottle-12-oz-long-neck"
   },
   {
     "type": "bottle_wine",
     "label": "wine bottle",
     "aliases": [
-      "wine",
-      "bottle of wine"
+      "a wine bottle",
+      "a bottle of wine",
+      "the wine",
+      "a big bottle"
     ],
     "modelUrl": "/props/bottle_wine.glb",
     "dimensionsM": {
-      "l": 0.3,
-      "w": 0.075,
-      "h": 0.075
+      "l": 0.3005,
+      "w": 0.0752,
+      "h": 0.0752
     },
-    "massKg": 1.2,
+    "massKg": 1.14,
     "graspable": true,
-    "collider": "cuboid",
+    "collider": "hull",
     "gripOffset": [
       0,
       0,
-      0.08
+      -0.05
     ],
-    "defaultNotes": "Standard wine bottle, 300 mm tall.",
-    "source": ""
+    "defaultNotes": "A 750 ml Bordeaux bottle: 300 mm tall, 75 mm across, about 1.1 kg full.",
+    "source": "https://creopack.se/en/products/korkar-och-lock-vinflaska-bordeaux-kork-serie"
   },
   {
     "type": "backpack",
     "label": "backpack",
     "aliases": [
-      "bag",
-      "rucksack",
-      "pack"
+      "his bag",
+      "a backpack",
+      "a book bag",
+      "a rucksack",
+      "a school bag"
     ],
     "modelUrl": "/props/backpack.glb",
     "dimensionsM": {
       "l": 0.42,
       "w": 0.33,
-      "h": 0.22
+      "h": 0.21
     },
-    "massKg": 1.0,
+    "massKg": 0.3,
     "graspable": true,
     "collider": "cuboid",
     "gripOffset": [
       0,
       0,
-      0
+      -0.21
     ],
-    "defaultNotes": "Typical daypack.",
-    "source": ""
+    "defaultNotes": "A 26 L school backpack: 42 x 33 x 21 cm, 0.3 kg empty.",
+    "source": "https://www.jansport.com/shop/en-ca/jansport-ca/new-products--12/superbreak%C2%AE-backpack-t501-12"
   },
   {
     "type": "register",
     "label": "cash register",
     "aliases": [
-      "till",
-      "register",
-      "pos",
-      "cash drawer"
+      "the register",
+      "the till",
+      "the cash register",
+      "the cash drawer"
     ],
     "modelUrl": "/props/register.glb",
     "dimensionsM": {
-      "l": 0.4,
-      "w": 0.4,
-      "h": 0.3
+      "l": 0.363,
+      "w": 0.33,
+      "h": 0.234
     },
-    "massKg": 6.0,
+    "massKg": 5,
     "graspable": false,
     "collider": "cuboid",
     "gripOffset": [
@@ -223,24 +234,25 @@
       0,
       0
     ],
-    "defaultNotes": "Countertop register, 400 x 400 x 300 mm.",
-    "source": ""
+    "defaultNotes": "A small electronic cash register with drawer: 330 x 363 x 234 mm, 5 kg.",
+    "source": "https://sharp.co.uk/xe-a102b"
   },
   {
     "type": "chair",
     "label": "chair",
     "aliases": [
-      "seat",
-      "dining chair",
-      "stool"
+      "a chair",
+      "a seat",
+      "a wooden chair",
+      "the chair"
     ],
     "modelUrl": "/props/chair.glb",
     "dimensionsM": {
-      "l": 0.84,
+      "l": 0.8,
       "w": 0.52,
-      "h": 0.51
+      "h": 0.49
     },
-    "massKg": 4.5,
+    "massKg": 4.19,
     "graspable": false,
     "collider": "cuboid",
     "gripOffset": [
@@ -248,25 +260,26 @@
       0,
       0
     ],
-    "defaultNotes": "Typical dining chair, 840 mm tall.",
-    "source": ""
+    "defaultNotes": "A wooden dining chair: 80 cm tall, 52 cm wide, 49 cm deep, seat at 45 cm.",
+    "source": "https://www.ikea.cn/cn/en/p/stockholm-2025-chair-dark-brown-20590945"
   },
   {
     "type": "shelf_unit",
     "label": "shelf",
     "aliases": [
-      "shelving",
-      "gondola",
-      "aisle shelf",
-      "rack"
+      "the shelves",
+      "the shelf",
+      "the rack",
+      "the shelving",
+      "the aisle shelf"
     ],
     "modelUrl": "/props/shelf_unit.glb",
     "dimensionsM": {
-      "l": 1.8,
-      "w": 1.2,
-      "h": 1.0
+      "l": 1.83,
+      "w": 1.22,
+      "h": 0.89
     },
-    "massKg": 60.0,
+    "massKg": 70.8,
     "graspable": false,
     "collider": "cuboid",
     "gripOffset": [
@@ -274,25 +287,26 @@
       0,
       0
     ],
-    "defaultNotes": "Double-sided gondola shelf, 1.8 x 1.2 x 1.0 m.",
-    "source": ""
+    "defaultNotes": "A double-sided store gondola section: 72 in tall, 48 in wide, 35 in deep.",
+    "source": "https://www.uline.com/BL_246/Gondola-Shelving"
   },
   {
     "type": "cooler_door",
     "label": "cooler",
     "aliases": [
-      "fridge",
-      "refrigerator",
-      "drinks cooler",
-      "glass door fridge"
+      "the fridge",
+      "the cooler",
+      "the drinks fridge",
+      "the glass door",
+      "the refrigerator"
     ],
     "modelUrl": "/props/cooler_door.glb",
     "dimensionsM": {
-      "l": 2.0,
-      "w": 0.7,
-      "h": 0.7
+      "l": 1.998,
+      "w": 0.759,
+      "h": 0.686
     },
-    "massKg": 120.0,
+    "massKg": 128,
     "graspable": false,
     "collider": "cuboid",
     "gripOffset": [
@@ -300,7 +314,7 @@
       0,
       0
     ],
-    "defaultNotes": "Glass-door cooler, 2.0 x 0.7 x 0.7 m.",
-    "source": ""
+    "defaultNotes": "A one-door glass drinks cooler: 2.0 m tall, 0.69 m wide, 0.76 m deep, 128 kg.",
+    "source": "https://s3.amazonaws.com/zcom-media/sites/a0i0L00000VH4TSQA1/media/mediamanager/True_Refrigeration_GDM-23-HC_TSL01_Spec_Sheet.pdf"
   }
 ]

@@ -226,7 +226,6 @@
 .rui .segmented button + button { border-left: 1px solid #3b4243; }
 .rui .segmented button:hover { background: #24292a; }
 .rui .segmented button.active { color: #ecefef; background: #303638; }
-.rui .badge--preview { color: #c7b8f0; border-color: #4f4570; border-style: dashed; background: #1f1b2e; text-decoration: none; cursor: pointer; }
 
 .rui .transcript-drawer { position: sticky; bottom: -16px; z-index: 5; margin: 16px -16px -16px; padding: 10px 16px 16px; border-top: 1px solid var(--border); background: var(--surface); box-shadow: 0 -12px 24px #0008; animation: rui-fade-in .15s ease-out; }
 .rui .transcript-drawer header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
@@ -247,3 +246,6 @@
 .rui .menu .menu-item--muted { color: var(--text-secondary); }
 .rui .menu .menu-item--muted span { color: #6d7886; font: var(--fs-2xs) var(--mono); text-transform: uppercase; letter-spacing: .04em; }
 .rui .toast--info { max-width: min(520px, calc(100vw - 32px)); color: var(--text-primary); background: var(--surface-raised); border-color: var(--border); }
+.rui .waived-question { display: block; margin-top: 4px; color: var(--status-plausible); }
+.rui .dialog-error { margin: 14px 0 0; padding: 8px 10px; color: var(--status-implausible); border: 1px dashed var(--status-implausible); border-radius: 3px; background: color-mix(in srgb, var(--status-implausible) 6%, var(--surface)); font-size: var(--fs-md); line-height: 1.45; }
+.rui .pending-note { display: flex; align-items: center; gap: 7px; margin-top: 7px; padding: 6px 7px; color: var(--status-overridden); border: 1px dashed color-mix(in srgb, var(--status-overridden) 60%, transparent); border-radius: 3px; font-size: var(--fs-sm); }

@@ -1,4 +1,4 @@
-import { actorLabel, FlagCard, words, type PanelContext } from "./shared";
+import { actorLabel, FlagCard, PendingNote, words, type PanelContext } from "./shared";
 
 export function openFlagCount({ graph, statusOf }: Pick<PanelContext, "graph" | "statusOf">): number {
   return graph.events
@@ -15,7 +15,7 @@ async function copyText(text: string, notify: (message: string) => void) {
   }
 }
 
-export function FlagsTab({ graph, statusOf, selectedEventId, jumpTo, openOverride, notify }: PanelContext) {
+export function FlagsTab({ graph, statusOf, pendingNoteOf, selectedEventId, jumpTo, openOverride, notify }: PanelContext) {
   const flagged = graph.events
     .filter((event) => event.flags.length > 0 && statusOf(event) !== "overridden")
     .sort((a, b) => b.tStart - a.tStart);
@@ -38,16 +38,18 @@ export function FlagsTab({ graph, statusOf, selectedEventId, jumpTo, openOverrid
         <div className="flag-list">
           {flagged.flatMap((event) =>
             event.flags.map((flag) => (
-              <FlagCard
-                key={flag.id}
-                flag={flag}
-                sceneId={graph.sceneId}
-                eventLabel={`${actorLabel(graph, event.actor)} · ${words(event.action)} · ${event.tStart.toFixed(1)} s`}
-                selected={selectedEventId === event.id}
-                onSelect={() => jumpTo(event.id)}
-                onOverride={() => openOverride(event.id)}
-                onCopy={(text) => void copyText(text, notify)}
-              />
+              <div key={flag.id}>
+                <FlagCard
+                  flag={flag}
+                  sceneId={graph.sceneId}
+                  eventLabel={`${actorLabel(graph, event.actor)} · ${words(event.action)} · ${event.tStart.toFixed(1)} s`}
+                  selected={selectedEventId === event.id}
+                  onSelect={() => jumpTo(event.id)}
+                  onOverride={() => openOverride(event.id)}
+                  onCopy={(text) => void copyText(text, notify)}
+                />
+                <PendingNote note={pendingNoteOf(event)} />
+              </div>
             )),
           )}
         </div>

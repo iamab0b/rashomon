@@ -1,6 +1,7 @@
-import type { SceneManifest } from "@rashomon/schema";
-import { storeScene } from "@rashomon/schema/fixtures";
+import type { Event, EventGraph, SceneManifest } from "@rashomon/schema";
+import { robberyGraph, storeScene } from "@rashomon/schema/fixtures";
 import { describe, expect, test } from "vitest";
+import { resolve } from "../resolve/resolve";
 import type { SceneGeom } from "../types";
 import { missingTimeFlags, unanchoredFlags } from "./completeness";
 import { contradictionFlags } from "./contradiction";
@@ -540,5 +541,85 @@ describe("gate", () => {
     ]);
     const kinds = gate(g, manifest(), wall).flags.map((f) => f.check);
     expect(kinds).toEqual(["sightline", "unanchored", "missing_time"]);
+  });
+});
+
+describe("overrides and retractions derived from the graph", () => {
+  const geom = floorPlanGeom();
+  const withChanges = (changes: Record<string, Partial<Event>>): EventGraph => ({
+    ...robberyGraph,
+    events: robberyGraph.events.map((e) => (changes[e.id] ? { ...e, ...changes[e.id] } : e)),
+  });
+  const run = (graph: EventGraph) => gate(resolve(graph, storeScene), storeScene, geom);
+  const override = (reason: string) => ({
+    by: "t",
+    reason,
+    at: 0,
+    flagIds: ["sightline:e5"],
+  });
+  const others = (statuses: Record<string, string>, except: string[]) =>
+    Object.entries(statuses).filter(([id]) => !except.includes(id));
+
+  test("a written override on a hard-flagged event gives overridden and keeps its flag", () => {
+    const out = run(withChanges({ e5: { override: override("witness later confirmed the view") } }));
+    expect(out.statuses.e5).toBe("overridden");
+    expect(out.flags.map((f) => f.id)).toEqual(["sightline:e5"]);
+    expect(others(out.statuses, ["e5"]).every(([, s]) => s === "plausible")).toBe(true);
+  });
+
+  test("the resolver carries override and supersededBy through unchanged", () => {
+    const o = override("witness later confirmed the view");
+    const r = resolve(withChanges({ e5: { override: o }, e3: { supersededBy: "utt_12" } }), storeScene);
+    expect(r.events.find((e) => e.id === "e5")?.override).toEqual(o);
+    expect(r.events.find((e) => e.id === "e3")?.supersededBy).toBe("utt_12");
+    expect(r.events.find((e) => e.id === "e1")).not.toHaveProperty("override");
+    expect(r.events.find((e) => e.id === "e1")).not.toHaveProperty("supersededBy");
+  });
+
+  test("an override with a short reason has no effect and adds no flag", () => {
+    for (const reason of ["too short", "   padded   ", ""]) {
+      const out = run(withChanges({ e5: { override: override(reason) } }));
+      expect(out.statuses.e5).toBe("implausible");
+      expect(out.flags.map((f) => f.id)).toEqual(["sightline:e5"]);
+    }
+  });
+
+  test("an override on an event with no hard flag has no effect", () => {
+    const out = run(withChanges({ e1: { override: override("a perfectly good reason") } }));
+    expect(out.statuses.e1).toBe("plausible");
+    expect(out.statuses.e5).toBe("implausible");
+    expect(out.flags.map((f) => f.id)).toEqual(["sightline:e5"]);
+  });
+
+  test("supersededBy gives superseded and drops the event as a contradiction partner", () => {
+    const apart: Partial<Event> = { at: { kind: "at", landmark: "window_front" } };
+    const before = run(withChanges({ e5: apart }));
+    expect(before.flags.filter((f) => f.check === "contradiction").map((f) => f.eventId).sort()).toEqual(["e3", "e5"]);
+    const graph = withChanges({ e5: apart, e3: { supersededBy: "utt_12" } });
+    const snapshot = JSON.stringify(graph);
+    const out = run(graph);
+    expect(out.statuses.e3).toBe("superseded");
+    expect(out.flags.filter((f) => f.check === "contradiction")).toEqual([]);
+    expect(out.statuses.e5).toBe("plausible");
+    expect(JSON.stringify(graph)).toBe(snapshot);
+  });
+
+  test("a superseded event is no longer a sightline target", () => {
+    const wall: SceneGeom = { meshes: [boxMesh("wall", [4, 0, 0], [5, 2, 10])] };
+    const look = ev({ id: "l", actor: "a", action: "look", target: "b", at: [1, 0, 5], tStart: 0, tEnd: 2 });
+    const target = ev({ id: "s", actor: "b", at: [8, 0, 5], tStart: 0, tEnd: 2 });
+    expect(gate(graphOf([look, target]), manifest(), wall).statuses.l).toBe("implausible");
+    const out = gate(graphOf([look, { ...target, supersededBy: "utt_9" }]), manifest(), wall);
+    expect(out.statuses).toEqual({ l: "plausible", s: "superseded" });
+    expect(out.flags).toEqual([]);
+  });
+
+  test("an input status of overridden still passes through, and superseded wins over an override", () => {
+    const passed = run(withChanges({ e5: { status: "overridden" } }));
+    expect(passed.statuses.e5).toBe("overridden");
+    expect(passed.flags.map((f) => f.id)).toEqual(["sightline:e5"]);
+    const both = run(withChanges({ e5: { supersededBy: "utt_9", override: override("a perfectly good reason") } }));
+    expect(both.statuses.e5).toBe("superseded");
+    expect(both.flags).toEqual([]);
   });
 });

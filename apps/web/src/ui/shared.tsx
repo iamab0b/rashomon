@@ -14,12 +14,10 @@ const STATUS_LABELS: Record<Status, string> = {
   superseded: "Replaced by a later statement",
 };
 
-export type Overrides = Record<string, Override>;
-
 export type PanelContext = {
   graph: ResolvedGraph;
-  overrides: Overrides;
   statusOf: (event: ResolvedEvent) => Status;
+  pendingNoteOf: (event: ResolvedEvent) => string | null;
   isPending: (event: ResolvedEvent) => boolean;
   selectedEventId: string | null;
   jumpTo: (eventId: string) => void;
@@ -202,6 +200,16 @@ export function OverrideLog({ override }: { override: Override }) {
         <span>Time</span>
         <b className="mono">{new Date(override.at).toLocaleTimeString()}</b>
       </p>
+    </div>
+  );
+}
+
+export function PendingNote({ note }: { note: string | null }) {
+  if (!note) return null;
+  return (
+    <div className="pending-note" role="status">
+      <span className="status-diamond" />
+      {note}
     </div>
   );
 }

@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { useGraph } from "../scene";
 import { GRAPH_MODES, type GraphMode } from "./graphMode";
 import { Icon } from "./Icon";
-import { isStatusPreview, searchWithoutPreview } from "./statusPreview";
 import { useGraphMode } from "./useGraphMode";
 import "./rashomon-ui.css";
 
@@ -102,21 +101,12 @@ export function TopBar({ liveConnected = false }: { liveConnected?: boolean }) {
         <div className="divider" />
         <span>{sceneLabel}</span>
         <ModeBadge mode={mode} liveConnected={liveConnected} />
-        {isStatusPreview(window.location.search) && (
-          <a
-            className="badge badge--preview"
-            href={`${window.location.pathname}${searchWithoutPreview(window.location.search)}`}
-            title="Some statuses are filled in so every style is visible. Click to show real statuses only."
-          >
-            Status preview · exit
-          </a>
-        )}
       </div>
       <div className="top-actions">
         <AddSourceMenu
           onLoadFixture={() => {
-            setMode("fixture");
-            setToast("Demo fixture loaded: Corner Store, one witness.");
+            if (mode === "fixture") setToast("The demo fixture is loaded: Corner Store, one witness.");
+            else setMode("fixture");
           }}
           onNotConnected={() => setToast(IMPORT_NOT_CONNECTED)}
         />
