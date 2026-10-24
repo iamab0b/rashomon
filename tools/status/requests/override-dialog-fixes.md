@@ -26,4 +26,12 @@ Done-check:
 - `grep -rn '"overridden"' apps/web/src/ui` shows no place that assigns it; reading or comparing it is fine.
 - A Vitest for the pending-override display: e5 still shows implausible, with the pending note.
 
+
+## Second review (PR #12 at 8aa5596)
+
+Status, the applyPatches path, error handling, the dialog's accessibility and suggestedQuestion are all right now. Two fixes remain:
+
+1. FlagsTab.tsx line 38 offers Override on every flagged event. The gate marks an event implausible only when it has a hard flag. Soft flags (unanchored, missing_time, contradiction) leave it plausible or proposed, and applyPatches then rejects the override however good the reason is. Offer Override only when the event's gate status is `implausible`; show the soft flags with their suggestedQuestion and Jump, but no Override.
+2. rashomon-ui.css lines 66 to 67: the modal backdrop is a fixed grid with no overflow, and `.modal` has no max-height. On a short window, tall content is clipped and Accept can fall off screen. Give `.modal` `max-height: calc(100vh - 32px); overflow-y: auto`.
+
 `/team-status` closes this item when a file under `apps/web/src/ui/` contains `aria-modal`.
