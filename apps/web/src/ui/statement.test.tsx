@@ -1,29 +1,21 @@
-import type { EventGraph, Patch } from "@rashomon/schema";
-import { robberyGraph, storeScene } from "@rashomon/schema/fixtures";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
-import { applyPatches } from "../scene";
-import {
-  addedLabel,
-  baselineOf,
-  isEditorRefusal,
-  outcomeSince,
-  voiceInterviewEnabled,
-  type SubmitStatement,
-} from "./statement";
-import { FIXTURE_NOTE, StatementSectionView, type StatementSectionViewProps, type StatementView } from "./StatementSection";
-import { gated, gatedRobbery } from "./testGraph";
+import { selectSource, type FixtureGraphSource } from "../scene";
+import { addedLabel, baselineOf, isEditorRefusal, outcomeSince, voiceInterviewEnabled } from "./statement";
+import { StatementSectionView, type StatementSectionViewProps, type StatementView } from "./StatementSection";
+import { gatedRobbery } from "./testGraph";
 
 const CORRECTION = "Oh. No, you're right, I'd stepped out. I came to the front by the window to see what was going on. I saw him from there.";
-const correctionPatches = (robberyGraph as EventGraph & { correctionPatch: { patches: Patch[] } }).correctionPatch.patches;
 
-const stubSubmit = (patches: readonly Patch[]): SubmitStatement =>
-  vi.fn(async () => {
-    stubState.after = gated(applyPatches(robberyGraph, patches, 1, storeScene));
-    return { segmentId: "seg_test", baseVersion: 1 };
-  });
-const stubState: { after: ReturnType<typeof gatedRobbery> | null } = { after: null };
+async function submitOnFixture(text: string) {
+  const source = selectSource("") as FixtureGraphSource;
+  const baseline = baselineOf(source.getSnapshot().resolved);
+  const { segmentId } = await source.submitStatement(text, "Witness");
+  const first = source.statementStatuses()[segmentId];
+  await vi.waitFor(() => expect(source.statementStatuses()[segmentId]?.state).not.toBe("extracting"));
+  return { first, status: source.statementStatuses()[segmentId]!, baseline, after: source.getSnapshot().resolved };
+}
 
 function props(view: StatementView, overrides: Partial<StatementSectionViewProps> = {}): StatementSectionViewProps {
   return {
@@ -56,28 +48,28 @@ function find(node: ReactNode, matches: (el: ReactElement<Record<string, unknown
 
 describe("statement section", () => {
   test("the robbery correction shows extracting, then Added with e5 among the changed events", async () => {
-    const before = gatedRobbery();
-    const baseline = baselineOf(before);
     const extracting = renderToStaticMarkup(<StatementSectionView {...props({ kind: "extracting", sent: CORRECTION, slow: false }, { text: CORRECTION })} />);
     expect(extracting).toContain("Extracting…");
     expect(extracting).toMatch(/aria-live="polite"/);
     expect(extracting).toContain('class="is-sent"');
     expect(extracting).toMatch(/<button[^>]*disabled=""[^>]*>Submit/);
 
-    const result = await stubSubmit(correctionPatches)(CORRECTION, "Witness");
-    expect(result.segmentId).toBe("seg_test");
-    const outcome = outcomeSince(baseline, stubState.after);
+    const { first, status, baseline, after } = await submitOnFixture(CORRECTION);
+    expect(first?.state).toBe("extracting");
+    expect(status.state).toBe("done");
+    expect(status.patchCount).toBe(4);
+    const outcome = outcomeSince(baseline, after);
     expect(outcome.changed.map((e) => e.id)).toContain("e5");
-    expect(outcome.added.length).toBeGreaterThan(0);
-    const label = addedLabel(correctionPatches.length, outcome);
-    expect(label).toMatch(/^Added \d+ events$/);
+    expect(after!.events.every((e) => e.status === "plausible")).toBe(true);
+    const label = addedLabel(status.patchCount, outcome);
+    expect(label).toMatch(/^Added \d+ events?$/);
 
     const onSelect = vi.fn();
-    const view: StatementView = { kind: "done", label, outcome, fixtureNote: false };
-    const html = renderToStaticMarkup(<StatementSectionView {...props(view, { graph: stubState.after })} />);
+    const view: StatementView = { kind: "done", label, outcome };
+    const html = renderToStaticMarkup(<StatementSectionView {...props(view, { graph: after })} />);
     expect(html).toContain(label);
     expect(html).toMatch(/changed<\/span><span class="statement-event__what">e5 · /);
-    const tree = StatementSectionView(props(view, { graph: stubState.after, onSelect }));
+    const tree = StatementSectionView(props(view, { graph: after, onSelect }));
     const row = find(tree, (el) => (el.props.event as { id?: string } | undefined)?.id === "e5")!;
     const rendered = (row.type as (p: Record<string, unknown>) => ReactElement)(row.props);
     const button = find(rendered, (el) => el.props.className === "statement-event")!;
@@ -91,15 +83,18 @@ describe("statement section", () => {
     );
   });
 
-  test("an unrelated sentence shows No events found, with the fixture note", () => {
-    const baseline = baselineOf(gatedRobbery());
-    const outcome = outcomeSince(baseline, gatedRobbery());
+  test("an unrelated sentence shows No events found, with the fixture's note", async () => {
+    const { status, baseline, after } = await submitOnFixture("The weather was nice that morning.");
+    expect(status.state).toBe("done");
+    expect(status.patchCount ?? 0).toBe(0);
+    const outcome = outcomeSince(baseline, after);
     expect(outcome).toEqual({ added: [], changed: [], flags: [] });
-    const label = addedLabel(0, outcome);
+    const label = addedLabel(status.patchCount, outcome);
     expect(label).toBe("No events found in that statement");
-    const html = renderToStaticMarkup(<StatementSectionView {...props({ kind: "done", label, outcome, fixtureNote: true })} />);
+    const view: StatementView = { kind: "done", label, outcome, ...(status.note ? { note: status.note } : {}) };
+    const html = renderToStaticMarkup(<StatementSectionView {...props(view)} />);
     expect(html).toContain("No events found in that statement");
-    expect(html).toContain(FIXTURE_NOTE.replace("'", "&#x27;"));
+    if (status.note) expect(html).toContain('class="statement-note"');
   });
 
   test("a rejection shows the message and keeps the text to resend", () => {
@@ -111,7 +106,8 @@ describe("statement section", () => {
   });
 
   test("the not-an-editor refusal shows the browser identity with Copy", () => {
-    expect(isEditorRefusal("submit_statement: caller is not an editor")).toBe(true);
+    expect(isEditorRefusal("only editors can add statements")).toBe(true);
+    expect(isEditorRefusal("statement rejected: only editors can add statements")).toBe(true);
     expect(isEditorRefusal("stale baseVersion 1")).toBe(false);
     const onCopy = vi.fn();
     const view: StatementView = { kind: "refused", identity: "c200abcd1234" };
@@ -123,7 +119,7 @@ describe("statement section", () => {
     expect(onCopy).toHaveBeenCalledWith("c200abcd1234");
   });
 
-  test("keys typed in the textarea stay there; Ctrl or Cmd+Enter submits", () => {
+  test("keys typed in the fields stay there; Ctrl or Cmd+Enter submits", () => {
     const onSubmit = vi.fn();
     const tree = StatementSectionView(props({ kind: "idle" }, { text: "I saw him.", onSubmit }));
     const textarea = find(tree, (el) => el.type === "textarea")!;
@@ -153,10 +149,8 @@ describe("statement section", () => {
     expect(on).toContain("Voice interview coming soon");
   });
 
-  test("Submit is disabled while the text is empty or before submitStatement exists", () => {
+  test("Submit is disabled while the text is empty", () => {
     expect(renderToStaticMarkup(<StatementSectionView {...props({ kind: "idle" })} />)).toMatch(/disabled=""[^>]*>Submit/);
-    const unavailable = renderToStaticMarkup(<StatementSectionView {...props({ kind: "unavailable" }, { text: "x" })} />);
-    expect(unavailable).toMatch(/disabled=""[^>]*>Submit/);
-    expect(unavailable).toContain("not on main yet");
+    expect(renderToStaticMarkup(<StatementSectionView {...props({ kind: "idle" }, { text: "x" })} />)).not.toMatch(/disabled=""[^>]*>Submit/);
   });
 });

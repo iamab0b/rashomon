@@ -4,10 +4,6 @@ export const DEFAULT_WITNESS_NAME = "Witness";
 export const SLOW_AFTER_MS = 30_000;
 export const VOICE_INTERVIEW_ENABLED = false;
 
-export type SubmitResult = { segmentId: string; baseVersion: number };
-export type SubmitStatement = (text: string, witnessName: string) => Promise<SubmitResult>;
-export type StatementStatus = { state: "extracting" | "done" | "failed"; patchCount?: number; error?: string };
-
 export type GraphBaseline = {
   events: ReadonlyMap<string, string>;
   flags: ReadonlySet<string>;

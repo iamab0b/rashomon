@@ -1,7 +1,6 @@
 import { useEffect, useState, type KeyboardEvent } from "react";
-import type { ResolvedEvent, ResolvedGraph } from "../scene";
+import { useGraphActions, useLiveIdentity, useStatementStatus, type ResolvedEvent, type ResolvedGraph } from "../scene";
 import { flagHeadline } from "./flagCopy";
-import type { GraphMode } from "./graphMode";
 import { placeName } from "./places";
 import { actorLabel, StatusToken, words } from "./shared";
 import {
@@ -15,17 +14,13 @@ import {
   type GraphBaseline,
   type StatementOutcome,
 } from "./statement";
-import { useLiveIdentityOrNull, useStatementStatusOrNull, useSubmitStatement } from "./statementApi";
 import "./statement-section.css";
 
-export const FIXTURE_NOTE = "Fixture mode only understands the robbery's own statements.";
-export const UNAVAILABLE_NOTE = "Statement input arrives with scene-core's submitStatement; it is not on main yet.";
 
 export type StatementView =
   | { kind: "idle" }
-  | { kind: "unavailable" }
   | { kind: "extracting"; sent: string; slow: boolean }
-  | { kind: "done"; label: string; outcome: StatementOutcome; fixtureNote: boolean }
+  | { kind: "done"; label: string; outcome: StatementOutcome; note?: string; error?: string }
   | { kind: "failed"; error: string }
   | { kind: "refused"; identity: string | null };
 
@@ -43,7 +38,7 @@ export type StatementSectionViewProps = {
 };
 
 function isBusy(view: StatementView): boolean {
-  return view.kind === "extracting" || view.kind === "unavailable";
+  return view.kind === "extracting";
 }
 
 function EventRow({ graph, event, kind, onSelect }: { graph: ResolvedGraph | null; event: ResolvedEvent; kind: "new" | "changed"; onSelect: (id: string) => void }) {
@@ -117,7 +112,6 @@ export function StatementSectionView({
       {voiceEnabled && <p className="statement-note">Voice interview coming soon.</p>}
 
       <div className="statement-status" aria-live="polite">
-        {view.kind === "unavailable" && <p className="statement-note">{UNAVAILABLE_NOTE}</p>}
         {view.kind === "extracting" && (
           <div className="statement-progress">
             <p>
@@ -130,7 +124,12 @@ export function StatementSectionView({
         {view.kind === "done" && (
           <div className="statement-result">
             <p className="statement-result__label">{view.label}</p>
-            {view.fixtureNote && <p className="statement-note">{FIXTURE_NOTE}</p>}
+            {view.note && <p className="statement-note">{view.note}</p>}
+            {view.error && (
+              <p className="statement-error" role="alert">
+                {view.error}
+              </p>
+            )}
             {view.outcome.added.length + view.outcome.changed.length > 0 && (
               <ul className="statement-events">
                 {view.outcome.added.map((event) => (
@@ -182,24 +181,23 @@ type Run = { sent: string; baseline: GraphBaseline; segmentId: string | null; er
 
 const messageOf = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
-export function StatementSection({ graph, mode, onSelect }: { graph: ResolvedGraph | null; mode: GraphMode; onSelect: (eventId: string) => void }) {
-  const submit = useSubmitStatement();
-  const identity = useLiveIdentityOrNull();
+export function StatementSection({ graph, onSelect }: { graph: ResolvedGraph | null; onSelect: (eventId: string) => void }) {
+  const { submitStatement: submit } = useGraphActions();
+  const identity = useLiveIdentity();
   const [witness, setWitness] = useState(DEFAULT_WITNESS_NAME);
   const [text, setText] = useState("");
   const [run, setRun] = useState<Run | null>(null);
   const [slow, setSlow] = useState(false);
-  const status = useStatementStatusOrNull(run?.segmentId ?? "");
+  const status = useStatementStatus(run?.segmentId ?? null);
 
   const view: StatementView = (() => {
-    if (!submit) return { kind: "unavailable" };
     if (!run) return { kind: "idle" };
     if (run.error) return isEditorRefusal(run.error) ? { kind: "refused", identity } : { kind: "failed", error: run.error };
     if (!run.segmentId || !status || status.state === "extracting") return { kind: "extracting", sent: run.sent, slow };
     if (status.state === "failed") return { kind: "failed", error: status.error ?? "Extraction failed." };
     const outcome = outcomeSince(run.baseline, graph);
     const label = addedLabel(status.patchCount, outcome);
-    return { kind: "done", label, outcome, fixtureNote: mode === "fixture" && label.startsWith("No events") };
+    return { kind: "done", label, outcome, ...(status.note ? { note: status.note } : {}), ...(status.error ? { error: status.error } : {}) };
   })();
 
   const extracting = view.kind === "extracting";
@@ -216,7 +214,7 @@ export function StatementSection({ graph, mode, onSelect }: { graph: ResolvedGra
   }, [done, run]);
 
   const onSubmit = () => {
-    if (!submit || !text.trim() || extracting) return;
+    if (!text.trim() || extracting) return;
     const sent = text;
     const fresh: Run = { sent, baseline: baselineOf(graph), segmentId: null, error: null };
     setRun(fresh);

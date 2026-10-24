@@ -22,6 +22,7 @@ import type { PanelContext } from "./shared";
 import { transcriptFor } from "./transcript";
 import { useGraphMode } from "./useGraphMode";
 import { WitnessesTab } from "./WitnessesTab";
+import { isEditorRefusal } from "./statement";
 import "./rashomon-ui.css";
 import "./panel-layout.css";
 
@@ -101,7 +102,7 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
   }, [contextView, dialogEventId]);
 
   useEffect(() => {
-    if (actionError) setToast(`Couldn't apply the change: ${actionError}`);
+    if (actionError && !isEditorRefusal(actionError)) setToast(`Couldn't apply the change: ${actionError}`);
   }, [actionError]);
 
   useEffect(() => {
@@ -231,7 +232,6 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
         focusSourceId={focusSourceId}
         overrideFocusId={overrideFocusId}
         historyAccent={selectedEvent !== null && statusOf(selectedEvent) === "overridden"}
-        mode={mode}
       />
     </>
   );
