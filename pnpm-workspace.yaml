@@ -1,5 +1,6 @@
 packages:
   - apps/*
   - packages/*
+  - spacetimedb/server
 allowBuilds:
   esbuild: true

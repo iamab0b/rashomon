@@ -226,3 +226,49 @@ describe("setT bounds and selection", () => {
     expect(useSceneStore.getState().selectedEventId).toBeNull();
   });
 });
+
+describe("POV follow toggle and dim state", () => {
+  test("togglePov turns following on and off; turning off re-applies the preset pose", () => {
+    const before = useSceneStore.getState().poseResetCount;
+
+    useSceneStore.getState().togglePov();
+    expect(useSceneStore.getState().povFollow).toBe(true);
+    useSceneStore.getState().togglePov();
+
+    expect(useSceneStore.getState().povFollow).toBe(false);
+    expect(useSceneStore.getState().poseResetCount).toBe(before + 1);
+  });
+
+  test("setPovFollow is idempotent, so a double-run effect cannot flip it back", () => {
+    useSceneStore.getState().setPovFollow(true);
+    useSceneStore.getState().setPovFollow(true);
+
+    expect(useSceneStore.getState().povFollow).toBe(true);
+  });
+
+  test("choosing a preset leaves follow mode", () => {
+    useSceneStore.getState().setPovFollow(true);
+
+    useSceneStore.getState().setPreset("overview");
+
+    expect(useSceneStore.getState().povFollow).toBe(false);
+  });
+
+  test("setPovActor stores the explicit POV actor", () => {
+    useSceneStore.getState().setPovActor("clerk");
+
+    expect(useSceneStore.getState().povActor).toBe("clerk");
+  });
+
+  test("dim sets only change state when their members change", () => {
+    useSceneStore.getState().setDimmedActors(new Set(["a"]));
+    const first = useSceneStore.getState().dimmedActors;
+
+    useSceneStore.getState().setDimmedActors(new Set(["a"]));
+    expect(useSceneStore.getState().dimmedActors).toBe(first);
+
+    useSceneStore.getState().setDimmedMeshes(new Set(["counter"]));
+    useSceneStore.getState().setDimmedMeshes(new Set(["counter", "shelf_b"]));
+    expect([...useSceneStore.getState().dimmedMeshes].sort()).toEqual(["counter", "shelf_b"]);
+  });
+});

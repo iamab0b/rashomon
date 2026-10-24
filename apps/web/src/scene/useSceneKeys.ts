@@ -3,6 +3,7 @@ import { PRESET_KEYS } from "./cameras/presets";
 import { useSceneStore } from "./store";
 
 const DEBUG_KEY = "`";
+const POV_KEY = "5";
 
 export function useSceneKeys(): void {
   useEffect(() => {
@@ -13,6 +14,10 @@ export function useSceneKeys(): void {
       const state = useSceneStore.getState();
       if (event.key === DEBUG_KEY) {
         state.toggleDebug();
+        return;
+      }
+      if (event.key === POV_KEY) {
+        state.togglePov();
         return;
       }
       const preset = PRESET_KEYS[event.key];
