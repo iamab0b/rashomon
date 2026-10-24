@@ -1,6 +1,6 @@
 import type { SceneManifest } from "@rashomon/schema";
 import type { FlagDraft, ResolvedEvent, ResolvedGraph } from "../types";
-import { actorLabel, nearestLabel } from "./labels";
+import { nearestLabel, spokenActor } from "./labels";
 import { dist, eventPositionAt } from "./positions";
 
 export const CONTRADICTION_DISTANCE_M = 2;
@@ -29,7 +29,8 @@ export function contradictionFlags(resolved: ResolvedGraph, manifest: SceneManif
       if (d <= CONTRADICTION_DISTANCE_M) continue;
       const la = nearestLabel(pa, manifest);
       const lb = nearestLabel(pb, manifest);
-      const who = actorLabel(resolved, a.actor);
+      const who = spokenActor(resolved, a.actor);
+      const said = who === "you" ? "you were" : `${who} was`;
       const detail = `${a.actor} is placed by the ${la} (${a.id}) and by the ${lb} (${b.id}), ${d.toFixed(1)} m apart, at t=${t.toFixed(1)}s.`;
       const evidence = { distanceM: Number(d.toFixed(2)), atTimeS: Number(t.toFixed(2)) };
       flags.push(
@@ -40,7 +41,7 @@ export function contradictionFlags(resolved: ResolvedGraph, manifest: SceneManif
           detail,
           evidence,
           conflictsWith: [b.id],
-          suggestedQuestion: `Earlier you said ${who} was by the ${la} around then; now the ${lb}. Which came first?`,
+          suggestedQuestion: `Earlier you said ${said} by the ${la} around then; now the ${lb}. Which came first?`,
         },
         {
           eventId: b.id,
@@ -49,7 +50,7 @@ export function contradictionFlags(resolved: ResolvedGraph, manifest: SceneManif
           detail,
           evidence,
           conflictsWith: [a.id],
-          suggestedQuestion: `Earlier you said ${who} was by the ${lb} around then; now the ${la}. Which came first?`,
+          suggestedQuestion: `Earlier you said ${said} by the ${lb} around then; now the ${la}. Which came first?`,
         },
       );
     }

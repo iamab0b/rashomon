@@ -1,6 +1,6 @@
 import type { SceneManifest } from "@rashomon/schema";
 import type { FlagDraft, ResolvedEvent, ResolvedGraph, Vec3 } from "../types";
-import { actorLabel, nearestLandmarks } from "./labels";
+import { nearestLandmarks, spokenActor } from "./labels";
 import { endPoint, startPoint } from "./positions";
 
 function lastKnownPosition(resolved: ResolvedGraph, e: ResolvedEvent): Vec3 | undefined {
@@ -64,7 +64,7 @@ export function missingTimeFlags(resolved: ResolvedGraph): FlagDraft[] {
         durationS: Number((e.tEnd - e.tStart).toFixed(2)),
       },
       suggestedQuestion: neighbor
-        ? `Was that before or after the ${neighbor.action} by ${actorLabel(resolved, neighbor.actor)}?`
+        ? `Was that before or after the ${neighbor.action} by ${spokenActor(resolved, neighbor.actor)}?`
         : "When did that happen?",
     });
   });

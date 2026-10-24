@@ -29,6 +29,7 @@ export type SceneState = {
   fps: number;
   floorHit: readonly [number, number, number] | null;
   status: SceneStatus;
+  error: string | null;
   t: number;
   playing: boolean;
   speed: number;
@@ -50,7 +51,7 @@ export type SceneState = {
   toggleDebug: () => void;
   setFps: (fps: number) => void;
   setFloorHit: (hit: readonly [number, number, number] | null) => void;
-  setStatus: (status: SceneStatus) => void;
+  setStatus: (status: SceneStatus, error?: string | null) => void;
   setT: (t: number) => void;
   setPlaying: (playing: boolean) => void;
   setSpeed: (speed: number) => void;
@@ -100,6 +101,7 @@ export const useSceneStore = create<SceneState>((set) => ({
   fps: 0,
   floorHit: null,
   status: "loading",
+  error: null,
   t: 0,
   playing: false,
   speed: DEFAULT_SPEED,
@@ -121,7 +123,7 @@ export const useSceneStore = create<SceneState>((set) => ({
   toggleDebug: () => set((state) => ({ debugVisible: !state.debugVisible })),
   setFps: (fps) => set({ fps }),
   setFloorHit: (floorHit) => set({ floorHit }),
-  setStatus: (status) => set({ status }),
+  setStatus: (status, error = null) => set({ status, error: status === "error" ? error : null }),
   setT: (t) => set((state) => ({ t: clampT(t, state.duration) })),
   setPlaying: (playing) => set({ playing }),
   setSpeed: (speed) => set({ speed: Number.isFinite(speed) && speed > 0 ? speed : DEFAULT_SPEED }),

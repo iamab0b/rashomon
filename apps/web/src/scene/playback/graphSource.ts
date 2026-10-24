@@ -79,6 +79,7 @@ function fixtureKey(fixture: string, scenario: string | null | undefined): strin
 }
 
 export function fixtureGraphSource(fixture: string, scenario?: string | null): FixtureGraphSource | null {
+  if (scenario && scenario !== CORRECTED_SCENARIO) return null;
   const key = fixtureKey(fixture, scenario);
   const build = Object.hasOwn(FIXTURE_STATES, key) ? FIXTURE_STATES[key] : undefined;
   return build ? patchableSource(build, storeScene) : null;
