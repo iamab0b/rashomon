@@ -16,6 +16,8 @@ export type {
   LiveGraphSourceOptions,
 } from "./playback/graphSource";
 export { applyPatches } from "./playback/applyPatches";
+export { useGraphActions } from "./playback/useGraphActions";
+export type { GraphActions } from "./playback/useGraphActions";
 export type { Patch } from "@rashomon/schema";
 export { useTimeline } from "./playback/useTimeline";
 export type { TimelineApi } from "./playback/useTimeline";

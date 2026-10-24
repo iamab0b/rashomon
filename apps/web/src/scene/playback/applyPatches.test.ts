@@ -1,8 +1,9 @@
 import type { EventGraph, Patch } from "@rashomon/schema";
-import { robberyGraph, storeScene } from "@rashomon/schema/fixtures";
+import { robberyGraph } from "@rashomon/schema/fixtures";
 import { describe, expect, it, vi } from "vitest";
 import { applyPatches } from "./applyPatches";
-import { fixtureGraphSource, gatedSnapshot, robberyCorrectionPatches, scenarioFromSearch } from "./graphSource";
+import { ENGINE_OVERRIDE_PR, engineHonorsOverride as probeEngineHonorsOverride } from "./engineOverrideProbe";
+import { fixtureGraphSource, robberyCorrectionPatches, scenarioFromSearch } from "./graphSource";
 
 const NOW = 1_700_000_000_000;
 const REASON = "witness later confirmed the view";
@@ -22,16 +23,6 @@ function eventOf(graph: EventGraph, id: string) {
 
 function gatedEvents(source: ReturnType<typeof storeSource>) {
   return source.getSnapshot().resolved?.events ?? [];
-}
-
-function probeEngineHonorsOverride(): boolean {
-  const graph: EventGraph = {
-    ...robberyGraph,
-    events: robberyGraph.events.map((event) =>
-      event.id === "e5" ? { ...event, override: { by: "test", reason: REASON, at: 0, flagIds: ["sightline:e5"] } } : event,
-    ),
-  };
-  return gatedSnapshot(graph, storeScene).resolved?.events.find((event) => event.id === "e5")?.status === "overridden";
 }
 
 const engineHonorsOverride = probeEngineHonorsOverride();
@@ -115,7 +106,7 @@ describe("override", () => {
   it.skipIf(!engineHonorsOverride)(
     engineHonorsOverride
       ? "after the override the fixture source shows e5 overridden"
-      : "after the override the fixture source shows e5 overridden (skipped: waits on PR #11, branch engine-override, for the engine to read Event.override)",
+      : `after the override the fixture source shows e5 overridden (skipped: waits on ${ENGINE_OVERRIDE_PR} for the engine to read Event.override)`,
     () => {
       const source = storeSource();
 

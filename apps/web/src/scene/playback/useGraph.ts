@@ -12,16 +12,19 @@ export function statusOf(statuses: StatusMap, event: Pick<ResolvedEvent, "id" | 
 
 export function useGraphSource(source: GraphSource | null): void {
   const setGraph = useSceneStore((state) => state.setGraph);
+  const setGraphSource = useSceneStore((state) => state.setGraphSource);
   useEffect(() => {
     if (!source) return;
     const push = () => setGraph(source.getSnapshot());
     push();
     const unsubscribe = source.subscribe(push);
+    setGraphSource(source);
     return () => {
       unsubscribe();
+      setGraphSource(null);
       setGraph({ resolved: null, statuses: {} });
     };
-  }, [source, setGraph]);
+  }, [source, setGraph, setGraphSource]);
 }
 
 export function useGraph(): GraphView {
