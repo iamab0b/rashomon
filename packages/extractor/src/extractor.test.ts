@@ -4,6 +4,7 @@ import propsJson from "../../props/props.json";
 import transcriptJson from "../fixtures/robbery.transcript.json";
 import correctionJson from "../fixtures/robbery.correction.json";
 import type { EventGraph, PropType, Segment } from "@rashomon/schema";
+import { SYSTEM_PROMPT } from "./prompt";
 import {
   applyPatchesLocal,
   buildRequest,
@@ -277,6 +278,19 @@ describe("buildRequest", () => {
     expect(req.system[0]?.cache_control).toEqual({ type: "ephemeral" });
     expect(req.tools.map((t) => t.name)).toContain("no_events");
   });
+
+  test("the serialized request never forces a tool, so it is valid with thinking on and never pairs thinking with any or tool", () => {
+    const body = JSON.parse(JSON.stringify(buildRequest(utt("utt_1"), baseCtx()))) as {
+      tool_choice?: { type: string };
+      thinking?: unknown;
+    };
+    expect(body.tool_choice).toEqual({ type: "auto" });
+    const forced = body.tool_choice !== undefined && ["any", "tool"].includes(body.tool_choice.type);
+    expect(forced).toBe(false);
+    expect(body.thinking !== undefined && forced).toBe(false);
+    expect(buildRequest(utt("utt_1"), baseCtx()).tools.every((t) => t.strict === true)).toBe(true);
+    expect(SYSTEM_PROMPT).toContain("Every reply must contain at least one tool call");
+  });
 });
 
 describe("extractSegment", () => {
@@ -294,8 +308,10 @@ describe("extractSegment", () => {
 
   test("retries once with the error and keeps the patches that were fine", async () => {
     const requests: number[] = [];
+    const toolChoices: string[] = [];
     const model: CallModel = async (req): Promise<ModelResponse> => {
       requests.push(req.messages.length);
+      toolChoices.push(req.tool_choice.type);
       if (requests.length === 1)
         return {
           content: [
@@ -315,6 +331,7 @@ describe("extractSegment", () => {
     expect(r.patches).toHaveLength(2);
     expect(r.unparsed).toEqual([]);
     expect(requests).toEqual([1, 3]);
+    expect(toolChoices).toEqual(["auto", "auto"]);
   });
 
   test("gives up after the retry and reports what could not be parsed", async () => {

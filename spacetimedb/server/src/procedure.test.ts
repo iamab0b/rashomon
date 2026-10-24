@@ -138,9 +138,11 @@ describe("extractSegment", () => {
     expect(requests).toHaveLength(1);
     expect(requests[0]?.headers).toContain(`x-api-key:${SECRET}`);
     expect(requests[0]?.body).not.toContain(SECRET);
-    const body = JSON.parse(requests[0]!.body) as { model: string; tools: unknown[] };
+    const body = JSON.parse(requests[0]!.body) as { model: string; tools: unknown[]; tool_choice?: { type: string }; thinking?: unknown };
     expect(body.model).toBe("claude-sonnet-5-5");
     expect(body.tools.length).toBeGreaterThan(0);
+    expect(body.tool_choice).toEqual({ type: "auto" });
+    expect(body.thinking !== undefined && ["any", "tool"].includes(body.tool_choice?.type ?? "")).toBe(false);
     expect(JSON.stringify(result)).not.toContain(SECRET);
     expect(JSON.stringify(segmentRow(), (_k, v) => (typeof v === "bigint" ? v.toString() : v))).not.toContain(SECRET);
   });

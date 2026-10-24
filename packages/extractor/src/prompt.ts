@@ -22,7 +22,7 @@ Rules, in priority order:
 12. sources must include the statement id given to you. You may also cite earlier statement ids if the new statement depends on them.
 13. If nothing in the statement belongs in the reconstruction, call no_events with a short reason.
 
-Call one tool per change. Call as many as the statement needs.`;
+Call one tool per change. Call as many as the statement needs. Every reply must contain at least one tool call: when nothing belongs in the reconstruction, call no_events. Never answer in prose.`;
 
 const anchorText = (a: Anchor | undefined): string => {
   if (!a) return "-";
@@ -99,7 +99,7 @@ export function buildRequest(
       },
     ],
     tools: EXTRACTOR_TOOLS,
-    tool_choice: { type: "any" },
+    tool_choice: { type: "auto" },
     messages: [buildUserMessage(segment, ctx)],
   };
 }
