@@ -32,7 +32,6 @@ const lm = (
   occludes: true,
 });
 
-// 10 x 10 room, center (5, 5)
 const synth: SceneManifest = {
   sceneId: "synth",
   meshUrl: "",
@@ -40,8 +39,8 @@ const synth: SceneManifest = {
   unitsPerMeter: 1,
   eyeHeight: 1.6,
   landmarks: [
-    lm("west", [0, 4], [1, 6], [1.5, 0, 5.5]), // against the west wall, room is to its +X
-    lm("south", [4, 0], [6, 1]), // room is to its +Z
+    lm("west", [0, 4], [1, 6], [1.5, 0, 5.5]),
+    lm("south", [4, 0], [6, 1]),
     lm("mid", [4, 4], [6, 6]),
   ],
 };
@@ -68,11 +67,10 @@ describe("anchorToPoint", () => {
   });
   test("behind: the far side from the room center", () => {
     const p = anchorToPoint({ kind: "behind", landmark: "west" }, synth);
-    expect(p[0]).toBeCloseTo(0); // 0 - 0.6 clamped to the interior
+    expect(p[0]).toBeCloseTo(0);
     expect(p[2]).toBeCloseTo(5);
     const s = anchorToPoint({ kind: "behind", landmark: "south" }, synth);
-    expect(s[2]).toBeCloseTo(0); // clamped to the interior
-    // a box in the south-west quarter: the far side from the room center is -Z
+    expect(s[2]).toBeCloseTo(0);
     const sw = { ...synth, landmarks: [lm("sw", [1, 1], [3, 2])] };
     const m = anchorToPoint({ kind: "behind", landmark: "sw" }, sw);
     expect(m[0]).toBeCloseTo(2);
@@ -125,8 +123,6 @@ describe("portals", () => {
   const obstacles = store.landmarks.filter((l) => l.occludes);
   const wp = new Map(portals.waypoints.map((w) => [w.id, w]));
 
-  // Independent of the resolver's clipping code: sample along the edge and
-  // require every sample to be at least MARGIN_M from every obstacle box.
   const clearance = (x: number, z: number, b: Landmark["bounds"]) =>
     Math.hypot(
       Math.max(b.min[0] - x, 0, x - b.max[0]),
@@ -172,7 +168,29 @@ describe("portals", () => {
     const straight = shortestPath([1.5, 0, 0.3], [1.5, 0, 5.5], portals, obs);
     expect(straight).toEqual([[1.5, 0, 0.3], [1.5, 0, 5.5]]);
     const around = shortestPath([1.5, 0, 0.3], [7.2, 0, 2.5], portals, obs);
-    expect(around.length).toBeGreaterThanOrEqual(3);
+    expect(around!.length).toBeGreaterThanOrEqual(3);
+  });
+
+  test("an endpoint inside the margin ring cannot see through the real box", () => {
+    const obs = obstacles.map((o) => o.bounds);
+    const b = box("shelf_b").bounds;
+    const path = shortestPath([4.8, 0, 3.5], [6.5, 0, 3.5], portals, obs);
+    expect(path).not.toBeNull();
+    expect(path!.length).toBeGreaterThanOrEqual(3);
+    for (let i = 1; i < path!.length; i++) {
+      const [a, c] = [path![i - 1]!, path![i]!];
+      for (let k = 0; k <= 200; k++) {
+        const x = a[0] + (c[0] - a[0]) * (k / 200);
+        const z = a[2] + (c[2] - a[2]) * (k / 200);
+        expect(x > b.min[0] && x < b.max[0] && z > b.min[2] && z < b.max[2]).toBe(false);
+      }
+    }
+  });
+
+  test("an unreachable target returns null instead of throwing", () => {
+    const wall = [{ min: [4, 0, -1], max: [6, 1, 11] }] as Landmark["bounds"][];
+    const empty = { waypoints: [], edges: [] };
+    expect(shortestPath([1, 0, 5], [9, 0, 5], empty, wall)).toBeNull();
   });
 });
 
@@ -189,7 +207,6 @@ describe("robbery fixture", () => {
     expect(e1.tStart).toBe(0);
     expect(e1.tEnd).toBe(5);
     expect(e1.path.length).toBeGreaterThanOrEqual(3);
-    // no vertex and no segment inside shelf_b's box
     const b = box("shelf_b").bounds;
     for (let i = 1; i < e1.path.length; i++) {
       const [a, c] = [e1.path[i - 1]!, e1.path[i]!];
@@ -204,8 +221,8 @@ describe("robbery fixture", () => {
   test("e1 length is a plausible detour (see PR: the 7-10 m expectation does not match the floor plan)", () => {
     const len = pathLength(ev("e1").path);
     expect(len).toBeCloseTo(ev("e1").pathLengthM, 5);
-    expect(len).toBeGreaterThan(Math.hypot(7.2 - 1.5, 2.5 - 0.4)); // longer than the straight line
-    expect(len).toBeLessThanOrEqual(7.5); // floor plan: "longer than 7.5 m = wrong side of a shelf"
+    expect(len).toBeGreaterThan(Math.hypot(7.2 - 1.5, 2.5 - 0.4));
+    expect(len).toBeLessThanOrEqual(7.5);
   });
 
   test("e5 stands inside aisle_chips", () => {
@@ -228,7 +245,114 @@ describe("robbery fixture", () => {
   });
 
   test("robbery.resolved.json matches the resolver output", () => {
-    // regenerate by writing JSON.stringify(resolve(graph, manifest), null, 2)
     expect(resolvedJson).toEqual(JSON.parse(JSON.stringify(r)));
+  });
+});
+
+describe("resolve edge cases", () => {
+  const actors = robbery.actors;
+  const ev = (over: Record<string, unknown>) => ({
+    witnessId: "w1",
+    tConfidence: "stated",
+    confidence: 0.9,
+    sources: ["utt_x"],
+    status: "proposed",
+    flags: [],
+    ...over,
+  });
+  const graphOf = (events: unknown[], props: unknown[] = []) =>
+    ({ sceneId: "synth", version: 1, actors, props, events }) as unknown as EventGraph;
+  const walled: SceneManifest = {
+    ...synth,
+    landmarks: [...synth.landmarks, lm("wall", [7, -1], [7.5, 11])],
+    portals: { waypoints: [], edges: [] },
+  };
+
+  test("an unreachable walk is marked and the rest of the graph still resolves", () => {
+    const r = resolve(
+      graphOf([
+        ev({ id: "a", actor: "suspect", action: "walk", from: { kind: "xyz", position: [6.5, 0, 8] }, to: { kind: "xyz", position: [9, 0, 8] }, t: [0, 3] }),
+        ev({ id: "b", actor: "suspect", action: "stand", at: { kind: "at", landmark: "west" }, t: [3, 5] }),
+      ]),
+      walled,
+    );
+    expect(r.events[0]).toMatchObject({ reachable: false, path: [], pathLengthM: 0 });
+    expect(r.events[1]).toMatchObject({ reachable: true, at: [1.5, 0, 5.5] });
+  });
+
+  test("without portals a straight walk through an obstacle is unreachable", () => {
+    const blocked = resolve(
+      graphOf([ev({ id: "a", actor: "suspect", action: "walk", from: { kind: "xyz", position: [3, 0, 5] }, to: { kind: "xyz", position: [7, 0, 5] }, t: [0, 3] })]),
+      synth,
+    );
+    expect(blocked.events[0]).toMatchObject({ reachable: false, path: [] });
+    const clear = resolve(
+      graphOf([ev({ id: "a", actor: "suspect", action: "walk", from: { kind: "xyz", position: [3, 0, 8] }, to: { kind: "xyz", position: [7, 0, 8] }, t: [0, 3] })]),
+      synth,
+    );
+    expect(clear.events[0]).toMatchObject({ reachable: true, path: [[3, 0, 8], [7, 0, 8]] });
+  });
+
+  test("a walk with only at walks from the last position to at", () => {
+    const r = resolve(
+      graphOf([
+        ev({ id: "a", actor: "suspect", action: "stand", at: { kind: "xyz", position: [3, 0, 8] }, t: [0, 1] }),
+        ev({ id: "b", actor: "suspect", action: "walk", at: { kind: "xyz", position: [7, 0, 8] }, t: [1, 4] }),
+      ]),
+      synth,
+    );
+    expect(r.events[1]).toMatchObject({ path: [[3, 0, 8], [7, 0, 8]], pathLengthM: 4 });
+  });
+
+  test("positions follow time order, not list order", () => {
+    const r = resolve(
+      graphOf([
+        ev({ id: "a", actor: "suspect", action: "stand", at: { kind: "xyz", position: [8, 0, 8] }, t: [10, 12] }),
+        ev({ id: "b", actor: "suspect", action: "walk", from: { kind: "xyz", position: [1, 0, 8] }, to: { kind: "xyz", position: [3, 0, 8] }, t: [0, 5] }),
+        ev({ id: "c", actor: "suspect", action: "speak", t: [12, 14] }),
+      ]),
+      synth,
+    );
+    expect(r.events[2]!.at).toEqual([8, 0, 8]);
+    expect(r.actors.find((a) => a.id === "suspect")!.position).toEqual([1, 0, 8]);
+  });
+
+  const knife = { id: "k", type: "knife", anchor: { kind: "xyz", position: [3, 0, 8] }, notes: "", sources: ["utt_x"] };
+  const hold = (events: unknown[], prop: Record<string, unknown> = knife) =>
+    resolve(graphOf(events, [prop]), synth).props[0]!.heldByIntervals;
+
+  test("a drop with no earlier pick_up ends an interval that starts at 0", () => {
+    expect(
+      hold([
+        ev({ id: "d", actor: "suspect", action: "drop", prop: "k", at: { kind: "xyz", position: [3, 0, 8] }, t: [3, 4] }),
+        ev({ id: "s", actor: "clerk", action: "stand", at: { kind: "xyz", position: [8, 0, 8] }, t: [0, 6] }),
+      ], { ...knife, heldBy: "suspect" }),
+    ).toEqual([{ actor: "suspect", tStart: 0, tEnd: 3 }]);
+  });
+
+  test("a pick_up by another actor hands the prop over", () => {
+    expect(
+      hold([
+        ev({ id: "p1", actor: "suspect", action: "pick_up", prop: "k", at: { kind: "xyz", position: [3, 0, 8] }, t: [1, 2] }),
+        ev({ id: "p2", actor: "clerk", action: "pick_up", prop: "k", at: { kind: "xyz", position: [3, 0, 8] }, t: [5, 6] }),
+        ev({ id: "s", actor: "witness", action: "stand", at: { kind: "xyz", position: [8, 0, 8] }, t: [0, 10] }),
+      ]),
+    ).toEqual([
+      { actor: "suspect", tStart: 2, tEnd: 5 },
+      { actor: "clerk", tStart: 6, tEnd: 10 },
+    ]);
+  });
+
+  test("a superseded pick_up does not hold the prop", () => {
+    expect(
+      hold([
+        ev({ id: "p1", actor: "suspect", action: "pick_up", prop: "k", status: "superseded", at: { kind: "xyz", position: [3, 0, 8] }, t: [1, 2] }),
+        ev({ id: "s", actor: "witness", action: "stand", at: { kind: "xyz", position: [8, 0, 8] }, t: [0, 10] }),
+      ]),
+    ).toBeUndefined();
+  });
+
+  test("every robbery event is reachable", () => {
+    expect(resolve(robbery, store).events.every((e) => e.reachable)).toBe(true);
   });
 });

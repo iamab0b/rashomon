@@ -39,6 +39,7 @@ const isAnchor = (v: unknown): v is Anchor => {
   if (!isRecord(v)) return false;
   if (v.kind === "at") return typeof v.landmark === "string";
   if (v.kind === "near") return typeof v.landmark === "string";
+  if (v.kind === "behind") return typeof v.landmark === "string";
   if (v.kind === "between")
     return typeof v.a === "string" && typeof v.b === "string";
   if (v.kind === "xyz") return isVec3(v.position);
@@ -82,7 +83,8 @@ const isGraph = (v: unknown): v is EventGraph =>
   );
 
 const anchorLandmarks = (a: Anchor): string[] => {
-  if (a.kind === "at" || a.kind === "near") return [a.landmark];
+  if (a.kind === "at" || a.kind === "near" || a.kind === "behind")
+    return [a.landmark];
   if (a.kind === "between") return [a.a, a.b];
   return [];
 };

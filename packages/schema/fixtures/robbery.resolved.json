@@ -64,6 +64,7 @@
         ]
       ],
       "pathLengthM": 6.248959,
+      "reachable": true,
       "from": [
         1.5,
         0,
@@ -86,6 +87,7 @@
       "flags": [],
       "path": [],
       "pathLengthM": 0,
+      "reachable": true,
       "at": [
         8.7,
         0,
@@ -108,6 +110,7 @@
       "flags": [],
       "path": [],
       "pathLengthM": 0,
+      "reachable": true,
       "at": [
         1.5,
         0,
@@ -130,6 +133,7 @@
       "flags": [],
       "path": [],
       "pathLengthM": 0,
+      "reachable": true,
       "at": [
         7.2,
         0,
@@ -148,6 +152,7 @@
       "flags": [],
       "path": [],
       "pathLengthM": 0,
+      "reachable": true,
       "at": [
         1.5,
         0,
@@ -166,6 +171,7 @@
       "flags": [],
       "path": [],
       "pathLengthM": 0,
+      "reachable": true,
       "at": [
         7.2,
         0,
@@ -184,6 +190,7 @@
       "flags": [],
       "path": [],
       "pathLengthM": 0,
+      "reachable": true,
       "at": [
         7.2,
         0,
@@ -202,6 +209,7 @@
       "flags": [],
       "path": [],
       "pathLengthM": 0,
+      "reachable": true,
       "at": [
         8.7,
         0,
@@ -219,6 +227,7 @@
       "flags": [],
       "path": [],
       "pathLengthM": 0,
+      "reachable": true,
       "at": [
         1.5,
         0,
@@ -252,6 +261,7 @@
         ]
       ],
       "pathLengthM": 6.248959,
+      "reachable": true,
       "from": [
         7.2,
         0,

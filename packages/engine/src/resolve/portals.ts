@@ -14,7 +14,6 @@ type Waypoint = Portals["waypoints"][number];
 const clearOf = (a: Point2, b: Point2, boxes: Box[]): boolean =>
   !boxes.some((box) => segmentHitsBox(a, b, box));
 
-/** Every waypoint pair with a clear straight line, in waypoint order. */
 export function buildEdges(
   waypoints: Waypoint[],
   obstacles: Box[],
@@ -34,7 +33,6 @@ export function buildEdges(
 
 const dist = (a: Point2, b: Point2): number => Math.hypot(a.x - b.x, a.z - b.z);
 
-/** Drop points that lie on the straight line between their neighbours. */
 function dropCollinear(pts: Point2[]): Point2[] {
   const out: Point2[] = [];
   for (const p of pts) {
@@ -53,29 +51,40 @@ function dropCollinear(pts: Point2[]): Point2[] {
   return out;
 }
 
-/**
- * A* over the portal waypoints. `from` and `to` are joined to every waypoint
- * they can see (obstacles that already contain the endpoint are ignored for
- * that endpoint, so standing at a landmark's center still works). The result
- * runs from -> waypoints -> to with collinear points removed. Deterministic:
- * ties go to the earlier-declared waypoint.
- */
+const blockersBetween = (
+  p: Point2,
+  q: Point2,
+  obstacles: Box[],
+  margin: number,
+): Box[] =>
+  obstacles.flatMap((o) => {
+    if (insideBox(p, o) || insideBox(q, o)) return [];
+    const grown = expand(o, margin);
+    return [insideBox(p, grown) || insideBox(q, grown) ? o : grown];
+  });
+
+export function straightLineClear(
+  from: Vec3,
+  to: Vec3,
+  obstacles: Box[],
+  margin = MARGIN_M,
+): boolean {
+  const p: Point2 = { x: from[0], z: from[2] };
+  const q: Point2 = { x: to[0], z: to[2] };
+  return clearOf(p, q, blockersBetween(p, q, obstacles, margin));
+}
+
 export function shortestPath(
   from: Vec3,
   to: Vec3,
   portals: Portals,
   obstacles: Box[],
   margin = MARGIN_M,
-): Vec3[] {
-  const grown = obstacles.map((o) => expand(o, margin));
+): Vec3[] | null {
   const start: Point2 = { x: from[0], z: from[2] };
   const goal: Point2 = { x: to[0], z: to[2] };
   const visibleFrom = (p: Point2, q: Point2): boolean =>
-    clearOf(
-      p,
-      q,
-      grown.filter((b) => !insideBox(p, b) && !insideBox(q, b)),
-    );
+    clearOf(p, q, blockersBetween(p, q, obstacles, margin));
 
   const nodes: Point2[] = [start, goal, ...portals.waypoints];
   const idx = new Map<string, number>();
@@ -114,7 +123,7 @@ export function shortestPath(
         cur = i;
       }
     }
-    if (cur < 0) throw new Error("no path between the given points");
+    if (cur < 0) return null;
     if (cur === 1) break;
     closed[cur] = true;
     for (const [n, w] of adj[cur]!) {

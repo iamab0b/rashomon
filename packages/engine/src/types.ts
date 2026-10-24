@@ -12,6 +12,7 @@ export type ResolvedEvent = {
   flags: Flag[];
   path: Vec3[];
   pathLengthM: number;
+  reachable: boolean;
   from?: Vec3;
   to?: Vec3;
   at?: Vec3;

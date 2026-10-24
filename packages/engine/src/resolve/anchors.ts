@@ -11,7 +11,6 @@ function landmarkOf(id: string, manifest: SceneManifest): Landmark {
   return lm;
 }
 
-/** Interior footprint: the manifest's `interior` when present, else the union of landmark boxes. */
 function interiorOf(manifest: SceneManifest): Bounds {
   const declared = (manifest as { interior?: Bounds }).interior;
   if (declared) return declared;
@@ -39,10 +38,6 @@ const floorCenter = (b: Bounds): Vec3 => [
   (b.min[2] + b.max[2]) / 2,
 ];
 
-/**
- * Point `offset` meters outside the box face that faces the room center
- * (sign = 1) or the face away from it (sign = -1), centered on that face.
- */
 function offsetFromFace(
   b: Bounds,
   manifest: SceneManifest,
@@ -54,7 +49,6 @@ function offsetFromFace(
   const half = [(b.max[0] - b.min[0]) / 2, (b.max[2] - b.min[2]) / 2];
   const dx = room[0] - c[0];
   const dz = room[2] - c[2];
-  // Compare in units of half-extent so a long thin box picks its long side.
   const alongX = Math.abs(dx) / (half[0] || 1e-9) >= Math.abs(dz) / (half[1] || 1e-9);
   const p: Vec3 = [c[0], 0, c[2]];
   if (alongX) {
@@ -76,7 +70,6 @@ function clampToInterior(p: Vec3, manifest: SceneManifest): Vec3 {
   ];
 }
 
-/** World point (y = 0) for an anchor. Throws on an unknown landmark id. */
 export function anchorToPoint(
   anchor: Anchor,
   manifest: SceneManifest,

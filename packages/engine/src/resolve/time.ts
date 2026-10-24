@@ -3,7 +3,6 @@ import type { Action } from "@rashomon/schema";
 export const WALK_SPEED_MS = 1.4;
 export const RUN_SPEED_MS = 4;
 
-/** Fixed durations (seconds) for actions that are not distance-driven. */
 const FIXED_DURATION_S: Record<Exclude<Action, "walk" | "run">, number> = {
   stand: 2,
   look: 2,
@@ -30,11 +29,6 @@ export const hasInterval = (t: unknown): t is [number, number] =>
   Number.isFinite(t[0]) &&
   Number.isFinite(t[1]);
 
-/**
- * Seconds for one event. A given interval is kept as is; otherwise the event
- * starts when the previous one ended (0 for the first) and lasts as long as
- * the action table says.
- */
 export function resolveInterval(
   t: unknown,
   action: Action,
