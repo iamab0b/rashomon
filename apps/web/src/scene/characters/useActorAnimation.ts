@@ -1,12 +1,16 @@
 import { useFrame } from "@react-three/fiber";
+import type { SceneManifest } from "@rashomon/schema";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AnimationAction } from "three";
 import { statusOf } from "../playback/useGraph";
 import { useSceneStore } from "../store";
-import { applySamples } from "./applySamples";
 import { buildClipWindows, createClipSampler, EMPTY_WINDOW_SET } from "./blend";
 import type { CharacterHandle } from "./Character";
-import { getClip, loadClips } from "./clips";
+import { cycleDistanceOf, getClip, loadClips } from "./clips";
+import { poseActorFrame } from "./procedural/applyProcedural";
+import { locomotionTimer } from "./procedural/locomotion";
+import { rigFromCharacter } from "./procedural/proceduralRig";
+import { proceduralSceneFor } from "./procedural/proceduralScene";
 
 function useClipsLoaded(): boolean {
   const [loaded, setLoaded] = useState(false);
@@ -32,9 +36,15 @@ function durationOf(name: string): number | undefined {
   return getClip(name)?.duration;
 }
 
-export function useActorAnimation(actorId: string, character: CharacterHandle | null): void {
-  const events = useSceneStore((state) => state.resolved?.events);
+export function useActorAnimation(
+  actorId: string,
+  character: CharacterHandle | null,
+  manifest?: SceneManifest,
+): void {
+  const resolved = useSceneStore((state) => state.resolved);
+  const graph = useSceneStore((state) => state.graph);
   const statuses = useSceneStore((state) => state.statuses);
+  const events = resolved?.events;
   const clipsLoaded = useClipsLoaded();
   const touched = useRef(new Map<string, AnimationAction>());
   const sampler = useMemo(createClipSampler, []);
@@ -45,6 +55,16 @@ export function useActorAnimation(actorId: string, character: CharacterHandle | 
         ? buildClipWindows(actorId, events, hasClip, (event) => statusOf(statuses, event))
         : EMPTY_WINDOW_SET,
     [actorId, events, statuses, clipsLoaded],
+  );
+
+  const timeOf = useMemo(
+    () => (clipsLoaded && events ? locomotionTimer(events, cycleDistanceOf) : undefined),
+    [events, clipsLoaded],
+  );
+  const rig = useMemo(() => (character ? rigFromCharacter(character) : null), [character]);
+  const scene = useMemo(
+    () => (resolved ? proceduralSceneFor(resolved, statuses, graph, manifest, actorId) : null),
+    [resolved, statuses, graph, manifest, actorId],
   );
 
   useEffect(() => {
@@ -64,6 +84,19 @@ export function useActorAnimation(actorId: string, character: CharacterHandle | 
   useFrame(() => {
     if (!character || !clipsLoaded) return;
     const { t } = useSceneStore.getState();
-    applySamples(character.mixer, sampler(windowSet, t, durationOf), getClip, touched.current);
+    poseActorFrame(
+      {
+        mixer: character.mixer,
+        sampler,
+        windowSet,
+        durationOf,
+        clipOf: getClip,
+        actions: touched.current,
+        timeOf,
+        rig,
+        scene,
+      },
+      t,
+    );
   });
 }

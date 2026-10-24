@@ -41,7 +41,14 @@ export type ClipSample = {
 
 export type ClipDurationLookup = (clip: string) => number | undefined;
 
-export type ClipSampler = (set: ClipWindowSet, t: number, durationOf: ClipDurationLookup) => readonly ClipSample[];
+export type ClipTimeOverride = (window: ClipWindow, t: number, duration: number) => number | undefined;
+
+export type ClipSampler = (
+  set: ClipWindowSet,
+  t: number,
+  durationOf: ClipDurationLookup,
+  timeOf?: ClipTimeOverride,
+) => readonly ClipSample[];
 
 type Draft = {
   source: string;
@@ -297,13 +304,15 @@ export function createClipSampler(): ClipSampler {
     return count > MAX_BLENDED_WINDOWS ? latest : null;
   };
 
-  return (set, t, durationOf) => {
+  return (set, t, durationOf, timeOf) => {
     result.length = 0;
+    const windowTime = (window: ClipWindow, duration: number): number =>
+      timeOf?.(window, t, duration) ?? clipTime(window, t, duration);
     const { windows } = set;
     const override = latestActive(windows, t);
     if (override) {
       const duration = durationOf(override.clip);
-      if (duration) emit(override.clip, clipTime(override, t, duration), 1);
+      if (duration) emit(override.clip, windowTime(override, duration), 1);
     } else {
       envelopes.length = windows.length;
       windows.forEach((window, index) => {
@@ -314,7 +323,7 @@ export function createClipSampler(): ClipSampler {
         for (const above of window.suppressors) weight *= 1 - (envelopes[above] ?? 0);
         if (weight <= 0) return;
         const duration = durationOf(window.clip);
-        if (duration) emit(window.clip, clipTime(window, t, duration), weight);
+        if (duration) emit(window.clip, windowTime(window, duration), weight);
       });
     }
     let total = 0;

@@ -1,4 +1,5 @@
 import type { ResolvedEvent } from "@rashomon/engine";
+import type { SceneManifest } from "@rashomon/schema";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { loadClips } from "../characters/clips";
 import type { Rig } from "../characters/rigs";
@@ -35,7 +36,9 @@ function useClipsReady(): boolean {
   return ready;
 }
 
-export function Actors() {
+type Props = { manifest?: SceneManifest };
+
+export function Actors({ manifest }: Props = {}) {
   const resolved = useSceneStore((state) => state.resolved);
   const statuses = useSceneStore((state) => state.statuses);
   const setActorsReady = useSceneStore((state) => state.setActorsReady);
@@ -105,7 +108,14 @@ export function Actors() {
   return (
     <>
       {actors.map(({ playback, rig }) => (
-        <ActorRig key={playback.actorId} playback={playback} rig={rig} positionOf={positionOf} onReady={markReady} />
+        <ActorRig
+          key={playback.actorId}
+          playback={playback}
+          rig={rig}
+          positionOf={positionOf}
+          manifest={manifest}
+          onReady={markReady}
+        />
       ))}
       {ghosts.map(({ event, rig }) => (
         <Ghost key={event.id} event={event} rig={rig} positionOf={positionOf} onReady={markReady} />

@@ -176,7 +176,7 @@ export function Scene({ fixture, debug, t }: SceneProps) {
             <FloorProbe interior={loaded.manifest.interior} />
             <WitnessView model={loaded.model} manifest={loaded.manifest} />
             <PovRayLine />
-            {hasGraph ? <Actors /> : null}
+            {hasGraph ? <Actors manifest={loaded.manifest} /> : null}
             {hasGraph ? <Props manifest={loaded.manifest} /> : null}
             {hasGraph ? <AnchorGizmo manifest={loaded.manifest} /> : null}
             {shouldSignalReady({ hasGraph, actorsReady, failure }) ? <ReadySignal /> : null}

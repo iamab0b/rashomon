@@ -1,4 +1,5 @@
 import { useFrame } from "@react-three/fiber";
+import type { SceneManifest } from "@rashomon/schema";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Group } from "three";
 import { AnimatedCharacter } from "../characters/AnimatedCharacter";
@@ -18,10 +19,11 @@ type Props = {
   playback: ActorPlayback;
   rig: Rig;
   positionOf: PositionLookup;
+  manifest?: SceneManifest;
   onReady: (id: string) => void;
 };
 
-export function ActorRig({ playback, rig, positionOf, onReady }: Props) {
+export function ActorRig({ playback, rig, positionOf, manifest, onReady }: Props) {
   const group = useRef<Group>(null);
   const [handle, setHandle] = useState<CharacterHandle | null>(null);
   const appliedOpacity = useRef(1);
@@ -64,7 +66,13 @@ export function ActorRig({ playback, rig, positionOf, onReady }: Props) {
 
   return (
     <group ref={group}>
-      <AnimatedCharacter actorId={playback.actorId} rig={rig} position={ORIGIN} onReady={handleReady} />
+      <AnimatedCharacter
+        actorId={playback.actorId}
+        rig={rig}
+        position={ORIGIN}
+        manifest={manifest}
+        onReady={handleReady}
+      />
     </group>
   );
 }
