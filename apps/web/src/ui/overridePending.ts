@@ -1,5 +1,9 @@
 import type { ResolvedEvent, Status } from "../scene";
 
+export function canOverride(status: Status): boolean {
+  return status === "implausible";
+}
+
 export type PendingOverrides = Record<string, string>;
 
 export type EventDisplay = { status: Status; pendingNote: string | null };
