@@ -46,7 +46,7 @@ The clip table is `docs/clip-action-map.md`; `characters/actionMap.ts` carries i
 
 ## Testing and screenshots
 
-`pnpm -F web shot -- --fixture robbery --t 12 --cam witness_claimed` renders a PNG to `apps/web/shots/`. Look at it before saying a visual task is done. `pnpm -F web test` runs Vitest on `actionMap`, `playback` math and the patch emitter. Both must pass before a merge.
+`pnpm -F web shot -- --fixture store --t 12 --cam witness_claimed` (the harness opens `?fixture=store&t=12&cam=witness_claimed`; the robbery graph loads by default in fixture mode) renders a PNG to `apps/web/shots/`. Look at it before saying a visual task is done. `pnpm -F web test` runs Vitest on `actionMap`, `playback` math and the patch emitter. Both must pass before a merge.
 
 ## Fixtures
 
