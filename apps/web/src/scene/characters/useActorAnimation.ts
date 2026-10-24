@@ -1,6 +1,7 @@
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AnimationAction } from "three";
+import { statusOf } from "../playback/useGraph";
 import { useSceneStore } from "../store";
 import { applySamples } from "./applySamples";
 import { buildClipWindows, createClipSampler, EMPTY_WINDOW_SET } from "./blend";
@@ -33,13 +34,17 @@ function durationOf(name: string): number | undefined {
 
 export function useActorAnimation(actorId: string, character: CharacterHandle | null): void {
   const events = useSceneStore((state) => state.resolved?.events);
+  const statuses = useSceneStore((state) => state.statuses);
   const clipsLoaded = useClipsLoaded();
   const touched = useRef(new Map<string, AnimationAction>());
   const sampler = useMemo(createClipSampler, []);
 
   const windowSet = useMemo(
-    () => (clipsLoaded && events ? buildClipWindows(actorId, events, hasClip) : EMPTY_WINDOW_SET),
-    [actorId, events, clipsLoaded],
+    () =>
+      clipsLoaded && events
+        ? buildClipWindows(actorId, events, hasClip, (event) => statusOf(statuses, event))
+        : EMPTY_WINDOW_SET,
+    [actorId, events, statuses, clipsLoaded],
   );
 
   useEffect(() => {

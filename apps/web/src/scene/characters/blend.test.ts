@@ -39,6 +39,7 @@ function event(
     path: [],
     pathLengthM: 0,
     reachable: true,
+    sources: [`utt_${id}`],
     tInferred: false,
     ...extra,
   };
@@ -306,6 +307,14 @@ describe("status gating", () => {
   test("an implausible shove does not make its target react", () => {
     const events = [event("s", "a", "shove", 2, 3, { target: "b", status: "implausible" })];
     expect(weightOf(sample("b", events, 2.8), "clip_shoved")).toBe(0);
+  });
+});
+
+describe("status map gating", () => {
+  test("an event the status map marks implausible plays no clip even if its own status is proposed", () => {
+    const events = [event("e5", "x", "look", 0, 5, { status: "proposed" })];
+    const set = buildClipWindows("x", events, hasClip, (e) => (e.id === "e5" ? "implausible" : e.status));
+    expect(sampleClips(set, 2, durationOf).map((s) => s.clip)).toEqual(["clip_idle"]);
   });
 });
 

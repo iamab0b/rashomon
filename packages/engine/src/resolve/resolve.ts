@@ -178,6 +178,7 @@ export function resolve(
       ...(facing ? { facing: roundVec(facing) } : {}),
       ...(e.target ? { target: e.target } : {}),
       ...(e.prop ? { prop: e.prop } : {}),
+      sources: e.sources,
       tInferred: t.tInferred,
     };
   });

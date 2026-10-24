@@ -19,6 +19,7 @@ export type ResolvedEvent = {
   facing?: Vec3;
   target?: string;
   prop?: string;
+  sources: string[];
   tInferred: boolean;
   handwritten?: boolean;
 };
@@ -50,19 +51,18 @@ export type ResolvedGraph = {
   handwritten?: boolean;
 };
 
-export type SceneGeometry = {
-  sceneId: string;
-  occluders: { id: string; min: Vec3; max: Vec3 }[];
+export type GeomMesh = {
+  id: string;
+  positions: number[];
+  indices: number[];
 };
 
-export type GateVerdict = {
-  eventId: string;
-  status: Status;
-  flags: Flag[];
-};
+export type SceneGeom = { meshes: GeomMesh[] };
 
-export type GateResult = {
-  verdicts: GateVerdict[];
+export type FlagDraft = Omit<Flag, "id">;
+
+export type GateOutput = {
+  statuses: Record<string, Status>;
   flags: Flag[];
 };
 

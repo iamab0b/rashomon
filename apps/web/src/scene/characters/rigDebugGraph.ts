@@ -25,6 +25,7 @@ function debugEvent(id: string, actor: string, action: Action, tStart: number, t
     path: [],
     pathLengthM: 0,
     reachable: true,
+    sources: [`utt_${id}`],
     tInferred: false,
   };
 }
