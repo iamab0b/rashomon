@@ -51,3 +51,15 @@ The ask-back rule and interview order are in INSTRUCTIONS with tests. asked_flag
    - the resend test's exact name.
 
 The leader re-runs Greptile, Opus and Sonnet on the push.
+
+## Sat 5:05 PM: #34 merged; the follow-up PR carries the rest
+
+PR #34 merged as 2a5f972 at f8239cc over Greptile's 4/5, on Sahil's decision. The import-list conflict in procedure.test.ts with #33 was resolved as the union by the leader. Your follow-up PR, on a new branch from main, carries:
+1. Greptile's finding: store the chosen askNext with the segment, so a retried record_statement gets the same question;
+2. scene_context peeks only, and the smoke script uses a scratch session;
+3. the repeated "Yes." fix: dedupe only on a client segmentId, or the same witness's identical text under 15 s old, with the faked-clock test;
+4. guarded withTx in scene_context and end_interview;
+5. regenerated bindings: the committed types.ts lacks the type-only AskedFlags. Run `spacetime generate --lang typescript --out-dir apps/web/src/scene/live/bindings --module-path spacetimedb/server -y`;
+6. the resend test's exact name.
+
+Greptile plus Opus and Sonnet review it.
