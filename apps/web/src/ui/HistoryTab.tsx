@@ -1,72 +1,103 @@
+import type { ResolvedEvent } from "../scene";
+import { versionChain, versionChanges } from "./history";
 import {
-  eventDetail,
+  actorLabel,
   eventTime,
-  NotConnected,
   OverrideLog,
   PendingNote,
+  propName,
   SourceRefs,
   StatusToken,
   words,
   type PanelContext,
 } from "./shared";
 
-export function HistoryTab({ graph, statusOf, pendingNoteOf, selectedEventId, openSource }: PanelContext) {
+export function HistoryTab({ graph, statusOf, pendingNoteOf, placeOf, selectedEventId, openSource }: PanelContext) {
   const event = graph.events.find((e) => e.id === selectedEventId) ?? null;
-  const overridden = graph.events.filter((e) => e.override);
+
+  if (!event) {
+    return (
+      <div className="flags-empty history-empty">
+        <div>
+          <strong>No event selected</strong>
+          <p>Select an event in Flags, Events, the timeline or the scene to see its history.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const chain = versionChain(graph.events, event.id);
+  const describe = (e: ResolvedEvent): Record<string, string> => ({
+    Actor: actorLabel(graph, e.actor),
+    Action: words(e.action),
+    Place: placeOf(e) ?? "",
+    Target: e.target ? actorLabel(graph, e.target) : "",
+    Holding: e.prop ? propName(graph, e.prop) : "",
+    Time: eventTime(e),
+  });
 
   return (
     <>
       <div className="section-title">
         <span className="eyebrow">Selected event</span>
-        <h2>{event ? `${event.id} · ${event.actor} · ${words(event.action)}` : "No event selected"}</h2>
-        {!event && <span>Pick an event in the Events tab or the scene.</span>}
+        <h2>
+          {event.id} · {actorLabel(graph, event.actor)} · {words(event.action)}
+        </h2>
+        <span>
+          {eventTime(event)}
+          {placeOf(event) ? ` · ${placeOf(event)}` : ""}
+        </span>
       </div>
 
-      {event && (
-        <div className="version-list">
-          <article className={`version-card status-${statusOf(event)}`}>
-            <div className="version-head">
-              <span>
-                Version {graph.version} <b>Current</b>
-              </span>
-              <StatusToken status={statusOf(event)} />
-            </div>
-            <strong>{eventDetail(graph, event)}</strong>
-            <div className="version-meta">
-              <span>{eventTime(event)}</span>
-              <SourceRefs sources={event.sources} onOpen={openSource} />
-              {event.flags.map((flag) => (
-                <b key={flag.id} className="mono">
-                  {words(flag.check)}
-                </b>
-              ))}
-            </div>
-          </article>
-          <PendingNote note={pendingNoteOf(event)} />
-          {event.override && <OverrideLog override={event.override} />}
-        </div>
-      )}
-
-      <NotConnected>
-        Earlier versions of an event (what the witness said before correcting it) need the scene to expose{" "}
-        <code>supersededBy</code> on resolved events.
-      </NotConnected>
-
-      <div className="subhead">Overrides this session · {overridden.length}</div>
-      {overridden.length === 0 ? (
-        <div className="flags-empty">
-          <p>No overrides yet. Override a flag from the Flags tab.</p>
-        </div>
-      ) : (
-        overridden.map((e) => (
-          <div key={e.id}>
-            <span className="flag-event mono" style={{ marginTop: 10 }}>
-              {e.id} · {e.actor} · {words(e.action)}
-            </span>
-            <OverrideLog override={e.override!} />
-          </div>
-        ))
-      )}
+      <div className="subhead">Versions · newest first · {chain.length}</div>
+      <ol className="version-list history-versions">
+        {chain.map((version, i) => {
+          const number = chain.length - i;
+          const older = chain[i + 1];
+          const changes = older ? versionChanges(older, version, describe) : [];
+          const superseded = i > 0 || statusOf(version) === "superseded";
+          return (
+            <li
+              key={version.id}
+              className={`version-card status-${statusOf(version)}${superseded ? " version-card--superseded" : ""}${
+                version.id === event.id ? " version-card--viewing" : ""
+              }`}
+            >
+              <div className="version-head">
+                <span>
+                  Version {number} <b>{superseded ? "Superseded" : "Current"}</b>
+                </span>
+                <StatusToken status={statusOf(version)} />
+              </div>
+              <strong>
+                {version.id} · {words(version.action)}
+              </strong>
+              {older ? (
+                changes.length > 0 ? (
+                  <ul className="version-changes">
+                    {changes.map((change) => (
+                      <li key={change.field}>
+                        <span>{change.field}</span> {change.from} → {change.to}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="version-note">Restated with no change to who, what, where or when.</p>
+                )
+              ) : (
+                <p className="version-note">{chain.length > 1 ? "First statement." : "Only version on record."}</p>
+              )}
+              <div className="version-meta">
+                <span className="mono">{eventTime(version)}</span>
+                <SourceRefs sources={version.sources} onOpen={openSource} />
+                {version.supersededBy && <span>Replaced by {version.supersededBy}</span>}
+              </div>
+              {version.override && <OverrideLog override={version.override} />}
+            </li>
+          );
+        })}
+      </ol>
+      <PendingNote note={pendingNoteOf(event)} />
     </>
   );
 }

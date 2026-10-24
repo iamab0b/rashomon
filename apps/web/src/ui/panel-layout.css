@@ -1,0 +1,16 @@
+.rui.panel.panel--docked { flex: 1; min-height: 0; }
+.rui .panel-head { flex: none; padding: 12px 16px 10px; border-bottom: 1px solid var(--border); box-shadow: 0 6px 10px -8px #000c; position: relative; z-index: 1; }
+.rui .panel--docked .tabs { margin: 0 -16px 10px; }
+.rui .selection-meta { display: block; overflow: hidden; color: var(--text-secondary); font-size: var(--fs-xs); text-overflow: ellipsis; white-space: nowrap; }
+.rui .selection-meta .mono { font-size: var(--fs-2xs); }
+.rui .panel-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px 16px; }
+.rui .selection-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0; padding: 6px 8px 6px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); }
+.rui .selection-bar > div:first-child { min-width: 0; }
+.rui .selection-bar .eyebrow { margin-bottom: 1px; }
+.rui .selection-bar .eyebrow small { margin-left: 6px; color: var(--text-secondary); font: 500 var(--fs-2xs) var(--mono); letter-spacing: .04em; text-transform: none; }
+.rui .selection-bar strong { display: block; overflow: hidden; color: var(--text-primary); font-size: var(--fs-md); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.rui .selection-bar strong.none { color: var(--text-secondary); font-weight: 400; }
+.rui .selection-nav { display: flex; flex: 0 0 auto; gap: 4px; }
+.rui .selection-nav .button { width: 26px; padding: 0; }
+.rui .selection-nav .button:disabled { opacity: .35; cursor: default; }
+.rui .selection-nav .button:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }

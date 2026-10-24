@@ -2,18 +2,20 @@ import { useEffect, useRef, useState, type ComponentType, type CSSProperties, ty
 import { useGraph, useGraphActions, useSelection, useTimeline, type ResolvedEvent, type Status } from "../scene";
 import { EventsTab } from "./EventsTab";
 import { FlagsTab, openFlagCount } from "./FlagsTab";
-import { HISTORY_PANEL_ID, HistoryPanel } from "./HistoryPanel";
+import { eventNeighbors } from "./history";
+import { ContextDrawer, type ContextView } from "./ContextDrawer";
+import { Icon } from "./Icon";
 import { OverrideDialog } from "./OverrideDialog";
 import { eventDisplay, type PendingOverrides } from "./overridePending";
 import { anchorsFor, eventPlace } from "./places";
 import { playbackActiveIds } from "./playback";
 import { usePlaybackKeys } from "./usePlaybackKeys";
-import { actorLabel, words, type PanelContext } from "./shared";
+import { actorLabel, eventTime, words, type PanelContext } from "./shared";
 import { transcriptFor } from "./transcript";
-import { TranscriptDrawer } from "./TranscriptDrawer";
 import { useGraphMode } from "./useGraphMode";
 import { WitnessesTab } from "./WitnessesTab";
 import "./rashomon-ui.css";
+import "./panel-layout.css";
 
 type Tab = {
   id: string;
@@ -36,13 +38,14 @@ const COLUMN_STYLE: CSSProperties = {
   flex: "0 0 auto",
   borderLeft: "1px solid #222831",
   color: "#c9d1d9",
-  padding: 16,
   boxSizing: "border-box",
-  overflowY: "auto",
+  display: "flex",
+  flexDirection: "column",
+  minHeight: 0,
 };
 
-function PanelColumn({ children }: { children: ReactNode }) {
-  return <div style={COLUMN_STYLE}>{children}</div>;
+function PanelColumn({ children, padded = false }: { children: ReactNode; padded?: boolean }) {
+  return <div style={padded ? { ...COLUMN_STYLE, padding: 16 } : COLUMN_STYLE}>{children}</div>;
 }
 
 export function RightPanel({ by = "investigator" }: { by?: string }) {
@@ -55,26 +58,36 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
   const [activeTab, setActiveTab] = useState(TABS[0]!.id);
   const [pending, setPending] = useState<PendingOverrides>({});
   const [dialogEventId, setDialogEventId] = useState<string | null>(null);
-  const [sourceId, setSourceId] = useState<string | null>(null);
+  const [focusSourceId, setFocusSourceId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const historyButtonRef = useRef<HTMLButtonElement>(null);
-
-  const closeHistory = () => {
-    setHistoryOpen(false);
-    historyButtonRef.current?.focus({ preventScroll: true });
-  };
+  const [contextView, setContextView] = useState<ContextView | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!historyOpen) return;
+    scrollRef.current?.scrollTo?.({ top: 0 });
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!selectedEventId) return;
+    panelRef.current
+      ?.querySelector<HTMLElement>(`[data-event-id="${CSS.escape(selectedEventId)}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [selectedEventId, activeTab]);
+
+  useEffect(() => {
+    setFocusSourceId(null);
+  }, [selectedEventId]);
+
+  useEffect(() => {
+    if (!contextView) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented || dialogEventId) return;
-      setHistoryOpen(false);
-      historyButtonRef.current?.focus({ preventScroll: true });
+      setContextView(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [historyOpen, dialogEventId]);
+  }, [contextView, dialogEventId]);
 
   useEffect(() => {
     if (!toast) return;
@@ -84,7 +97,7 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
 
   if (!resolved) {
     return (
-      <PanelColumn>
+      <PanelColumn padded>
         <div className="rui">
           <div className="flags-empty">
             <p>Loading the reconstruction…</p>
@@ -117,7 +130,10 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
     placeOf: (event) => eventPlace(resolved.sceneId, event.action, anchorsFor(mode, resolved.sceneId, event)),
     jumpTo,
     openOverride: setDialogEventId,
-    openSource: setSourceId,
+    openSource: (id) => {
+      setFocusSourceId(id);
+      setContextView("transcript");
+    },
     notify: setToast,
     transcript: transcriptFor(mode, resolved.sceneId),
   };
@@ -129,62 +145,101 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
   const tab = TABS[tabIndex]!;
   const dialogEvent = resolved.events.find((e) => e.id === dialogEventId) ?? null;
   const selectedEvent = resolved.events.find((e) => e.id === selectedEventId) ?? null;
+  const nav = eventNeighbors(resolved.events, selectedEvent?.id ?? null);
+  const step = (dir: -1 | 1) => {
+    const target = dir === -1 ? nav.prev : nav.next;
+    if (target) jumpTo(target.id);
+  };
 
   return (
     <>
       <PanelColumn>
-        <div className="rui panel">
-          <nav
-            className="tabs"
-            role="tablist"
-            style={{ "--tab-count": TABS.length, "--tab-index": tabIndex } as CSSProperties}
-          >
-            {TABS.map((t) => (
-              <button
-                type="button"
-                role="tab"
-                aria-selected={t.id === tab.id}
-                key={t.id}
-                className={t.id === tab.id ? "tab active" : "tab"}
-                onClick={() => setActiveTab(t.id)}
-              >
-                {t.label}
-                {t.count && <span>{t.count(context)}</span>}
-              </button>
-            ))}
-            <span className="tab-indicator" aria-hidden />
-          </nav>
-
-          <div className="selection-bar">
-            <div>
-              <span className="eyebrow">Selected event</span>
-              {selectedEvent ? (
-                <strong>
-                  {selectedEvent.id} · {actorLabel(resolved, selectedEvent.actor)} · {words(selectedEvent.action)}
-                </strong>
-              ) : (
-                <strong className="none">None selected</strong>
-              )}
-            </div>
-            <button
-              type="button"
-              ref={historyButtonRef}
-              className="button button--small"
-              aria-expanded={historyOpen}
-              aria-controls={HISTORY_PANEL_ID}
-              onClick={() => (historyOpen ? closeHistory() : setHistoryOpen(true))}
+        <div className="rui panel panel--docked" ref={panelRef}>
+          <div className="panel-head">
+            <nav
+              className="tabs"
+              role="tablist"
+              style={{ "--tab-count": TABS.length, "--tab-index": tabIndex } as CSSProperties}
             >
-              History
-            </button>
+              {TABS.map((t) => (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={t.id === tab.id}
+                  key={t.id}
+                  className={t.id === tab.id ? "tab active" : "tab"}
+                  onClick={() => setActiveTab(t.id)}
+                >
+                  {t.label}
+                  {t.count && <span>{t.count(context)}</span>}
+                </button>
+              ))}
+              <span className="tab-indicator" aria-hidden />
+            </nav>
+
+            <div
+              className="selection-bar"
+              role="group"
+              aria-label="Selected event"
+              onKeyDown={(e) => {
+                if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+                e.preventDefault();
+                step(e.key === "ArrowUp" ? -1 : 1);
+              }}
+            >
+              <div>
+                <span className="eyebrow">
+                  Selected event
+                  {nav.index >= 0 && (
+                    <small>
+                      Event {nav.index + 1} of {nav.total}
+                    </small>
+                  )}
+                </span>
+                {selectedEvent ? (
+                  <>
+                    <strong>
+                      {selectedEvent.id} · {actorLabel(resolved, selectedEvent.actor)} · {words(selectedEvent.action)}
+                    </strong>
+                    <span className="selection-meta">
+                      <span className="mono">{eventTime(selectedEvent)}</span>
+                      {context.placeOf(selectedEvent) && <> · {context.placeOf(selectedEvent)}</>}
+                    </span>
+                  </>
+                ) : (
+                  <strong className="none">None selected</strong>
+                )}
+              </div>
+              <div className="selection-nav">
+                <button
+                  type="button"
+                  className="button button--small"
+                  aria-label="Previous event"
+                  title="Previous event"
+                  disabled={!nav.prev}
+                  onClick={() => step(-1)}
+                >
+                  <Icon name="chevronUp" size={14} />
+                </button>
+                <button
+                  type="button"
+                  className="button button--small"
+                  aria-label="Next event"
+                  title="Next event"
+                  disabled={!nav.next}
+                  onClick={() => step(1)}
+                >
+                  <Icon name="chevron" size={14} />
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div className="tab-panel" key={tab.id} role="tabpanel">
-            <tab.Component {...context} />
+          <div className="panel-scroll" ref={scrollRef}>
+            <div className="tab-panel" key={tab.id} role="tabpanel">
+              <tab.Component {...context} />
+            </div>
           </div>
-
-          {sourceId && (
-            <TranscriptDrawer transcript={context.transcript} activeId={sourceId} onClose={() => setSourceId(null)} />
-          )}
 
           {dialogEvent && (
             <OverrideDialog
@@ -211,7 +266,13 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
           )}
         </div>
       </PanelColumn>
-      <HistoryPanel open={historyOpen} onClose={closeHistory} context={context} />
+      <ContextDrawer
+        view={contextView}
+        onOpen={setContextView}
+        onClose={() => setContextView(null)}
+        context={context}
+        focusSourceId={focusSourceId}
+      />
     </>
   );
 }
