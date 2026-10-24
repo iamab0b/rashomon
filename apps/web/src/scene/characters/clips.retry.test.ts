@@ -14,7 +14,7 @@ vi.mock("three/examples/jsm/loaders/FBXLoader.js", () => ({
   },
 }));
 
-const { CLIP_NAMES, getClip, loadClips } = await import("./clips");
+const { CLIP_NAMES, OPTIONAL_CLIP_NAMES, getClip, loadClips } = await import("./clips");
 
 describe("loadClips retry", () => {
   beforeEach(() => {
@@ -32,7 +32,7 @@ describe("loadClips retry", () => {
     loader.calls = 0;
     const retried = await loadClips();
 
-    expect(retried.size).toBe(CLIP_NAMES.length);
+    expect(retried.size).toBe(CLIP_NAMES.length + OPTIONAL_CLIP_NAMES.length);
     expect(getClip("clip_walk")?.name).toBe("clip_walk");
   });
 
