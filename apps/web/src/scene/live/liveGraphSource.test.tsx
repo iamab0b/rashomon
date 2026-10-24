@@ -70,6 +70,7 @@ function robberyRow(e5Status: Status, version: number): LiveGraphRow {
     events: graph.events.map((event) =>
       event.id === "e5" ? eventRow(event, e5Status, [SIGHTLINE_E5]) : eventRow(event, "plausible", []),
     ),
+    witnesses: undefined,
     version,
   };
 }

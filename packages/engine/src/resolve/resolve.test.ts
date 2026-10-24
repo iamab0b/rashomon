@@ -246,6 +246,21 @@ describe("robbery fixture", () => {
     expect(r.actors.find((a) => a.id === "suspect")).toHaveProperty("position");
   });
 
+  test("every resolved event carries its event's witnessId", () => {
+    expect(r.events.map((e) => [e.id, e.witnessId])).toEqual(robbery.events.map((e) => [e.id, e.witnessId]));
+    const other = { ...robbery, events: robbery.events.map((e, i) => (i === 0 ? { ...e, witnessId: "w2" } : e)) };
+    expect(resolve(other, store).events[0]?.witnessId).toBe("w2");
+  });
+
+  test("a witnesses list is carried only when there is more than one witness", () => {
+    expect(r).not.toHaveProperty("witnesses");
+    const two = [
+      { id: "w1", label: "Customer", actorId: "witness" },
+      { id: "w2", label: "Clerk", actorId: "clerk" },
+    ];
+    expect(resolve({ ...robbery, witnesses: two }, store).witnesses).toEqual(two);
+  });
+
   test("robbery.resolved.json matches the resolver output", () => {
     expect(resolvedJson).toEqual(JSON.parse(JSON.stringify(r)));
   });

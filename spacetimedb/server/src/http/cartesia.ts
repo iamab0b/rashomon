@@ -1,10 +1,11 @@
 import { Router, SyncResponse, type Request } from "spacetimedb/server";
+import { fnv1a64 } from "../extract/hash";
 import { EXTRACTION_FAILED, runExtraction, type Extraction, type Io } from "../extract/run";
 import { MAX_BODY_BYTES, MAX_UTTERANCES } from "../limits";
 import { insertSegmentRow, key } from "../reducers";
 import { spacetimedb } from "../tables";
 
-export type WebhookIo = Io & { nowMicros: () => bigint; webhookSecret: () => string | undefined };
+export type WebhookIo = Io & { webhookSecret: () => string | undefined };
 
 export const SECRET_HEADER = "x-rashomon-webhook-secret";
 
@@ -30,7 +31,6 @@ const firstNumber = (o: Record<string, unknown>, names: string[]): number | unde
 
 const bad = (error: string): WebhookOutcome => ({ status: 400, body: { error } });
 
-// Runs over the whole of the longer input, so the time taken does not depend on where the first mismatch is.
 export function secretsMatch(given: string, expected: string): boolean {
   const n = Math.max(given.length, expected.length);
   let diff = given.length ^ expected.length;
@@ -45,6 +45,12 @@ const readSecret = (io: WebhookIo): string | undefined => {
     return undefined;
   }
 };
+
+export const defaultSegmentId = (
+  sessionId: string,
+  witnessId: string,
+  utterances: { text: string; tStart: number; tEnd: number }[],
+): string => `seg_${fnv1a64(JSON.stringify([sessionId, witnessId, utterances.map((u) => [u.text, u.tStart, u.tEnd])]))}`;
 
 export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
   const expected = readSecret(io);
@@ -65,9 +71,8 @@ export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
   if (!Array.isArray(body.utterances) || body.utterances.length === 0) return bad("utterances must be a non-empty array");
   if (body.utterances.length > MAX_UTTERANCES) return bad(`at most ${MAX_UTTERANCES} utterances per request`);
 
-  const segmentId = firstString(body, ["segmentId", "segment_id"]) ?? `seg_${io.nowMicros()}`;
   const witnessId = firstString(body, ["witnessId", "witness_id", "witness", "witnessName", "witness_name"]) ?? "witness";
-  const utterances: { id: string; text: string; tStart: number; tEnd: number }[] = [];
+  const parsed: { id: string | undefined; text: string; tStart: number; tEnd: number }[] = [];
   for (const [i, raw] of body.utterances.entries()) {
     if (!isRecord(raw)) return bad(`utterance ${i} must be an object`);
     const text = firstString(raw, ["text"]);
@@ -75,13 +80,14 @@ export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
     const tEnd = firstNumber(raw, ["tEnd", "t_end"]);
     if (!text) return bad(`utterance ${i} needs text`);
     if (tStart === undefined || tEnd === undefined || tStart > tEnd) return bad(`utterance ${i} needs tStart and tEnd in order`);
-    utterances.push({ id: firstString(raw, ["id"]) ?? `${segmentId}_u${i + 1}`, text, tStart, tEnd });
+    parsed.push({ id: firstString(raw, ["id"]), text, tStart, tEnd });
   }
+  const segmentId = firstString(body, ["segmentId", "segment_id"]) ?? defaultSegmentId(sessionId, witnessId, parsed);
+  const utterances = parsed.map((u, i) => ({ ...u, id: u.id ?? `${segmentId}_u${i + 1}` }));
 
   const text = utterances.map((u) => u.text).join(" ");
   try {
     io.withTx((ctx) => {
-      // A resend of a segment that is already stored (same id, same text) goes straight to the stored result.
       const existing = ctx.db.segments.rowKey.find(key(sessionId, segmentId));
       if (existing && existing.sessionId === sessionId && existing.text === text) return;
       insertSegmentRow(ctx, {
@@ -112,7 +118,6 @@ export const cartesiaWebhook = spacetimedb.httpHandler((ctx, req) => {
       webhookSecret: () => ctx.env.CARTESIA_WEBHOOK_SECRET,
       http: ctx.http,
       withTx: (body) => ctx.withTx(body),
-      nowMicros: () => ctx.timestamp.microsSinceUnixEpoch,
     },
     req,
   );

@@ -51,6 +51,7 @@ function angleBetween(a: number, b: number): number {
 function event(id: string, actor: string, action: Action, tStart: number, tEnd: number, extra: Partial<ResolvedEvent> = {}): ResolvedEvent {
   return {
     id,
+    witnessId: "w1",
     actor,
     action,
     tStart,

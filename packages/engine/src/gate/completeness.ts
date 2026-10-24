@@ -64,7 +64,7 @@ export function missingTimeFlags(resolved: ResolvedGraph): FlagDraft[] {
         durationS: Number((e.tEnd - e.tStart).toFixed(2)),
       },
       suggestedQuestion: neighbor
-        ? `Was that before or after the ${neighbor.action} by ${spokenActor(resolved, neighbor.actor)}?`
+        ? `Was that before or after the ${neighbor.action} by ${spokenActor(resolved, neighbor.actor, e.witnessId)}?`
         : "When did that happen?",
     });
   });

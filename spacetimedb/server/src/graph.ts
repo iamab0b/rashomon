@@ -21,13 +21,16 @@ export function buildGraph(db: ReadDb, sessionId: string): GraphRow | undefined 
   const overrides = new Map<string, ReturnType<ReadDb["overrides"]["rowKey"]["find"]>>();
   for (const o of db.overrides.sessionId.filter(sessionId)) overrides.set(o.eventId, o);
 
+  const eventRows = [...db.events.sessionId.filter(sessionId)].sort(bySeq);
+  const witnessIds = [...new Set(eventRows.map((e) => e.witnessId))];
   return {
     sceneId: session.sceneId,
     version: session.version,
+    witnesses: witnessIds.length > 0 ? witnessIds.map((id) => ({ id, label: id, actorId: undefined })) : undefined,
     actors: [...db.actors.sessionId.filter(sessionId)]
       .sort(bySeq)
       .map((a) => ({ id: a.id, label: a.label, role: a.role, rig: a.rig })),
-    events: [...db.events.sessionId.filter(sessionId)].sort(bySeq).map((e) => {
+    events: eventRows.map((e) => {
       const o = overrides.get(e.id);
       return {
         id: e.id,

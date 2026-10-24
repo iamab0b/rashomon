@@ -348,8 +348,25 @@ export const submitStatement = spacetimedb.reducer(
     const name = witnessName.trim();
     if (name.length < 1 || name.length > MAX_WITNESS_NAME_CHARS)
       fail(`witness name must be 1 to ${MAX_WITNESS_NAME_CHARS} characters`);
+    const bytes = utf8Bytes(body);
+    if (bytes > MAX_BODY_BYTES)
+      fail(`statement text must be at most ${MAX_BODY_BYTES} bytes in UTF-8, and this one is ${bytes}`);
     const segmentId = `seg_${fnv1a64(`${sessionId}\n${name}\n${body}`)}`;
-    if (ctx.db.segments.rowKey.find(key(sessionId, segmentId))) return;
+    const existing = ctx.db.segments.rowKey.find(key(sessionId, segmentId));
+    if (existing) {
+      const failed = existing.extractError !== undefined && existing.extractedAt === undefined;
+      const pending = [...ctx.db.extractionQueue.iter()].some((q) => q.sessionId === sessionId && q.segmentId === segmentId);
+      if (failed && !pending) {
+        ctx.db.segments.rowKey.update({ ...existing, extractError: undefined });
+        ctx.db.extractionQueue.insert({
+          scheduledId: 0n,
+          scheduledAt: ScheduleAt.time(ctx.timestamp.microsSinceUnixEpoch),
+          sessionId,
+          segmentId,
+        });
+      }
+      return;
+    }
     let tStart = 0;
     for (const u of ctx.db.utterances.sessionId.filter(sessionId)) tStart = Math.max(tStart, u.tEnd);
     const words = body.split(/\s+/).length;

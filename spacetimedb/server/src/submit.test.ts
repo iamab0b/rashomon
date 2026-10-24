@@ -8,7 +8,7 @@ import robberyToolUses from "./fixtures/robbery.tool-uses.json";
 import { editorList, isEditor } from "./editors";
 import { eventGraphFromRow } from "./convert";
 import type { Io } from "./extract/run";
-import { SECRET_HEADER, handleCartesia } from "./http/cartesia";
+import { SECRET_HEADER, defaultSegmentId, handleCartesia } from "./http/cartesia";
 import { MAX_SEGMENT_TEXT_CHARS } from "./limits";
 import { NOT_THE_MODULE } from "./procedures/extractSegment";
 import { runQueuedAs } from "./procedures/runQueuedExtraction";
@@ -177,6 +177,66 @@ describe("submit_statement", () => {
     expect(queueRows()).toHaveLength(1);
   });
 
+  const failOnce = () => {
+    const [row] = queueRows();
+    const segment = [...harness.db.segments.iter()][0]!;
+    harness.withReducerTx(auth, ((ctx: never) => {
+      const c = ctx as { db: typeof harness.db };
+      c.db.extractionQueue.scheduledId.delete(row!.scheduledId);
+      c.db.segments.rowKey.update({ ...segment, extractError: "model_error" });
+    }) as never);
+    return segment.id;
+  };
+
+  test("resubmitting after a failed extraction queues one more run and clears the error", () => {
+    submit(editor, hexOf(editor));
+    const id = failOnce();
+    expect(queueRows()).toEqual([]);
+    submit(editor, hexOf(editor));
+    expect(queueRows()).toHaveLength(1);
+    expect(queueRows()[0]).toMatchObject({ sessionId: SESSION, segmentId: id });
+    expect(harness.db.segments.rowKey.find(`${SESSION}/${id}`)?.extractError).toBeUndefined();
+    expect([...harness.db.segments.iter()]).toHaveLength(1);
+    submit(editor, hexOf(editor));
+    expect(queueRows()).toHaveLength(1);
+  });
+
+  test("a failed run with a retry already pending, or a finished extraction, is not queued again", () => {
+    submit(editor, hexOf(editor));
+    const segment = [...harness.db.segments.iter()][0]!;
+    harness.withReducerTx(auth, ((ctx: never) => {
+      const c = ctx as { db: typeof harness.db };
+      c.db.segments.rowKey.update({ ...segment, extractError: "model_error" });
+    }) as never);
+    submit(editor, hexOf(editor));
+    expect(queueRows()).toHaveLength(1);
+    const pendingId = queueRows()[0]!.scheduledId;
+    harness.withReducerTx(auth, ((ctx: never) => {
+      const c = ctx as { db: typeof harness.db };
+      c.db.extractionQueue.scheduledId.delete(pendingId);
+      c.db.segments.rowKey.update({ ...segment, extractError: undefined, extractedAt: harness.clock.now() });
+    }) as never);
+    submit(editor, hexOf(editor));
+    expect(queueRows()).toEqual([]);
+  });
+
+  test("a retry from an outside identity is still refused", () => {
+    submit(editor, hexOf(editor));
+    failOnce();
+    expect(() => submit(stranger, hexOf(editor))).toThrow(/only editors/);
+    expect(queueRows()).toEqual([]);
+  });
+
+  test("32,000 three-byte characters are refused with a clear UTF-8 size message", () => {
+    expect(() => submit(editor, hexOf(editor), "€".repeat(32_000))).toThrow(
+      /statement text must be at most 65536 bytes in UTF-8, and this one is 96000/,
+    );
+    expect([...harness.db.segments.iter()]).toEqual([]);
+    expect(queueRows()).toEqual([]);
+    submit(editor, hexOf(editor), "€".repeat(21_845));
+    expect(queueRows()).toHaveLength(1);
+  });
+
   test("an empty text, a text over the extraction limit, a bad name and an unknown session are refused", () => {
     const list = hexOf(editor);
     expect(() => submit(editor, list, "   ")).toThrow(/must not be empty/);
@@ -258,6 +318,7 @@ describe("the webhook still works with no editors listed", () => {
       utterances: [{ text, tStart: 0, tEnd: 30 }],
     });
     expect(new TextEncoder().encode(body).length).toBeGreaterThanOrEqual(40_000);
+    const segmentId = defaultSegmentId(SESSION, "w1", [{ text, tStart: 0, tEnd: 30 }]);
     const walk = {
       actor: "suspect",
       action: "walk",
@@ -271,12 +332,12 @@ describe("the webhook still works with no editors listed", () => {
       t_end: 5,
       t_confidence: "inferred",
       confidence: "high",
-      sources: ["seg_1234"],
+      sources: [segmentId],
     };
     const out = handleCartesia(webhookIo(respond([toolUse("tu_1", "add_event", walk)])), post(body));
     expect(out.status).toBe(200);
-    expect(out.body).toMatchObject({ segmentId: "seg_1234", patchCount: 1 });
-    expect(harness.db.segments.rowKey.find(`${SESSION}/seg_1234`)?.text).toHaveLength(30_000);
+    expect(out.body).toMatchObject({ segmentId, patchCount: 1 });
+    expect(harness.db.segments.rowKey.find(`${SESSION}/${segmentId}`)?.text).toHaveLength(30_000);
     expect(graph().events).toHaveLength(1);
   });
 

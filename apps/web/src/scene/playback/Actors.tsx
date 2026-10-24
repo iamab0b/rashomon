@@ -5,6 +5,7 @@ import type { Rig } from "../characters/rigs";
 import { useSceneStore } from "../store";
 import { ActorRig } from "./ActorRig";
 import { actorPosition, buildActorPlayback, ghostAnchor, type ActorPlayback, type PositionLookup } from "./actorPose";
+import { disagreementEvents, layerColor, markerShown, witnessLayers } from "./witnessLayers";
 import { Ghost } from "./Ghost";
 import { statusOf } from "./useGraph";
 
@@ -16,6 +17,7 @@ function asRig(value: string): Rig | null {
 
 type DrawnActor = { playback: ActorPlayback; rig: Rig };
 type DrawnGhost = { event: ResolvedEvent; rig: Rig };
+type DrawnMarker = { event: ResolvedEvent; rig: Rig; playback: ActorPlayback; color: string };
 
 function useClipsReady(): boolean {
   const [ready, setReady] = useState(false);
@@ -72,14 +74,31 @@ export function Actors() {
     });
   }, [resolved, lookup]);
 
+  const graph = useSceneStore((state) => state.graph);
+
+  const markers = useMemo<DrawnMarker[]>(() => {
+    if (!resolved) return [];
+    const layers = witnessLayers(graph, resolved);
+    return disagreementEvents(resolved, lookup).flatMap((event) => {
+      const drawn = actors.find(({ playback }) => playback.actorId === event.actor);
+      return drawn && ghostAnchor(event)
+        ? [{ event, rig: drawn.rig, playback: drawn.playback, color: layerColor(layers, event.witnessId) }]
+        : [];
+    });
+  }, [resolved, graph, lookup, actors]);
+
   const markReady = useCallback((id: string) => {
     setReadyIds((current) => (current.has(id) ? current : new Set([...current, id])));
   }, []);
 
   useEffect(() => {
-    const expected = [...actors.map(({ playback }) => playback.actorId), ...ghosts.map(({ event }) => event.id)];
+    const expected = [
+      ...actors.map(({ playback }) => playback.actorId),
+      ...ghosts.map(({ event }) => event.id),
+      ...markers.map(({ event }) => `marker:${event.id}`),
+    ];
     setActorsReady(clipsReady && expected.every((id) => readyIds.has(id)));
-  }, [actors, ghosts, readyIds, clipsReady, setActorsReady]);
+  }, [actors, ghosts, markers, readyIds, clipsReady, setActorsReady]);
 
   useEffect(() => () => setActorsReady(false), [setActorsReady]);
 
@@ -90,6 +109,19 @@ export function Actors() {
       ))}
       {ghosts.map(({ event, rig }) => (
         <Ghost key={event.id} event={event} rig={rig} positionOf={positionOf} onReady={markReady} />
+      ))}
+      {markers.map(({ event, rig, playback, color }) => (
+        <Ghost
+          key={`marker:${event.id}`}
+          event={event}
+          rig={rig}
+          positionOf={positionOf}
+          onReady={markReady}
+          readyId={`marker:${event.id}`}
+          color={color}
+          badge={false}
+          shownAt={(t) => markerShown(playback, event, t)}
+        />
       ))}
     </>
   );
