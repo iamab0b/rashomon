@@ -7,6 +7,8 @@ import { checkStatement, statementSegmentId } from "./statementId";
 import { liveStatementStatus } from "./statementStatus";
 import { pushSource } from "./useGraph";
 import { useGraphActions } from "./useGraphActions";
+import { useStatementStatus } from "./useStatementStatus";
+import { callHook } from "../testing/hookHost";
 import { useSceneStore } from "../store";
 
 const initial = useSceneStore.getState();
@@ -97,6 +99,33 @@ describe("submitStatement on the fixture source", () => {
   });
 });
 
+describe("the fixture source uses the witness name", () => {
+  it("a different name is a different statement, and the events carry the name as their witness", async () => {
+    const source = mount();
+    const maria = await useGraphActions().submitStatement(CORRECTION_TEXT, "Maria");
+    const other = await useGraphActions().submitStatement(CORRECTION_TEXT, "Omar");
+    expect(maria.segmentId).not.toBe(other.segmentId);
+    expect(maria.segmentId).toBe(statementSegmentId("fixture", "Maria", CORRECTION_TEXT));
+    await settled(source, maria.segmentId);
+    const added = source.getSnapshot().graph!.events.find((e) => e.id === "e11");
+    expect(added?.witnessId).toBe("Maria");
+  });
+});
+
+describe("useStatementStatus", () => {
+  it("is null for an id that was never submitted from this tab, and tracks a submitted one", async () => {
+    const source = mount();
+    source.subscribe(() => pushSource(source));
+    expect(callHook(() => useStatementStatus("seg_unknown"))).toBeNull();
+    expect(callHook(() => useStatementStatus(null))).toBeNull();
+    const { segmentId } = await useGraphActions().submitStatement(CORRECTION_TEXT, "Witness");
+    expect(callHook(() => useStatementStatus(segmentId))).toEqual({ state: "extracting" });
+    await settled(source, segmentId);
+    expect(callHook(() => useStatementStatus(segmentId))).toEqual({ state: "done", patchCount: 4 });
+    expect(callHook(() => useStatementStatus("seg_unknown"))).toBeNull();
+  });
+});
+
 describe("statement ids and live status", () => {
   it("the browser's segment id equals the module's for the same session, name and text", () => {
     for (const [session, name, text] of [
@@ -106,6 +135,12 @@ describe("statement ids and live status", () => {
     ] as const) {
       expect(statementSegmentId(session, name, text)).toBe(`seg_${fnv1a64(`${session}\n${name.trim()}\n${text.trim()}`)}`);
     }
+  });
+
+  it("checkStatement counts UTF-8 bytes, so 32,000 three-byte characters fail with a byte message", () => {
+    const message = checkStatement("€".repeat(32_000), "Witness");
+    expect(message).toBe("statement text must be at most 65536 bytes in UTF-8, and this one is 96000");
+    expect(checkStatement("€".repeat(21_845), "Witness")).toBeNull();
   });
 
   it("checkStatement mirrors the module's limits", () => {
@@ -125,7 +160,9 @@ describe("statement ids and live status", () => {
       error: "partly_rejected",
     });
     expect(liveStatementStatus(undefined, 3, 4)).toEqual({ state: "done" });
-    expect(liveStatementStatus({ id: "s", extractPatchCount: 1 }, 3, 4)).toEqual({ state: "done", patchCount: 1 });
+    expect(liveStatementStatus(undefined, 3, 3)).toEqual({ state: "extracting" });
+    expect(liveStatementStatus({ id: "s" }, 3, 9)).toEqual({ state: "extracting" });
+    expect(liveStatementStatus({ id: "s", extractPatchCount: 1 }, 3, 4)).toEqual({ state: "extracting" });
   });
 });
 

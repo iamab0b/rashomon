@@ -14,6 +14,8 @@ const bindings = vi.hoisted(() => {
     withTokenCalls: [] as string[],
     onConnect: null as null | ((conn: unknown, identity: { toHexString(): string }, token: string) => void),
     subscribed: [] as unknown[],
+    onConnectError: null as null | ((ctx: unknown, error: Error) => void),
+    builds: 0,
   };
   return state;
 });
@@ -31,12 +33,18 @@ vi.mock("./bindings", () => {
     bindings.onConnect = callback;
     return builder;
   };
-  builder.onConnectError = chain;
+  builder.onConnectError = (callback: typeof bindings.onConnectError) => {
+    bindings.onConnectError = callback;
+    return builder;
+  };
   builder.onDisconnect = chain;
-  builder.build = () => ({
-    disconnect: () => undefined,
-    reducers: { applyPatches: () => Promise.resolve(), submitStatement: () => Promise.resolve() },
-  });
+  builder.build = () => {
+    bindings.builds += 1;
+    return {
+      disconnect: () => undefined,
+      reducers: { applyPatches: () => Promise.resolve(), submitStatement: () => Promise.resolve() },
+    };
+  };
   return { DbConnection: { builder: () => builder } };
 });
 
@@ -72,6 +80,8 @@ afterEach(() => {
   bindings.withTokenCalls.length = 0;
   bindings.subscribed.length = 0;
   bindings.onConnect = null;
+  bindings.onConnectError = null;
+  bindings.builds = 0;
 });
 
 function fakeConnector() {
@@ -120,6 +130,17 @@ describe("submitStatement on the live source", () => {
     const { segmentId } = await useGraphActions().submitStatement("Something happened.", "Maria");
     fake.current().onRow(rowFor(4) as never);
     expect(source.statementStatuses()[segmentId]).toEqual({ state: "done" });
+  });
+
+  it("stays extracting while the segment row is visible and another client bumps the version", async () => {
+    const { fake, source } = mounted();
+    fake.current().onRow(rowFor(3) as never);
+    const { segmentId } = await useGraphActions().submitStatement("Something happened.", "Maria");
+    fake.current().onSegment?.({ id: segmentId });
+    fake.current().onRow(rowFor(4) as never);
+    expect(source.statementStatuses()[segmentId]).toEqual({ state: "extracting" });
+    fake.current().onSegment?.({ id: segmentId, extractedAt: {}, extractPatchCount: 1 });
+    expect(source.statementStatuses()[segmentId]).toEqual({ state: "done", patchCount: 1 });
   });
 
   it("a short error code on the segment is a failure carrying that code", async () => {
@@ -218,5 +239,70 @@ describe("the browser's token", () => {
   it("with no storage at all it still connects", () => {
     vi.stubGlobal("localStorage", undefined);
     expect(() => spacetimeConnector(DEFAULT_LIVE_OPTIONS, noHandlers)).not.toThrow();
+  });
+});
+
+describe("a saved token the server rejects", () => {
+  it("is removed and the connection is retried once without it", () => {
+    const storage = memoryStorage({ [tokenKey(DEFAULT_LIVE_OPTIONS)]: "stale-token" });
+    vi.stubGlobal("localStorage", {
+      ...storage,
+      removeItem: (k: string) => void storage.items.delete(k),
+    });
+    const onError = vi.fn();
+
+    spacetimeConnector(DEFAULT_LIVE_OPTIONS, { ...noHandlers, onError });
+    expect(bindings.withTokenCalls).toEqual(["stale-token"]);
+    expect(bindings.builds).toBe(1);
+
+    bindings.onConnectError?.({}, new Error("unauthorized"));
+
+    expect(storage.items.has(tokenKey(DEFAULT_LIVE_OPTIONS))).toBe(false);
+    expect(bindings.builds).toBe(2);
+    expect(bindings.withTokenCalls).toEqual(["stale-token"]);
+    expect(onError).not.toHaveBeenCalled();
+
+    bindings.onConnect?.(connectedStub(), { toHexString: () => "ab" }, "fresh-token");
+    expect(storage.items.get(tokenKey(DEFAULT_LIVE_OPTIONS))).toBe("fresh-token");
+  });
+
+  it("reports the error when the retry without a token fails too, and does not loop", () => {
+    const storage = memoryStorage({ [tokenKey(DEFAULT_LIVE_OPTIONS)]: "stale-token" });
+    vi.stubGlobal("localStorage", { ...storage, removeItem: (k: string) => void storage.items.delete(k) });
+    const onError = vi.fn();
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    spacetimeConnector(DEFAULT_LIVE_OPTIONS, { ...noHandlers, onError });
+    bindings.onConnectError?.({}, new Error("unauthorized"));
+    bindings.onConnectError?.({}, new Error("still down"));
+
+    expect(bindings.builds).toBe(2);
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError.mock.calls[0]?.[0]).toMatch(/failed: still down/);
+  });
+
+  it("without a saved token a connect error is reported at once", () => {
+    vi.stubGlobal("localStorage", memoryStorage());
+    const onError = vi.fn();
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    spacetimeConnector(DEFAULT_LIVE_OPTIONS, { ...noHandlers, onError });
+    bindings.onConnectError?.({}, new Error("down"));
+
+    expect(bindings.builds).toBe(1);
+    expect(onError).toHaveBeenCalledTimes(1);
+  });
+
+  it("a throwing removeItem does not stop the retry", () => {
+    vi.stubGlobal("localStorage", {
+      getItem: () => "stale-token",
+      setItem: () => undefined,
+      removeItem: () => {
+        throw new Error("blocked");
+      },
+    });
+    spacetimeConnector(DEFAULT_LIVE_OPTIONS, noHandlers);
+    expect(() => bindings.onConnectError?.({}, new Error("unauthorized"))).not.toThrow();
+    expect(bindings.builds).toBe(2);
   });
 });
