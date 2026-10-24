@@ -1,15 +1,23 @@
-import { Canvas } from "@react-three/fiber";
-import { Scene } from "./scene";
+import { useEffect } from "react";
+import { Scene, useCamera } from "./scene";
+import { isCameraPreset } from "./scene/cameras/presets";
 
 const PANEL_WIDTH_PX = 360;
 
 export function App() {
+  const params = new URLSearchParams(window.location.search);
+  const fixture = params.get("fixture") ?? undefined;
+  const cam = params.get("cam");
+  const { setPreset } = useCamera();
+
+  useEffect(() => {
+    if (isCameraPreset(cam)) setPreset(cam);
+  }, [cam, setPreset]);
+
   return (
     <div style={{ display: "flex", width: "100%", height: "100%" }}>
       <div style={{ flex: 1 }}>
-        <Canvas camera={{ position: [4.5, 6, -4], fov: 50 }}>
-          <Scene />
-        </Canvas>
+        <Scene fixture={fixture} />
       </div>
       <div
         style={{
