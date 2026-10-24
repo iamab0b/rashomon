@@ -38,7 +38,7 @@ One `t` (seconds) in the zustand store. Everything derives from `t` in `useFrame
 
 ## Clip-to-action map
 
-See `characters/actionMap.ts` (data). Characters are Mixamo Y Bot (witness, suspect) and X Bot (clerk) from `public/characters/`; clips from `public/clips/`, one GLB each, bound by bone name. Hip bone after GLTFLoader is `mixamorigHips`. Props attach to `mixamorigRightHand`.
+The clip table is `docs/clip-action-map.md`; `characters/actionMap.ts` carries it as data. Characters are Mixamo Y Bot (witness, suspect) and X Bot (clerk) from `public/characters/` (`ybot.fbx`, `xbot.fbx`); clips from `public/clips/`, one `clip_<name>.fbx` each, bound by bone name. All of them are FBX loaded with three's `FBXLoader` at scale 0.01 (Mixamo exports centimeters). Hip bone after FBXLoader is `mixamorigHips`. Each rig loads with two skeletons, one a duplicate chain nested under the other; the mixer root is the SkinnedMesh with the primary skeleton (`findPrimarySkinnedMesh` in `characters/rigs.ts`). Every clip has its `mixamorigHips.position` X/Z zeroed at load in `characters/clips.ts` (Y is kept), so no clip carries root motion and the actor stays on the resolver path. Props attach to `mixamorigRightHand`.
 
 ## Physics (props only)
 
