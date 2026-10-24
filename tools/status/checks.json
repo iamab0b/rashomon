@@ -146,6 +146,17 @@
       "paths": [
         "apps/web/src/ui"
       ]
+    },
+    {
+      "id": "pr22-fixes",
+      "from": "Sahil",
+      "due": "12-16",
+      "todo": "PR #22: restore apps/web/src/scene files to main (scene changes go to scene-core as a list), switcher through useCamera, keep witness_claimed reachable, stop shortcuts behind the dialog, and the ui-refine follow-ups (useGraphErrors, useSceneStatus)",
+      "doc": "tools/status/requests/pr22-fixes.md",
+      "grep": "useSceneStatus",
+      "paths": [
+        "apps/web/src/ui"
+      ]
     }
   ],
   "runtime": [
