@@ -19,7 +19,9 @@ import type {
   PropInstance as PropRow,
 } from "./bindings/types";
 
-export type LiveGraphRow = GraphRow;
+export type LiveGraphRow = GraphRow & {
+  witnesses?: { id: string; label: string; actorId?: string }[];
+};
 
 const STATUSES: readonly Status[] = ["proposed", "plausible", "implausible", "overridden", "superseded"];
 const CHECKS: readonly Flag["check"][] = [
@@ -166,6 +168,7 @@ export function convertGraphRow(row: LiveGraphRow): EventGraph {
     actors: row.actors.map(convertActor),
     events: row.events.map(convertEvent),
     props: row.props.map(convertProp),
+    ...(row.witnesses ? { witnesses: row.witnesses.map((w) => ({ id: w.id, label: w.label, ...(w.actorId !== undefined ? { actorId: w.actorId } : {}) })) } : {}),
     version: row.version,
   };
 }

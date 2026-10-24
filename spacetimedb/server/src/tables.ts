@@ -64,11 +64,18 @@ export const PropT = t.object("PropInstance", {
   sources: t.array(t.string()),
 });
 
+export const WitnessT = t.object("Witness", {
+  id: t.string(),
+  label: t.string(),
+  actorId: t.option(t.string()),
+});
+
 export const EventGraphT = t.object("EventGraph", {
   sceneId: t.string(),
   actors: t.array(ActorT),
   events: t.array(EventT),
   props: t.array(PropT),
+  witnesses: t.option(t.array(WitnessT)),
   version: t.u32(),
 });
 

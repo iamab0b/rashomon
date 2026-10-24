@@ -23,7 +23,7 @@
         "actor": "suspect",
         "action": "stand",
         "at": { "kind": "near", "landmark": "cooler", "radiusM": 0.6 },
-        "t": [9, 15],
+        "t": [10, 15],
         "tConfidence": "stated",
         "confidence": 0.6,
         "sources": ["utt_w2_2", "utt_w2_3"]

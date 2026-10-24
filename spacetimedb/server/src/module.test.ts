@@ -183,6 +183,7 @@ describe("applyPatches", () => {
       actors: robberyGraph.actors,
       events: robberyGraph.events.map(judgedAway),
       props: robberyGraph.props,
+      witnesses: [{ id: "w1", label: "w1" }],
       version: 1,
     });
   });

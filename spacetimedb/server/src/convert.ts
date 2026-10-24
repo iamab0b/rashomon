@@ -347,6 +347,7 @@ export type GraphRow = {
     notes: string;
     sources: string[];
   }[];
+  witnesses: { id: string; label: string; actorId: string | undefined }[] | undefined;
   version: number;
 };
 
@@ -394,6 +395,7 @@ export function eventGraphFromRow(row: GraphRow): EventGraph {
         sources: [...p.sources],
       }),
     ),
+    ...(row.witnesses ? { witnesses: row.witnesses.map((w) => ({ id: w.id, label: w.label, ...(w.actorId !== undefined ? { actorId: w.actorId } : {}) })) } : {}),
     version: row.version,
   };
 }

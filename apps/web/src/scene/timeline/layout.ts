@@ -33,6 +33,7 @@ export type Block = {
   color: string;
   label: string;
   lane: number;
+  witnessId?: string;
 };
 
 export type Row = { id: string; label: string; blocks: Block[]; hidden: number; lanes: number };
@@ -107,6 +108,7 @@ export function buildRows(resolved: ResolvedGraph | null, statuses: StatusMap): 
           status: statusOf(statuses, event),
           color,
           label: event.id,
+          witnessId: event.witnessId,
         })),
       ),
     };

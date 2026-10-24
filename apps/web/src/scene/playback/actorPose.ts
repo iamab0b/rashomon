@@ -171,6 +171,10 @@ export function actorYaw(playback: ActorPlayback, t: number, positionOf: Positio
   return turnedToward(playback, yaw, since, t, positionOf);
 }
 
+export function actorEvent(playback: ActorPlayback, t: number): ResolvedEvent | undefined {
+  return latestStarted(playback, t) ?? playback.events[0];
+}
+
 export function actorStatus(playback: ActorPlayback, t: number): Status | null {
   const event = latestStarted(playback, t) ?? playback.events[0];
   return event ? playback.statusOf(event) : null;

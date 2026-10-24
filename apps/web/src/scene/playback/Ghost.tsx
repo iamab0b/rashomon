@@ -10,6 +10,7 @@ import type { Rig } from "../characters/rigs";
 import { followedActorId } from "../cameras/povSightline";
 import { useSceneStore } from "../store";
 import { ghostAnchor, ghostVisible, ghostYaw, type PositionLookup } from "./actorPose";
+import { HIDDEN_WITNESS_OPACITY } from "./witnessLayers";
 
 const GHOST_COLOR = "#ff6b6b";
 const GHOST_OPACITY = 0.6;
@@ -22,14 +23,17 @@ type Props = {
   rig: Rig;
   positionOf: PositionLookup;
   onReady: (id: string) => void;
+  color?: string;
+  badge?: boolean;
+  shownAt?: (t: number) => boolean;
 };
 
-export function Ghost({ event, rig, positionOf, onReady }: Props) {
+export function Ghost({ event, rig, positionOf, onReady, color = GHOST_COLOR, badge = true, shownAt }: Props) {
   const handle = useCharacter(rig);
   const group = useRef<Group>(null);
   const material = useMemo(
-    () => new MeshBasicMaterial({ color: GHOST_COLOR, wireframe: true, transparent: true, opacity: GHOST_OPACITY, depthWrite: false }),
-    [],
+    () => new MeshBasicMaterial({ color, wireframe: true, transparent: true, opacity: GHOST_OPACITY, depthWrite: false }),
+    [color],
   );
 
   useEffect(() => () => material.dispose(), [material]);
@@ -62,8 +66,9 @@ export function Ghost({ event, rig, positionOf, onReady }: Props) {
     if (!node || !anchor) return;
     const state = useSceneStore.getState();
     const { t } = state;
-    node.visible = ghostVisible(event, t) && followedActorId(state) !== event.actor;
+    node.visible = (shownAt ? shownAt(t) : ghostVisible(event, t)) && followedActorId(state) !== event.actor;
     if (!node.visible) return;
+    material.opacity = state.hiddenWitnesses.has(event.witnessId) ? HIDDEN_WITNESS_OPACITY : GHOST_OPACITY;
     node.position.set(anchor[0], anchor[1], anchor[2]);
     node.rotation.set(0, ghostYaw(event, t, positionOf), 0);
   });
@@ -72,10 +77,12 @@ export function Ghost({ event, rig, positionOf, onReady }: Props) {
   return (
     <group ref={group} visible={false}>
       <primitive object={handle.root} />
-      <mesh position={[0, BADGE_HEIGHT_M, 0]}>
-        <sphereGeometry args={[BADGE_RADIUS_M, 16, 12]} />
-        <meshBasicMaterial color={BADGE_COLOR} />
-      </mesh>
+      {badge ? (
+        <mesh position={[0, BADGE_HEIGHT_M, 0]}>
+          <sphereGeometry args={[BADGE_RADIUS_M, 16, 12]} />
+          <meshBasicMaterial color={BADGE_COLOR} />
+        </mesh>
+      ) : null}
     </group>
   );
 }
