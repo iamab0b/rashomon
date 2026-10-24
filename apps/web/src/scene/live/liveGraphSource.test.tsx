@@ -1,6 +1,10 @@
-import type { Anchor, Event, EventGraph, Flag, Status } from "@rashomon/schema";
+import type { Anchor, Event, EventGraph, Flag, Patch, Status } from "@rashomon/schema";
 import { robberyGraph } from "@rashomon/schema/fixtures";
-import { describe, expect, it, vi } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { pushSource, useGraphErrors } from "../playback/useGraph";
+import { useGraphActions } from "../playback/useGraphActions";
+import { useSceneStore } from "../store";
 import { robberyGatedSnapshot } from "../playback/graphSource";
 import { modeFromSearch, selectSource } from "../playback/selectSource";
 import type { Anchor as AnchorRow, Event as EventRow, Flag as FlagRow } from "./bindings/types";
@@ -73,16 +77,17 @@ function robberyRow(e5Status: Status, version: number): LiveGraphRow {
 function fakeConnector() {
   const handlers: LiveHandlers[] = [];
   const disconnect = vi.fn();
+  const applyPatches = vi.fn((_baseVersion: number, _patchesJson: string): Promise<void> => Promise.resolve());
   const connect: LiveConnector = vi.fn((_options, given) => {
     handlers.push(given);
-    return { disconnect };
+    return { disconnect, applyPatches };
   });
   const current = () => {
     const latest = handlers.at(-1);
     if (!latest) throw new Error("not connected");
     return latest;
   };
-  return { connect, disconnect, handlers, current };
+  return { connect, disconnect, applyPatches, handlers, current };
 }
 
 function eventIn(source: ReturnType<typeof liveGraphSource>, id: string) {
@@ -192,5 +197,169 @@ describe("source selection and options", () => {
   it("quotes the session id inside the view query", () => {
     expect(graphQuery("demo")).toBe("SELECT * FROM graph_for_scene('demo')");
     expect(graphQuery("o'brien")).toBe("SELECT * FROM graph_for_scene('o''brien')");
+  });
+});
+
+const MOVE_E5: Patch = {
+  op: "update_event",
+  id: "e5",
+  changes: { at: { kind: "at", landmark: "window_front" } },
+  sources: ["investigator:local"],
+};
+
+describe("live GraphSource applying patches", () => {
+  afterEach(() => {
+    useSceneStore.getState().setGraphSource(null);
+    useSceneStore.getState().setGraphErrors({ connection: null, action: null });
+  });
+
+  it("sends the last row's version and the patches as a JSON string, and changes nothing by itself", () => {
+    const fake = fakeConnector();
+    const source = liveGraphSource(DEFAULT_LIVE_OPTIONS, fake.connect);
+    const listener = vi.fn();
+    source.subscribe(listener);
+    fake.current().onRow(robberyRow("implausible", 7));
+    const before = source.getSnapshot();
+    listener.mockClear();
+
+    source.apply([MOVE_E5]);
+
+    expect(fake.applyPatches).toHaveBeenCalledTimes(1);
+    expect(fake.applyPatches).toHaveBeenCalledWith(7, JSON.stringify([MOVE_E5]));
+    expect(source.getSnapshot()).toBe(before);
+    expect(source.getSnapshot().statuses.e5).toBe("implausible");
+    expect(listener).not.toHaveBeenCalled();
+    expect(source.actionError).toBeNull();
+  });
+
+  it("uses the newest row's version for the next call", () => {
+    const fake = fakeConnector();
+    const source = liveGraphSource(DEFAULT_LIVE_OPTIONS, fake.connect);
+    source.subscribe(() => undefined);
+    fake.current().onRow(robberyRow("implausible", 3));
+    fake.current().onRow(robberyRow("plausible", 4));
+
+    source.apply([MOVE_E5]);
+
+    expect(fake.applyPatches).toHaveBeenCalledWith(4, expect.any(String));
+  });
+
+  it("throws at once when nothing is connected or no row has arrived", () => {
+    const fake = fakeConnector();
+    const source = liveGraphSource(DEFAULT_LIVE_OPTIONS, fake.connect);
+    expect(() => source.apply([MOVE_E5])).toThrow(/not connected/);
+    source.subscribe(() => undefined);
+    expect(() => source.apply([MOVE_E5])).toThrow(/no live graph row has arrived/);
+    expect(fake.applyPatches).not.toHaveBeenCalled();
+  });
+
+  it("a rejected call sets the action error and leaves the snapshot and statuses unchanged", async () => {
+    const fake = fakeConnector();
+    fake.applyPatches.mockRejectedValueOnce(new Error("stale baseVersion 1; the graph is at version 2"));
+    const source = liveGraphSource(DEFAULT_LIVE_OPTIONS, fake.connect);
+    const listener = vi.fn();
+    source.subscribe(listener);
+    fake.current().onRow(robberyRow("implausible", 1));
+    const before = source.getSnapshot();
+    listener.mockClear();
+
+    source.apply([MOVE_E5]);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(source.actionError).toBe("stale baseVersion 1; the graph is at version 2");
+    expect(source.getSnapshot()).toBe(before);
+    expect(source.getSnapshot().statuses.e5).toBe("implausible");
+    expect(source.error).toBeNull();
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("an updated row replaces the snapshot and clears the action error", async () => {
+    const fake = fakeConnector();
+    fake.applyPatches.mockRejectedValueOnce(new Error("stale baseVersion 1; the graph is at version 2"));
+    const source = liveGraphSource(DEFAULT_LIVE_OPTIONS, fake.connect);
+    source.subscribe(() => undefined);
+    fake.current().onRow(robberyRow("implausible", 1));
+    source.apply([MOVE_E5]);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(source.actionError).not.toBeNull();
+
+    fake.current().onRow(robberyRow("plausible", 2));
+
+    expect(source.actionError).toBeNull();
+    expect(source.getSnapshot().statuses.e5).toBe("plausible");
+    expect(eventIn(source, "e5")?.status).toBe("plausible");
+  });
+
+  it("a rejection that arrives after the connection closed is ignored", async () => {
+    const fake = fakeConnector();
+    let reject: (error: Error) => void = () => undefined;
+    fake.applyPatches.mockReturnValueOnce(new Promise<void>((_resolve, fail) => (reject = fail)));
+    const source = liveGraphSource(DEFAULT_LIVE_OPTIONS, fake.connect);
+    const unsubscribe = source.subscribe(() => undefined);
+    fake.current().onRow(robberyRow("implausible", 1));
+    source.apply([MOVE_E5]);
+    unsubscribe();
+
+    reject(new Error("too late"));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(source.actionError).toBeNull();
+  });
+
+  it("useGraphActions sends through a mounted live source instead of throwing", () => {
+    const fake = fakeConnector();
+    const source = liveGraphSource(DEFAULT_LIVE_OPTIONS, fake.connect);
+    source.subscribe(() => undefined);
+    fake.current().onRow(robberyRow("implausible", 5));
+    useSceneStore.getState().setGraphSource(source);
+
+    expect(() => useGraphActions().applyPatches([MOVE_E5])).not.toThrow();
+
+    expect(fake.applyPatches).toHaveBeenCalledWith(5, JSON.stringify([MOVE_E5]));
+  });
+
+  it("eventOf returns the graph event with its anchors from the last good row", () => {
+    const fake = fakeConnector();
+    const source = liveGraphSource(DEFAULT_LIVE_OPTIONS, fake.connect);
+    source.subscribe(() => undefined);
+    expect(source.eventOf("e5")).toBeUndefined();
+    fake.current().onRow(robberyRow("implausible", 1));
+    expect(source.eventOf("e5")?.at).toEqual({ kind: "at", landmark: "aisle_chips" });
+  });
+
+  it("the connection error and the action error reach the store and the exported hook", async () => {
+    const fake = fakeConnector();
+    fake.applyPatches.mockRejectedValueOnce(new Error("stale baseVersion 1; the graph is at version 2"));
+    const source = liveGraphSource(DEFAULT_LIVE_OPTIONS, fake.connect);
+    source.subscribe(() => pushSource(source));
+    fake.current().onRow(robberyRow("implausible", 1));
+    const Probe = () => <p>{JSON.stringify(useGraphErrors())}</p>;
+    const shown = () => {
+      const initial = useSceneStore.getInitialState();
+      const saved = { connectionError: initial.connectionError, actionError: initial.actionError };
+      const { connectionError, actionError } = useSceneStore.getState();
+      Object.assign(initial, { connectionError, actionError });
+      try {
+        return renderToStaticMarkup(<Probe />).replaceAll("&quot;", '"');
+      } finally {
+        Object.assign(initial, saved);
+      }
+    };
+    expect(shown()).toContain('{"connectionError":null,"actionError":null}');
+
+    source.apply([MOVE_E5]);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(shown()).toContain("stale baseVersion 1; the graph is at version 2");
+
+    fake.current().onError("live connection to ws://localhost:3000 database rashomon closed");
+    expect(shown()).toContain("live connection to ws://localhost:3000 database rashomon closed");
+    expect(useSceneStore.getState().connectionError).toBe("live connection to ws://localhost:3000 database rashomon closed");
+
+    fake.current().onRow(robberyRow("plausible", 2));
+    expect(useSceneStore.getState().actionError).toBeNull();
   });
 });

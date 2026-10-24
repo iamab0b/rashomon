@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import { gatedSnapshot } from "../playback/graphSource";
 import { useSceneStore, type SceneState } from "../store";
 import { Timeline, createDrag, makeJump, makeKeyHandler } from "./Timeline";
-import { buildRows, implausibleStarts, strokeFor } from "./layout";
+import { buildRows, implausibleStarts, strokeFor, topBlockAt } from "./layout";
 
 const initial = useSceneStore.getState();
 const pristine = { ...useSceneStore.getInitialState() };
@@ -83,6 +83,34 @@ function drive() {
     makeKeyHandler({ t: api().t, setT: s.setT, toggle: () => (api().playing ? s.pause() : s.play()) })(fakeKey(k, shift, tag));
   return { api, jump, key };
 }
+
+describe("nested blocks stay clickable", () => {
+  test("longer blocks are painted first, so e5 sits on top of the e3 block that contains it", () => {
+    const { resolved, statuses } = snap();
+    const witness = buildRows(resolved, statuses).find((r) => r.blocks.some((b) => b.id === "e5"))!;
+    const order = witness.blocks.map((b) => b.id);
+    expect(order.indexOf("e5")).toBeGreaterThan(order.indexOf("e3"));
+    const durations = witness.blocks.map((b) => b.tEnd - b.tStart);
+    expect(durations).toEqual([...durations].sort((a, b) => b - a));
+    const html = renderWith({ resolved, statuses, duration: resolved!.durationS });
+    expect(html.indexOf('data-block="e5"')).toBeGreaterThan(html.indexOf('data-block="e3"'));
+  });
+
+  test("clicking at e5's position selects e5", () => {
+    const { resolved, statuses } = snap();
+    const witness = buildRows(resolved, statuses).find((r) => r.blocks.some((b) => b.id === "e5"))!;
+    const e5 = witness.blocks.find((b) => b.id === "e5")!;
+    for (const t of [e5.tStart + 0.5, (e5.tStart + e5.tEnd) / 2, e5.tEnd - 0.1]) {
+      const hit = topBlockAt(witness, t);
+      expect(hit?.id, `t=${t}`).toBe("e5");
+      useSceneStore.getState().select(hit!.id!);
+      expect(useSceneStore.getState().selectedEventId).toBe("e5");
+      useSceneStore.getState().clear();
+    }
+    expect(topBlockAt(witness, 3)?.id).toBe("e3");
+    expect(topBlockAt(witness, 100)).toBeNull();
+  });
+});
 
 describe("interaction", () => {
   test("jump handler selects e5 and sets t to 10", () => {
