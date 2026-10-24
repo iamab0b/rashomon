@@ -6,6 +6,8 @@ import { spacetimedb } from "../tables";
 export type WebhookIo = Io & { nowMicros: () => bigint; webhookSecret: () => string | undefined };
 
 export const SECRET_HEADER = "x-rashomon-webhook-secret";
+export const MAX_BODY_BYTES = 64 * 1024;
+export const MAX_UTTERANCES = 50;
 
 export type WebhookOutcome = { status: number; body: Extraction | { error: string } };
 
@@ -50,6 +52,8 @@ export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
   const given = req.headers.get(SECRET_HEADER);
   if (!expected || given === null || !secretsMatch(given, expected)) return { status: 401, body: { error: "unauthorized" } };
 
+  if (req.bytes().length > MAX_BODY_BYTES) return { status: 413, body: { error: `the body must be at most ${MAX_BODY_BYTES} bytes` } };
+
   let body: unknown;
   try {
     body = JSON.parse(req.text());
@@ -60,6 +64,7 @@ export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
   const sessionId = firstString(body, ["sessionId", "session_id"]);
   if (!sessionId) return bad("sessionId is required");
   if (!Array.isArray(body.utterances) || body.utterances.length === 0) return bad("utterances must be a non-empty array");
+  if (body.utterances.length > MAX_UTTERANCES) return bad(`at most ${MAX_UTTERANCES} utterances per request`);
 
   const segmentId = firstString(body, ["segmentId", "segment_id"]) ?? `seg_${io.nowMicros()}`;
   const witnessId = firstString(body, ["witnessId", "witness_id", "witness", "witnessName", "witness_name"]) ?? "witness";

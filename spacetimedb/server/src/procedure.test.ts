@@ -5,7 +5,7 @@ import { TestAuth, createModuleTestHarness } from "spacetimedb/server/test-utils
 import type { TestHttpResponder } from "spacetimedb/server/test-utils";
 import { robberyGraph } from "@rashomon/schema/fixtures";
 import { EXTRACTION_MODEL } from "@rashomon/extractor";
-import { SECRET_HEADER, handleCartesia, secretsMatch } from "./http/cartesia";
+import { MAX_BODY_BYTES, MAX_UTTERANCES, SECRET_HEADER, handleCartesia, secretsMatch } from "./http/cartesia";
 import { PROMPT_HASH, runExtraction, type Io } from "./extract/run";
 import * as mod from "./index";
 import { eventGraphFromRow } from "./convert";
@@ -271,6 +271,37 @@ describe("the Cartesia webhook", () => {
     expect(handleCartesia(io, post(body({ sessionId: "nope" }))).status).toBe(400);
     expect([...harness.db.segments.sessionId.filter(SESSION)]).toHaveLength(1);
     expect(requests).toHaveLength(0);
+  });
+
+  test("a body over 64 KB is a 413 and more than 50 utterances is a 400, before anything is stored", () => {
+    const io = webhookIo(ok([toolUse("tu_1", "add_event", walkInput)]));
+    const big = post(body({ pad: "x".repeat(MAX_BODY_BYTES) }));
+    expect(handleCartesia(io, big)).toEqual({ status: 413, body: { error: "the body must be at most 65536 bytes" } });
+    const utterance = (i: number) => ({ text: `line ${i}`, tStart: i, tEnd: i + 0.5 });
+    const many = Array.from({ length: MAX_UTTERANCES + 1 }, (_, i) => utterance(i));
+    expect(handleCartesia(io, post(body({ utterances: many })))).toEqual({
+      status: 400,
+      body: { error: "at most 50 utterances per request" },
+    });
+    expect(requests).toHaveLength(0);
+    expect([...harness.db.segments.sessionId.filter(SESSION)]).toHaveLength(1);
+  });
+
+  test("200,000 valid utterances are refused by the caps instead of overflowing Math.min", () => {
+    const io = webhookIo(ok([]));
+    const utterances = `${'{"text":"x","tStart":0,"tEnd":1},'.repeat(199_999)}{"text":"x","tStart":0,"tEnd":1}`;
+    const out = handleCartesia(io, post(`{"sessionId":"${SESSION}","utterances":[${utterances}]}`));
+    expect(out.status).toBe(413);
+    expect(JSON.stringify(out.body)).not.toMatch(/call stack|RangeError/);
+    expect([...harness.db.segments.sessionId.filter(SESSION)]).toHaveLength(1);
+  });
+
+  test("exactly 50 utterances are accepted", () => {
+    const io = webhookIo(ok([toolUse("tu_1", "add_event", { ...walkInput, sources: ["seg_1234"] })]));
+    const fifty = Array.from({ length: MAX_UTTERANCES }, (_, i) => ({ text: `line ${i}`, tStart: i, tEnd: i + 0.5 }));
+    const out = handleCartesia(io, post(body({ utterances: fifty })));
+    expect(out.status).toBe(200);
+    expect(harness.db.segments.rowKey.find(`${SESSION}/seg_1234`)).toMatchObject({ tStart: 0, tEnd: 49.5 });
   });
 
   test("the exported handler reads the secret from the module env and checks it first", () => {
