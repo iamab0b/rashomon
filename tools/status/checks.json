@@ -44,9 +44,9 @@
       "id": "procedure-extract-segment",
       "from": "Sahil",
       "due": "14-16",
-      "todo": "extractSegment and the Cartesia webhook are built (PR #16, branch spacetime-procedure); fix the review items before merge: webhook shared-secret check, request caps, hard flags in the response, idempotency, generic errors, real rollback and robbery tests",
+      "todo": "PR #16: all eight review items verified; blocker left: close extract_segment to outside callers (anonymous clients spend the key without the webhook secret) and cap segment text; then retry-safe default segment id, short error codes in the public segments table",
       "doc": "tools/status/requests/procedure-extract-segment.md",
-      "grep": "CARTESIA_WEBHOOK_SECRET",
+      "grep": "an anonymous caller cannot run extraction",
       "paths": [
         "spacetimedb/server/src"
       ]
