@@ -15,6 +15,8 @@ Hazel, Saturday. The interviewee has given a formal statement in an investigativ
 
 ## Quotes
 
+The interview was in Korean; these are Hazel's English translations.
+
 > "The hardest part was organizing everything in chronological order, or separating things out and explaining them clearly, while also knowing whether what I said had been recorded accurately."
 
 > "The hardest part was matching each person's actions to the right person. When a memory is traumatic, you can still be confused while you're talking—whether this person did something or that person did it."
