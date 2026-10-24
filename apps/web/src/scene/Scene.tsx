@@ -16,6 +16,7 @@ import { LandmarkMarkers } from "./landmarks/LandmarkMarkers";
 import { loadScene, type LoadedScene } from "./loaders/scene";
 import { Actors } from "./playback/Actors";
 import { Playhead } from "./playback/Playhead";
+import { Props } from "./props/Props";
 import { selectSource } from "./playback/selectSource";
 import { useGraphSource } from "./playback/useGraph";
 import { useSceneStore } from "./store";
@@ -153,6 +154,7 @@ export function Scene({ fixture, debug, t }: SceneProps) {
             <WitnessView model={loaded.model} manifest={loaded.manifest} />
             <PovRayLine />
             {hasGraph ? <Actors /> : null}
+            {hasGraph ? <Props manifest={loaded.manifest} /> : null}
             {hasGraph ? <AnchorGizmo manifest={loaded.manifest} /> : null}
             {!hasGraph || actorsReady ? <ReadySignal /> : null}
           </>

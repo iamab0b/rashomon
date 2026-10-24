@@ -1,5 +1,5 @@
 import { useFrame } from "@react-three/fiber";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Group } from "three";
 import { AnimatedCharacter } from "../characters/AnimatedCharacter";
 import type { CharacterHandle } from "../characters/Character";
@@ -32,6 +32,15 @@ export function ActorRig({ playback, rig, positionOf, onReady }: Props) {
     },
     [onReady, playback.actorId],
   );
+
+  useEffect(() => {
+    if (!handle) return;
+    const { setCharacterHandle } = useSceneStore.getState();
+    setCharacterHandle(playback.actorId, handle);
+    return () => {
+      if (useSceneStore.getState().characterHandles.get(playback.actorId) === handle) setCharacterHandle(playback.actorId, null);
+    };
+  }, [handle, playback.actorId]);
 
   useFrame(() => {
     const node = group.current;

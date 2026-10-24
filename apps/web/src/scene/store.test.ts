@@ -271,4 +271,17 @@ describe("POV follow toggle and dim state", () => {
     useSceneStore.getState().setDimmedMeshes(new Set(["counter", "shelf_b"]));
     expect([...useSceneStore.getState().dimmedMeshes].sort()).toEqual(["counter", "shelf_b"]);
   });
+
+  test("character handles register by actor id and only the same handle removes itself", () => {
+    const handle = { rig: "mixamo_ybot" } as never;
+    const other = { rig: "mixamo_xbot" } as never;
+    const { setCharacterHandle } = useSceneStore.getState();
+    setCharacterHandle("suspect", handle);
+    expect(useSceneStore.getState().characterHandles.get("suspect")).toBe(handle);
+    setCharacterHandle("suspect", null);
+    expect(useSceneStore.getState().characterHandles.has("suspect")).toBe(false);
+    setCharacterHandle("clerk", other);
+    setCharacterHandle("clerk", null);
+    expect(useSceneStore.getState().characterHandles.size).toBe(0);
+  });
 });

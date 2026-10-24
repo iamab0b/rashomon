@@ -2,6 +2,7 @@ import type { ResolvedGraph } from "@rashomon/engine";
 import type { EventGraph, Status } from "@rashomon/schema";
 import { create } from "zustand";
 import type { CameraPreset } from "./cameras/presets";
+import type { CharacterHandle } from "./characters/Character";
 import type { GraphSource } from "./playback/graphSource";
 
 export type SceneStatus = "loading" | "ready" | "error";
@@ -41,6 +42,7 @@ export type SceneState = {
   actionError: string | null;
   errorEpoch: number;
   actorsReady: boolean;
+  characterHandles: ReadonlyMap<string, CharacterHandle>;
   selectedEventId: string | null;
   povFollow: boolean;
   povActor: string | null;
@@ -62,6 +64,7 @@ export type SceneState = {
   setGraphErrors: (errors: GraphErrors) => void;
   setActionError: (message: string | null) => void;
   setActorsReady: (ready: boolean) => void;
+  setCharacterHandle: (actorId: string, handle: CharacterHandle | null) => void;
   select: (id: string) => void;
   clear: () => void;
   setPovFollow: (follow: boolean) => void;
@@ -72,6 +75,7 @@ export type SceneState = {
 };
 
 const NO_ACTORS: ReadonlySet<string> = new Set();
+const NO_HANDLES: ReadonlyMap<string, CharacterHandle> = new Map();
 
 function sameMembers(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
   if (a.size !== b.size) return false;
@@ -112,6 +116,7 @@ export const useSceneStore = create<SceneState>((set) => ({
   actionError: null,
   errorEpoch: 0,
   actorsReady: false,
+  characterHandles: NO_HANDLES,
   selectedEventId: null,
   povFollow: false,
   povActor: null,
@@ -156,6 +161,14 @@ export const useSceneStore = create<SceneState>((set) => ({
     set((state) => ({ connectionError: connection, actionError: action, errorEpoch: state.errorEpoch + 1 })),
   setActionError: (actionError) => set({ actionError }),
   setActorsReady: (actorsReady) => set({ actorsReady }),
+  setCharacterHandle: (actorId, handle) =>
+    set((state) => {
+      if (handle === null && !state.characterHandles.has(actorId)) return state;
+      const next = new Map(state.characterHandles);
+      if (handle === null) next.delete(actorId);
+      else next.set(actorId, handle);
+      return { characterHandles: next };
+    }),
   select: (id) => set((state) => ({ selectedEventId: survivingSelection(id, state.resolved) ?? state.selectedEventId })),
   clear: () => set({ selectedEventId: null }),
   setPovFollow: (povFollow) =>
