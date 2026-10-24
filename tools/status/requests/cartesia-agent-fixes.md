@@ -31,3 +31,7 @@ Done-check:
 - `git grep -n "the agent asks each new hard flag once" apps/agent spacetimedb/server/src` shows the new test.
 - No real keys; no code comments.
 - Greptile reviews every push. Read its comments and fix what it confirms; the leader triggers it.
+
+## Sat 3:40 PM: merge #27 into this branch after it merges
+
+You pushed the witness-id fix to spacetime-procedure (b4b9c76) as well as here (75e053e). The two now conflict in http/cartesia.ts and procedure.test.ts. The leader merges #27 first, once its reviews and Greptile are clean. Then run `git fetch origin && git merge origin/main` on cartesia-agent, keep one witness-aware hash (b4b9c76's), and push it together with the fixes above. No rebase, no force-push.
