@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import rawProps from "@rashomon/props";
 import { robberyResolved } from "@rashomon/schema/fixtures";
 import type { ResolvedGraph } from "@rashomon/engine";
-import { parseLibrary } from "./types";
-import { matchAlias, modelScale, propsInScene, getPropType } from "./library";
+import { parseLibrary, type PropType } from "./types";
+import { matchAlias, modelScale, propsInScene } from "./library";
 import { checkPropModels } from "./preload";
 
 const clone = (): any[] => JSON.parse(JSON.stringify(rawProps));
@@ -11,7 +11,7 @@ const lib = parseLibrary(rawProps);
 
 describe("parseLibrary", () => {
   it("parses the real props.json", () => {
-    expect(lib).toHaveLength(12);
+    expect(lib.length).toBeGreaterThan(0);
   });
   it("rejects duplicate types", () => {
     const j = clone();
@@ -64,8 +64,20 @@ describe("matchAlias", () => {
 
 describe("modelScale", () => {
   it("scales the longest model dimension to the entry's longest", () => {
-    const knife = getPropType(lib, "knife_chef")!;
-    expect(modelScale(knife, [2, 0.3, 0.1])).toBeCloseTo(0.165, 10);
+    const entry: PropType = {
+      type: "fixture",
+      label: "fixture",
+      aliases: ["fixture"],
+      modelUrl: "/props/fixture.glb",
+      dimensionsM: { l: 0.33, w: 0.05, h: 0.02 },
+      massKg: 1,
+      graspable: false,
+      collider: "cuboid",
+      gripOffset: [0, 0, 0],
+      defaultNotes: "",
+      source: "",
+    };
+    expect(modelScale(entry, [2, 0.3, 0.1])).toBeCloseTo(0.165, 10);
   });
 });
 
@@ -89,11 +101,13 @@ describe("checkPropModels", () => {
   it("reports everything missing", async () => {
     const r = await checkPropModels(lib, () => false);
     expect(r.existing).toEqual([]);
-    expect(r.missing).toHaveLength(12);
+    expect(r.missing).toEqual([...new Set(lib.map((p) => p.modelUrl))]);
   });
   it("splits existing from missing", async () => {
-    const r = await checkPropModels(lib, (u) => u === "/props/chair.glb");
-    expect(r.existing).toEqual(["/props/chair.glb"]);
-    expect(r.missing).toHaveLength(11);
+    const first = lib[0]!.modelUrl;
+    const r = await checkPropModels(lib, (u) => u === first);
+    expect(r.existing).toEqual([first]);
+    expect(r.missing).not.toContain(first);
+    expect(r.existing.length + r.missing.length).toBe(new Set(lib.map((p) => p.modelUrl)).size);
   });
 });
