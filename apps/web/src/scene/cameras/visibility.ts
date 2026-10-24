@@ -48,10 +48,16 @@ const bounds = new Box3();
 const center = new Vector3();
 const top = new Vector3();
 
-export function isMeshVisible(eye: Vector3, mesh: Object3D, frustum: Frustum, occluders: readonly Object3D[]): boolean {
+export function isMeshVisible(
+  eye: Vector3,
+  mesh: Object3D,
+  frustum: Frustum,
+  occluders: readonly Object3D[],
+  owner: Object3D | null = mesh,
+): boolean {
   bounds.setFromObject(mesh);
   if (bounds.isEmpty() || !frustum.intersectsBox(bounds)) return false;
   bounds.getCenter(center);
   top.set(center.x, bounds.max.y, center.z);
-  return !isPointOccluded(eye, center, occluders, mesh) || !isPointOccluded(eye, top, occluders, mesh);
+  return !isPointOccluded(eye, center, occluders, owner) || !isPointOccluded(eye, top, occluders, owner);
 }
