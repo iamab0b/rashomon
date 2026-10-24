@@ -78,6 +78,17 @@
       "paths": [
         "packages/extractor/src"
       ]
+    },
+    {
+      "id": "procedure-followups",
+      "from": "Sahil",
+      "due": "13-16",
+      "todo": "After PR #16 merged: cap earlier segments in the extraction prompt, retry-safe default segment id, 413 for over-cap text, wrap the key read, drop code comments, PR text on -c=always and the required key",
+      "doc": "tools/status/requests/procedure-followups.md",
+      "grep": "a resend without a segmentId does not extract twice",
+      "paths": [
+        "spacetimedb/server/src"
+      ]
     }
   ],
   "D": [
