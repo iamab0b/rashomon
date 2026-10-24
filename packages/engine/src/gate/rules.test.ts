@@ -1,4 +1,4 @@
-import type { SceneManifest } from "@rashomon/schema";
+import type { Portals, SceneManifest } from "@rashomon/schema";
 import { describe, expect, test } from "vitest";
 import { gate } from "./index";
 import { contradictionFlags } from "./contradiction";
@@ -7,7 +7,7 @@ import { hasRoute, reachabilityFlags } from "./reachability";
 import { sightlineFlags } from "./sightline";
 import { timeDistanceFlags } from "./timeDistance";
 import { boxMesh, ev, graphOf } from "./testHelpers";
-import type { Portals, SceneGeom } from "./types";
+import type { SceneGeom } from "../types";
 
 const lmk = (id: string, min: [number, number], max: [number, number], occludes = true) => ({
   id,
@@ -251,5 +251,26 @@ describe("gate status rules", () => {
     ]);
     const kinds = gate(g, manifest(), geom).flags.map((f) => f.kind);
     expect(kinds).toEqual(["sightline", "unanchored", "missing_time"]);
+  });
+});
+
+describe("segment ids and the resolver's reachable mark", () => {
+  test("contradiction skips pairs from the same segment but not different or missing ones", () => {
+    const mk = (sa?: string, sb?: string) =>
+      graphOf([
+        ev({ id: "p", at: [0.5, 0, 0.5], tStart: 0, tEnd: 10, segmentId: sa }),
+        ev({ id: "q", at: [5, 0, 8], tStart: 5, tEnd: 12, segmentId: sb }),
+      ]);
+    expect(contradictionFlags(mk("s1", "s1"), manifest())).toEqual([]);
+    expect(contradictionFlags(mk("s1", "s2"), manifest())).toHaveLength(1);
+    expect(contradictionFlags(mk(undefined, "s2"), manifest())).toHaveLength(1);
+  });
+
+  test("reachable: false from the resolver is a hard flag even without portals", () => {
+    const g = graphOf([ev({ id: "m", action: "walk", from: [1, 0, 1], to: [9, 0, 9], reachable: false })]);
+    const f = reachabilityFlags(g, manifest());
+    expect(f).toHaveLength(1);
+    expect(f[0]).toMatchObject({ severity: "hard", eventIds: ["m"] });
+    expect(f[0]!.message).toContain("11.3 m");
   });
 });

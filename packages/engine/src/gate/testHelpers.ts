@@ -1,6 +1,4 @@
-import type { Anchor, EventGraph, SceneManifest } from "@rashomon/schema";
-import type { ResolvedEvent, ResolvedGraph, Vec3 } from "../types";
-import type { GeomMesh, SceneGeom } from "./types";
+import type { GeomMesh, ResolvedEvent, ResolvedGraph, SceneGeom, Vec3 } from "../types";
 
 /** Closed box mesh, 12 triangles, outward winding. */
 export function boxMesh(id: string, min: Vec3, max: Vec3): GeomMesh {
@@ -34,65 +32,6 @@ export const floorPlanGeom = (): SceneGeom => ({
   ],
 });
 
-type Landmarks = SceneManifest["landmarks"];
-
-/** Stand-in for the resolver (separate PR): `at` = landmark position, `near` = 0.6 m off the box face toward (4.5, 3.5). */
-function anchorPoint(a: Anchor, landmarks: Landmarks): Vec3 {
-  const lm = (id: string) => landmarks.find((l) => l.id === id)!;
-  if (a.kind === "at") {
-    const p = lm(a.landmark).position;
-    return [p[0], 0, p[2]];
-  }
-  if (a.kind === "near") {
-    const { min, max } = lm(a.landmark).bounds;
-    const r = a.radiusM ?? 0.6;
-    const cx = (min[0] + max[0]) / 2;
-    const cz = (min[2] + max[2]) / 2;
-    const dx = 4.5 - cx;
-    const dz = 3.5 - cz;
-    if (Math.abs(dx) / ((max[0] - min[0]) / 2) >= Math.abs(dz) / ((max[2] - min[2]) / 2))
-      return [dx > 0 ? max[0] + r : min[0] - r, 0, cz];
-    return [cx, 0, dz > 0 ? max[2] + r : min[2] - r];
-  }
-  if (a.kind === "xyz") return [a.position[0], 0, a.position[2]];
-  throw new Error(`test helper does not resolve ${a.kind}`);
-}
-
-/** Straight-line stand-in resolver: enough to feed the gate real fixture positions and times. */
-export function resolveForTest(graph: EventGraph, manifest: SceneManifest): ResolvedGraph {
-  const events: ResolvedEvent[] = graph.events.map((e) => {
-    const move = e.action === "walk" || e.action === "run";
-    const from = e.from && anchorPoint(e.from, manifest.landmarks);
-    const to = e.to && anchorPoint(e.to, manifest.landmarks);
-    const at = e.at && anchorPoint(e.at, manifest.landmarks);
-    const path = move && from && to ? [from, to] : [];
-    return {
-      id: e.id,
-      actor: e.actor,
-      action: e.action,
-      tStart: e.t[0],
-      tEnd: e.t[1],
-      status: e.status,
-      flags: [],
-      path,
-      pathLengthM: path.length === 2 ? Math.hypot(to![0] - from![0], to![2] - from![2]) : 0,
-      ...(move && from ? { from } : {}),
-      ...(move && to ? { to } : {}),
-      ...(at ? { at } : {}),
-      ...(e.target ? { target: e.target } : {}),
-      tInferred: false,
-    };
-  });
-  return {
-    sceneId: graph.sceneId,
-    version: graph.version,
-    durationS: Math.max(...events.map((e) => e.tEnd)),
-    actors: graph.actors.map((a) => ({ id: a.id, label: a.label, role: a.role, rig: a.rig })),
-    events,
-    props: [],
-  };
-}
-
 export const ev = (over: Partial<ResolvedEvent> & { id: string }): ResolvedEvent => ({
   actor: "a",
   action: "stand",
@@ -102,6 +41,7 @@ export const ev = (over: Partial<ResolvedEvent> & { id: string }): ResolvedEvent
   flags: [],
   path: [],
   pathLengthM: 0,
+  reachable: true,
   tInferred: false,
   ...over,
 });

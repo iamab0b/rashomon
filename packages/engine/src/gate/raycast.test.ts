@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { boxMesh } from "./testHelpers";
 import { rayTriangle, segmentBlocked } from "./raycast";
-import type { SceneGeom } from "./types";
+import type { SceneGeom } from "../types";
 
 // Unit square in the z = 0 plane, normal +z, split along the (0,0)-(1,1) diagonal.
 const quad: SceneGeom = {

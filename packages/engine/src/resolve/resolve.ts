@@ -175,6 +175,7 @@ export function resolve(
       ...(facing ? { facing: roundVec(facing) } : {}),
       ...(e.target ? { target: e.target } : {}),
       ...(e.prop ? { prop: e.prop } : {}),
+      ...(e.sources[0] ? { segmentId: e.sources[0] } : {}),
       tInferred: t.tInferred,
     };
   });

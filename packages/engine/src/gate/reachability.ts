@@ -1,6 +1,6 @@
-import type { SceneManifest } from "@rashomon/schema";
+import type { Portals, SceneManifest } from "@rashomon/schema";
 import type { ResolvedGraph, Vec3 } from "../types";
-import type { Flag, Portals } from "./types";
+import type { GateFlag } from "../types";
 
 type Box = { min: Vec3; max: Vec3 };
 type P = { x: number; z: number };
@@ -74,24 +74,28 @@ export function hasRoute(a: Vec3, b: Vec3, portals: Portals, obstacles: Box[]): 
 }
 
 /**
- * Hard flag for each event whose from and to points have no route through
- * the manifest's portals. Without a `portals` field there is nothing to
- * check against, so no flags are produced.
+ * Hard flag for each event that cannot get from its `from` to its `to`: the
+ * resolver marked it `reachable: false`, or its endpoints have no route
+ * through the manifest's portals. Without a `portals` field only the
+ * resolver's mark is used.
  */
-export function reachabilityFlags(resolved: ResolvedGraph, manifest: SceneManifest): Flag[] {
-  const portals = (manifest as { portals?: Portals }).portals;
-  if (!portals) return [];
+export function reachabilityFlags(resolved: ResolvedGraph, manifest: SceneManifest): GateFlag[] {
+  const portals = manifest.portals;
   const obstacles = manifest.landmarks.filter((l) => l.occludes).map((l) => l.bounds);
-  const flags: Flag[] = [];
+  const flags: GateFlag[] = [];
   for (const e of resolved.events) {
-    if (e.status === "superseded" || !e.from || !e.to) continue;
-    if (hasRoute(e.from, e.to, portals, obstacles)) continue;
-    const straight = Math.hypot(e.to[0] - e.from[0], e.to[2] - e.from[2]);
+    if (e.status === "superseded") continue;
+    const routed = portals && e.from && e.to ? hasRoute(e.from, e.to, portals, obstacles) : true;
+    if (e.reachable !== false && routed) continue;
+    const where =
+      e.from && e.to
+        ? `from (${e.from[0].toFixed(1)}, ${e.from[2].toFixed(1)}) to (${e.to[0].toFixed(1)}, ${e.to[2].toFixed(1)}), ${Math.hypot(e.to[0] - e.from[0], e.to[2] - e.from[2]).toFixed(1)} m apart in a straight line`
+        : "between its endpoints";
     flags.push({
       kind: "reachability",
       severity: "hard",
       eventIds: [e.id],
-      message: `${e.actor} has no walkable route from (${e.from[0].toFixed(1)}, ${e.from[2].toFixed(1)}) to (${e.to[0].toFixed(1)}, ${e.to[2].toFixed(1)}), ${straight.toFixed(1)} m apart in a straight line, once furniture is kept ${MARGIN_M} m clear.`,
+      message: `${e.actor} has no walkable route ${where}, with furniture kept ${MARGIN_M} m clear.`,
     });
   }
   return flags;

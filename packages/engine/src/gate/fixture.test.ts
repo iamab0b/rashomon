@@ -4,14 +4,15 @@ import robberyJson from "../../../schema/fixtures/robbery.graph.json";
 import storeJson from "../../../schema/fixtures/store.scene.json";
 import { gate } from "./index";
 import { segmentBlocked } from "./raycast";
-import { floorPlanGeom, resolveForTest } from "./testHelpers";
+import { resolve } from "../resolve/resolve";
+import { floorPlanGeom } from "./testHelpers";
 
 const store = storeJson as unknown as SceneManifest;
 const robbery = robberyJson as unknown as EventGraph;
 const geom = floorPlanGeom();
-const resolved = resolveForTest(robbery, store);
+const resolved = resolve(robbery, store);
 
-describe("robbery fixture through the gate", () => {
+describe("resolve() then gate() on the robbery fixture", () => {
   const out = gate(resolved, store, geom);
 
   test("e5 is implausible with a sightline flag naming shelf_a; everything else is plausible", () => {
@@ -22,6 +23,18 @@ describe("robbery fixture through the gate", () => {
     expect(flag[0]).toMatchObject({ kind: "sightline", severity: "hard" });
     expect(flag[0]!.message).toContain("shelf_a");
     expect(out.flags).toHaveLength(1);
+  });
+
+  test("reachability is clean for every event using the real portals", () => {
+    expect(store.portals?.waypoints.length).toBeGreaterThan(0);
+    expect(resolved.events.every((e) => e.reachable)).toBe(true);
+    expect(out.flags.filter((f) => f.kind === "reachability")).toEqual([]);
+  });
+
+  test("the resolver copies each event's first source as segmentId", () => {
+    expect(resolved.events.map((e) => [e.id, e.segmentId])).toEqual(
+      robbery.events.map((e) => [e.id, e.sources[0]]),
+    );
   });
 
   test("matches expectedAfterGate in the fixture", () => {
@@ -53,6 +66,7 @@ describe("robbery fixture through the gate", () => {
       tEnd: 11,
       path: [aisle, window],
       pathLengthM: Math.hypot(3, 2.5),
+      reachable: true,
       from: aisle,
       to: window,
       at: undefined,

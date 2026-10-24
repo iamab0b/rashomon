@@ -1,7 +1,7 @@
 import type { ResolvedGraph } from "../types";
 import { actorPositionAt } from "./positions";
 import { segmentBlocked } from "./raycast";
-import type { Flag, SceneGeom } from "./types";
+import type { GateFlag, SceneGeom } from "../types";
 
 export const EYE_HEIGHT_M = 1.6;
 export const CHEST_HEIGHT_M = 1.2;
@@ -11,8 +11,8 @@ export const CHEST_HEIGHT_M = 1.2;
  * target that is an actor is tested at the middle of its interval: eye of the
  * looker to chest of the target.
  */
-export function sightlineFlags(resolved: ResolvedGraph, geom: SceneGeom): Flag[] {
-  const flags: Flag[] = [];
+export function sightlineFlags(resolved: ResolvedGraph, geom: SceneGeom): GateFlag[] {
+  const flags: GateFlag[] = [];
   for (const e of resolved.events) {
     if (e.action !== "look" || !e.target || e.status === "superseded") continue;
     if (e.target === e.actor || !resolved.actors.some((a) => a.id === e.target)) continue;

@@ -1,14 +1,14 @@
 import type { ResolvedGraph } from "../types";
 import { endPoint, startPoint } from "./positions";
-import type { Flag } from "./types";
+import type { GateFlag } from "../types";
 
 /**
  * A resolved event is unanchored when it has no resolved position, or a
  * movement lacks its from or to. The gate only sees resolver output, so an
  * anchor the resolver filled in from the actor's last position counts as present.
  */
-export function unanchoredFlags(resolved: ResolvedGraph): Flag[] {
-  const flags: Flag[] = [];
+export function unanchoredFlags(resolved: ResolvedGraph): GateFlag[] {
+  const flags: GateFlag[] = [];
   for (const e of resolved.events) {
     if (e.status === "superseded") continue;
     const movement = e.action === "walk" || e.action === "run";
@@ -29,7 +29,7 @@ export function unanchoredFlags(resolved: ResolvedGraph): Flag[] {
 }
 
 /** Events whose interval was inferred by the resolver rather than stated. */
-export function missingTimeFlags(resolved: ResolvedGraph): Flag[] {
+export function missingTimeFlags(resolved: ResolvedGraph): GateFlag[] {
   return resolved.events
     .filter((e) => e.tInferred && e.status !== "superseded")
     .map((e) => ({

@@ -75,6 +75,7 @@
         0,
         2.5
       ],
+      "segmentId": "utt_2",
       "tInferred": false
     },
     {
@@ -98,6 +99,7 @@
         0,
         2.5
       ],
+      "segmentId": "utt_2",
       "tInferred": false
     },
     {
@@ -121,6 +123,7 @@
         0,
         3.3
       ],
+      "segmentId": "utt_1",
       "tInferred": false
     },
     {
@@ -140,6 +143,7 @@
         2.5
       ],
       "target": "clerk",
+      "segmentId": "utt_3",
       "tInferred": false
     },
     {
@@ -159,6 +163,7 @@
         3.5
       ],
       "target": "suspect",
+      "segmentId": "utt_6",
       "tInferred": false
     },
     {
@@ -178,6 +183,7 @@
         2.5
       ],
       "prop": "p_knife",
+      "segmentId": "utt_5",
       "tInferred": false
     },
     {
@@ -197,6 +203,7 @@
         2.5
       ],
       "target": "clerk",
+      "segmentId": "utt_8",
       "tInferred": false
     },
     {
@@ -215,6 +222,7 @@
         0,
         2.5
       ],
+      "segmentId": "utt_8",
       "tInferred": false
     },
     {
@@ -233,6 +241,7 @@
         0,
         3.5
       ],
+      "segmentId": "utt_9",
       "tInferred": false
     },
     {
@@ -272,6 +281,7 @@
         0,
         0.4
       ],
+      "segmentId": "utt_10",
       "tInferred": false
     }
   ],

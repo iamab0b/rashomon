@@ -1,5 +1,5 @@
 import type { Vec3 } from "../types";
-import type { SceneGeom } from "./types";
+import type { SceneGeom } from "../types";
 
 export type RayHit = {
   meshId: string;

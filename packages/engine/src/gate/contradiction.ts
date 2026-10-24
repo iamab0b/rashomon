@@ -1,7 +1,7 @@
 import type { SceneManifest } from "@rashomon/schema";
 import type { ResolvedGraph, Vec3 } from "../types";
 import { dist, eventPositionAt } from "./positions";
-import type { Flag } from "./types";
+import type { GateFlag } from "../types";
 
 export const CONTRADICTION_DISTANCE_M = 2;
 
@@ -22,17 +22,18 @@ function nearestLandmark(p: Vec3, manifest: SceneManifest): string {
 
 /**
  * Same actor, two events whose intervals overlap, positioned more than 2 m
- * apart at the middle of the overlap. ResolvedEvent carries no segment or
- * witness id, so every pair of events is compared, not only cross-segment ones.
+ * apart at the middle of the overlap. Events from the same source segment
+ * are not compared with each other; events with no segment id are compared with all.
  */
-export function contradictionFlags(resolved: ResolvedGraph, manifest: SceneManifest): Flag[] {
-  const flags: Flag[] = [];
+export function contradictionFlags(resolved: ResolvedGraph, manifest: SceneManifest): GateFlag[] {
+  const flags: GateFlag[] = [];
   const live = resolved.events.filter((e) => e.status !== "superseded");
   for (let i = 0; i < live.length; i++) {
     for (let j = i + 1; j < live.length; j++) {
       const a = live[i]!;
       const b = live[j]!;
       if (a.actor !== b.actor) continue;
+      if (a.segmentId !== undefined && a.segmentId === b.segmentId) continue;
       const lo = Math.max(a.tStart, b.tStart);
       const hi = Math.min(a.tEnd, b.tEnd);
       if (hi - lo <= 0) continue;

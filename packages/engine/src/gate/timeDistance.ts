@@ -1,6 +1,6 @@
 import type { ResolvedEvent, ResolvedGraph } from "../types";
 import { dist, endPoint, startPoint } from "./positions";
-import type { Flag } from "./types";
+import type { GateFlag } from "../types";
 
 export const WALK_MAX_MS = 2;
 export const RUN_MAX_MS = 6;
@@ -24,8 +24,8 @@ const limitFor = (action: string, severity: "hard" | "soft"): number =>
  * event's start over the gap between them. Overlapping events are skipped
  * here; the contradiction rule covers those.
  */
-export function timeDistanceFlags(resolved: ResolvedGraph): Flag[] {
-  const flags: Flag[] = [];
+export function timeDistanceFlags(resolved: ResolvedGraph): GateFlag[] {
+  const flags: GateFlag[] = [];
   const speedFlag = (
     e: ResolvedEvent,
     ids: string[],

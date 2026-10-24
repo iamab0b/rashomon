@@ -5,9 +5,8 @@ import { missingTimeFlags, unanchoredFlags } from "./completeness";
 import { reachabilityFlags } from "./reachability";
 import { sightlineFlags } from "./sightline";
 import { timeDistanceFlags } from "./timeDistance";
-import type { Flag, GateOutput, SceneGeom } from "./types";
+import type { GateFlag, GateOutput, SceneGeom } from "../types";
 
-export type * from "./types";
 export { segmentBlocked, rayTriangle } from "./raycast";
 export type { RayHit } from "./raycast";
 
@@ -23,7 +22,7 @@ export function gate(
   manifest: SceneManifest,
   geom: SceneGeom,
 ): GateOutput {
-  const flags: Flag[] = [
+  const flags: GateFlag[] = [
     ...sightlineFlags(resolved, geom),
     ...reachabilityFlags(resolved, manifest),
     ...timeDistanceFlags(resolved),
