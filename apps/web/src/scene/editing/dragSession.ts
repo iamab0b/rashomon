@@ -6,12 +6,15 @@ export type DragSession = {
   cancel: () => boolean;
   end: () => DragPoint | null;
   active: () => boolean;
+  requestReset: () => boolean;
+  takePendingReset: () => boolean;
 };
 
 export function createDragSession(): DragSession {
   let running = false;
   let cancelled = false;
   let last: DragPoint | null = null;
+  let pendingReset = false;
   return {
     start() {
       running = true;
@@ -34,5 +37,15 @@ export function createDragSession(): DragSession {
       return dropped;
     },
     active: () => running && !cancelled,
+    requestReset() {
+      if (!running) return true;
+      pendingReset = true;
+      return false;
+    },
+    takePendingReset() {
+      const pending = pendingReset;
+      pendingReset = false;
+      return pending;
+    },
   };
 }

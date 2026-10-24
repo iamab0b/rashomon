@@ -26,10 +26,12 @@ function Gizmo({ eventId, field, home, manifest }: GizmoProps) {
   const homeMatrix = useMemo(() => new Matrix4().makeTranslation(home[0], home[1], home[2]), [home]);
   const [matrix, setMatrix] = useState(homeMatrix);
   const session = useRef(createDragSession()).current;
+  const latestHome = useRef(homeMatrix);
+  latestHome.current = homeMatrix;
 
   useEffect(() => {
-    setMatrix(homeMatrix);
-  }, [homeMatrix, errorEpoch]);
+    if (session.requestReset()) setMatrix(homeMatrix);
+  }, [session, homeMatrix, errorEpoch]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -57,8 +59,9 @@ function Gizmo({ eventId, field, home, manifest }: GizmoProps) {
       }}
       onDragEnd={() => {
         const dropped = session.end();
+        const deferred = session.takePendingReset();
         if (!dropped) {
-          setMatrix(homeMatrix);
+          setMatrix(latestHome.current);
           return;
         }
         const outcome = commitDrop({ id: eventId, field }, dropped, {
@@ -67,7 +70,7 @@ function Gizmo({ eventId, field, home, manifest }: GizmoProps) {
           applyPatches,
           setActionError,
         });
-        if (outcome.kind !== "sent") setMatrix(homeMatrix);
+        if (outcome.kind !== "sent" || deferred) setMatrix(latestHome.current);
       }}
     />
   );

@@ -68,11 +68,6 @@ export function buildRows(resolved: ResolvedGraph | null, statuses: StatusMap): 
   return [...rows, { id: "props", label: "props", blocks: propBlocks, hidden: 0 }];
 }
 
-export function topBlockAt(row: Row, t: number): Block | null {
-  const covering = row.blocks.filter((block) => block.id !== null && block.tStart <= t && t <= block.tEnd);
-  return covering.at(-1) ?? null;
-}
-
 export function xOf(t: number, duration: number): number {
   return LABEL_W + (duration > 0 ? (Math.min(Math.max(t, 0), duration) / duration) * TRACK_W : 0);
 }

@@ -26,7 +26,7 @@ Only edit files in your worktree's folders. If you need something from another f
 
 ## Public exports (what `apps/web/src/ui` is allowed to import)
 
-`<Scene fixture?: string />`, `<Timeline />`, `useGraph()`, `useSelection()`, `useCamera()`, `useTimeline()` from `src/scene/index.ts`. Nothing else is imported from `scene/` internals.
+`<Scene fixture?: string />`, `Timeline` (a component the app mounts itself), `useGraph()`, `useSelection()`, `useCamera()`, `useTimeline()` from `src/scene/index.ts`. Nothing else is imported from `scene/` internals.
 
 ## Playback model
 

@@ -1,10 +1,12 @@
 import { robberyGraph, storeScene } from "@rashomon/schema/fixtures";
+import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { gatedSnapshot } from "../playback/graphSource";
 import { useSceneStore, type SceneState } from "../store";
 import { Timeline, createDrag, makeJump, makeKeyHandler } from "./Timeline";
-import { buildRows, implausibleStarts, strokeFor, topBlockAt } from "./layout";
+import { callHook, findElement } from "../testing/hookHost";
+import { buildRows, implausibleStarts, strokeFor } from "./layout";
 
 const initial = useSceneStore.getState();
 const pristine = { ...useSceneStore.getInitialState() };
@@ -12,7 +14,7 @@ const pristine = { ...useSceneStore.getInitialState() };
 function renderWith(patch: Partial<SceneState>): string {
   Object.assign(useSceneStore.getInitialState(), patch);
   try {
-    return renderToStaticMarkup(<Timeline />);
+    return renderToStaticMarkup(createElement(Timeline));
   } finally {
     Object.assign(useSceneStore.getInitialState(), pristine);
   }
@@ -96,19 +98,20 @@ describe("nested blocks stay clickable", () => {
     expect(html.indexOf('data-block="e5"')).toBeGreaterThan(html.indexOf('data-block="e3"'));
   });
 
-  test("clicking at e5's position selects e5", () => {
-    const { resolved, statuses } = snap();
-    const witness = buildRows(resolved, statuses).find((r) => r.blocks.some((b) => b.id === "e5"))!;
-    const e5 = witness.blocks.find((b) => b.id === "e5")!;
-    for (const t of [e5.tStart + 0.5, (e5.tStart + e5.tEnd) / 2, e5.tEnd - 0.1]) {
-      const hit = topBlockAt(witness, t);
-      expect(hit?.id, `t=${t}`).toBe("e5");
-      useSceneStore.getState().select(hit!.id!);
-      expect(useSceneStore.getState().selectedEventId).toBe("e5");
+  test("clicking e5's rendered block selects e5, and e3's block selects e3", () => {
+    const tree = callHook(() => Timeline({}));
+    const blockOf = (id: string) => findElement(tree, (props) => props["data-block"] === id);
+    for (const id of ["e5", "e3", "e9"]) {
+      const block = blockOf(id);
+      expect(block, id).not.toBeNull();
+      const onClick = block!.props as { onClick: () => void };
+      onClick.onClick();
+      expect(useSceneStore.getState().selectedEventId).toBe(id);
       useSceneStore.getState().clear();
     }
-    expect(topBlockAt(witness, 3)?.id).toBe("e3");
-    expect(topBlockAt(witness, 100)).toBeNull();
+    expect(blockOf("p_knife:0")).not.toBeNull();
+    (blockOf("p_knife:0")!.props as { onClick: () => void }).onClick();
+    expect(useSceneStore.getState().selectedEventId).toBeNull();
   });
 });
 

@@ -19,7 +19,6 @@ import { Playhead } from "./playback/Playhead";
 import { selectSource } from "./playback/selectSource";
 import { useGraphSource } from "./playback/useGraph";
 import { useSceneStore } from "./store";
-import { Timeline } from "./timeline";
 import { useSceneKeys } from "./useSceneKeys";
 
 const BACKGROUND = "#0b0d10";
@@ -38,16 +37,6 @@ export type SceneProps = {
 };
 
 const RIG_DEBUG = "rig";
-
-const TIMELINE_SLOT = {
-  position: "absolute",
-  left: 12,
-  right: 12,
-  bottom: 12,
-  zIndex: 30,
-  borderRadius: 6,
-  overflow: "hidden",
-} as const;
 
 function useLoadedScene(fixture: string | undefined): LoadedScene | null {
   const [loaded, setLoaded] = useState<LoadedScene | null>(null);
@@ -171,11 +160,6 @@ export function Scene({ fixture, debug, t }: SceneProps) {
       </Canvas>
       {loaded ? <LabelLayer landmarks={loaded.manifest.landmarks} /> : null}
       {isRigDebug ? <RigReportPanel /> : null}
-      {hasGraph ? (
-        <div style={TIMELINE_SLOT}>
-          <Timeline />
-        </div>
-      ) : null}
       <DebugOverlay />
     </div>
   );

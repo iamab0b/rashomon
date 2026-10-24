@@ -1,5 +1,5 @@
 import type { ResolvedGraph } from "@rashomon/engine";
-import type { Status } from "@rashomon/schema";
+import type { EventGraph, Status } from "@rashomon/schema";
 import { create } from "zustand";
 import type { CameraPreset } from "./cameras/presets";
 import type { GraphSource } from "./playback/graphSource";
@@ -11,6 +11,7 @@ export type StatusMap = Readonly<Record<string, Status>>;
 export type GraphSnapshot = {
   readonly resolved: ResolvedGraph | null;
   readonly statuses: StatusMap;
+  readonly graph?: EventGraph | null;
 };
 
 export const DEFAULT_SPEED = 1;
@@ -34,6 +35,7 @@ export type SceneState = {
   duration: number;
   resolved: ResolvedGraph | null;
   statuses: StatusMap;
+  graph: EventGraph | null;
   graphSource: GraphSource | null;
   connectionError: string | null;
   actionError: string | null;
@@ -104,6 +106,7 @@ export const useSceneStore = create<SceneState>((set) => ({
   duration: 0,
   resolved: null,
   statuses: EMPTY_STATUSES,
+  graph: null,
   graphSource: null,
   connectionError: null,
   actionError: null,
@@ -130,17 +133,19 @@ export const useSceneStore = create<SceneState>((set) => ({
       return {
         resolved,
         statuses: EMPTY_STATUSES,
+        graph: null,
         duration,
         t: clampT(state.t, duration),
         selectedEventId: survivingSelection(state.selectedEventId, resolved),
       };
     }),
-  setGraph: ({ resolved, statuses }) =>
+  setGraph: ({ resolved, statuses, graph }) =>
     set((state) => {
       const duration = durationOf(resolved);
       return {
         resolved,
         statuses,
+        graph: graph ?? null,
         duration,
         t: clampT(state.t, duration),
         selectedEventId: survivingSelection(state.selectedEventId, resolved),

@@ -362,4 +362,65 @@ describe("live GraphSource applying patches", () => {
     fake.current().onRow(robberyRow("plausible", 2));
     expect(useSceneStore.getState().actionError).toBeNull();
   });
+
+  it("a second call while one is pending throws and sends nothing, until the next row clears it", () => {
+    const fake = fakeConnector();
+    fake.applyPatches.mockReturnValueOnce(new Promise<void>(() => undefined));
+    const source = liveGraphSource(DEFAULT_LIVE_OPTIONS, fake.connect);
+    source.subscribe(() => undefined);
+    fake.current().onRow(robberyRow("implausible", 1));
+
+    source.apply([MOVE_E5]);
+    expect(() => source.apply([MOVE_E5])).toThrow("a change is still being applied; try again in a moment");
+    expect(fake.applyPatches).toHaveBeenCalledTimes(1);
+
+    fake.current().onRow(robberyRow("plausible", 2));
+    source.apply([MOVE_E5]);
+    expect(fake.applyPatches).toHaveBeenCalledTimes(2);
+    expect(fake.applyPatches).toHaveBeenLastCalledWith(2, JSON.stringify([MOVE_E5]));
+  });
+
+  it("a rejection clears the guard so the next drop goes through", async () => {
+    const fake = fakeConnector();
+    fake.applyPatches.mockRejectedValueOnce(new Error("stale baseVersion 1; the graph is at version 2"));
+    const source = liveGraphSource(DEFAULT_LIVE_OPTIONS, fake.connect);
+    source.subscribe(() => undefined);
+    fake.current().onRow(robberyRow("implausible", 1));
+
+    source.apply([MOVE_E5]);
+    expect(() => source.apply([MOVE_E5])).toThrow(/still being applied/);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(source.actionError).toMatch(/stale baseVersion/);
+    expect(() => source.apply([MOVE_E5])).not.toThrow();
+    expect(fake.applyPatches).toHaveBeenCalledTimes(2);
+  });
+
+  it("a call the server accepted without a new row does not leave the guard stuck", async () => {
+    const fake = fakeConnector();
+    const source = liveGraphSource(DEFAULT_LIVE_OPTIONS, fake.connect);
+    source.subscribe(() => undefined);
+    fake.current().onRow(robberyRow("implausible", 1));
+
+    source.apply([MOVE_E5]);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(() => source.apply([MOVE_E5])).not.toThrow();
+  });
+
+  it("the guard does not outlive the connection", () => {
+    const fake = fakeConnector();
+    fake.applyPatches.mockReturnValue(new Promise<void>(() => undefined));
+    const source = liveGraphSource(DEFAULT_LIVE_OPTIONS, fake.connect);
+    const unsubscribe = source.subscribe(() => undefined);
+    fake.current().onRow(robberyRow("implausible", 1));
+    source.apply([MOVE_E5]);
+    unsubscribe();
+
+    source.subscribe(() => undefined);
+    fake.current().onRow(robberyRow("implausible", 3));
+    expect(() => source.apply([MOVE_E5])).not.toThrow();
+  });
 });
