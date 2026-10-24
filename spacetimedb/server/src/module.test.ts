@@ -765,6 +765,26 @@ describe("the module judges its own writes", () => {
     expect(eventRow("e5")?.status).toBe("overridden");
   });
 
+  test("a batch may add an event before the actor it names, and an override in between is judged", () => {
+    robbery();
+    const { id: _i, status: _s, flags: _f, ...event } = robberyGraph.events[0]!;
+    const batch = (withActor: boolean): Patch[] => [
+      { op: "add_event", event: { ...event, actor: "lookout" } },
+      { op: "update_event", id: "e5", changes: { confidence: 0.6 }, sources: ["utt_12"] },
+      { op: "override", id: "e5", reason: "witness later confirmed the view", by: "u1" },
+      ...(withActor ? [{ op: "add_actor", actor: { id: "lookout", label: "Lookout", role: "other", rig: "mixamo_ybot" } } as Patch] : []),
+    ];
+    const eventsBefore = [...h.db.events.iter()];
+    expect(() => apply(batch(false), 1)).toThrow(/unknown actor lookout/);
+    expect(graph().version).toBe(1);
+    expect([...h.db.events.iter()]).toEqual(eventsBefore);
+    expect(h.db.overrides.rowKey.find(`${SESSION}/e5`)).toBeNull();
+    apply(batch(true), 1);
+    expect(graph().version).toBe(2);
+    expect(eventRow("e5")?.status).toBe("overridden");
+    expect(graph().events.find((e) => e.id === "e11")?.actor).toBe("lookout");
+  });
+
   test("a resolve failure on a between anchor with an unknown landmark rolls the whole batch back", () => {
     robbery();
     const eventsBefore = [...h.db.events.iter()];

@@ -322,7 +322,6 @@ export const applyPatches = spacetimedb.reducer(
     for (const patch of patches) {
       if (isRecord(patch)) {
         if (patch.op === "override" && typeof patch.id === "string" && touched.has(patch.id)) {
-          checkReferences(ctx, sessionId);
           regate(ctx, sessionId);
         }
         if (patch.op === "update_event" || patch.op === "retract_event") {
