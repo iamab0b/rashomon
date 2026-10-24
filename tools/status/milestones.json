@@ -10,7 +10,7 @@
         {"hours": "0-3", "goal": "Resolver on the fixture: positions, portals path, robbery.resolved.json committed", "signals": ["packages/engine/src/resolve/*.ts", "packages/schema/fixtures/robbery.resolved.json"]},
         {"hours": "2-5", "goal": "Mixamo rigs and clips load, bind by bone name, blend from timeline t", "signals": ["apps/web/src/scene/characters/*.ts*"]},
         {"hours": "3-6", "goal": "Plausibility gate on main: sightline, time-distance, reachability, contradiction; e5 implausible on the fixture", "signals": ["packages/engine/src/gate/*.ts"]},
-        {"hours": "5-8", "goal": "Playback of the resolved fixture in the store: actors walk the path, scrub both ways, statuses rendered", "signals": ["apps/web/src/scene/playback/*.ts*"]},
+        {"hours": "5-8", "goal": "Playback of the resolved fixture in the store: actors walk the path, scrub both ways, statuses rendered", "signals": ["apps/web/src/scene/playback/useGraph.ts"]},
         {"hours": "8-14", "goal": "SpacetimeDB module published: tables, insertSegment, applyPatches, override, setStatuses, graphForScene view; live adapter in the scene", "signals": ["spacetimedb/server/src/*.ts"]},
         {"hours": "14-20", "goal": "POV camera and sightline ray, override wired to the gate, one drag-to-edit move emits a patch", "signals": []},
         {"hours": "20-24", "goal": "Freeze: demo-v1 tag, fixture mode and live mode both demo the e5 correction", "signals": []}

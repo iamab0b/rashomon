@@ -1,6 +1,6 @@
 {
   "B": [
-    {"id": "gate-on-main", "due": "3-6", "todo": "Merge PR #3 (engine-gate) so gate() in packages/engine/src/index.ts is real, not the stub", "grep": "export \\{ gate \\}|export function gate|export const gate", "paths": ["packages/engine/src/index.ts"]},
+    {"id": "gate-on-main", "due": "3-6", "todo": "Merge PR #3 (engine-gate) so gate() in packages/engine/src/index.ts is real, not the stub", "grep": "from \"\\./gate\"", "paths": ["packages/engine/src/index.ts"]},
     {"id": "spacetime-module", "due": "8-14", "todo": "Publish the SpacetimeDB module with tables and reducers; Eric's procedure lands on top of it", "grep": "reducer|@reducer|Reducer", "paths": ["spacetimedb"]},
     {"id": "resolved-fixture-exported", "due": "0-3", "todo": "robbery.resolved.json exported from @rashomon/schema/fixtures for the timeline and extractor tests", "grep": "robberyResolved", "paths": ["packages/schema"]}
   ],
