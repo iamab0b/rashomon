@@ -1,6 +1,6 @@
 import type { ResolvedEvent, ResolvedGraph, Vec3 } from "@rashomon/engine";
 import type { Action } from "@rashomon/schema";
-import { robberyGraph, robberyResolved } from "@rashomon/schema/fixtures";
+import { robberyResolved } from "@rashomon/schema/fixtures";
 import { describe, expect, test } from "vitest";
 import {
   actorPosition,
@@ -15,11 +15,12 @@ import {
   type ActorPlayback,
   type PositionLookup,
 } from "./actorPose";
-import { expectedStatuses } from "./graphSource";
+import { robberyGatedSnapshot } from "./graphSource";
 import { statusOf } from "./useGraph";
 
-const resolved = robberyResolved as unknown as ResolvedGraph;
-const statuses = expectedStatuses(robberyGraph);
+const snapshot = robberyGatedSnapshot();
+const resolved = snapshot.resolved as ResolvedGraph;
+const statuses = snapshot.statuses;
 const lookup = (event: ResolvedEvent) => statusOf(statuses, event);
 
 const playbacks = new Map(resolved.actors.map((actor) => [actor.id, buildActorPlayback(resolved, actor.id, lookup)]));
@@ -80,13 +81,13 @@ function graphOf(events: ResolvedEvent[]): ResolvedGraph {
 }
 
 describe("fixture statuses", () => {
-  test("come from robberyGraph.expectedAfterGate, e5 implausible and the rest plausible", () => {
+  test("come from the real gate, e5 implausible and the rest plausible", () => {
     expect(statuses.e5).toBe("implausible");
     expect(Object.entries(statuses).filter(([, status]) => status !== "plausible")).toEqual([["e5", "implausible"]]);
   });
 
   test("the resolved file's own status is only the fallback", () => {
-    const e1 = resolved.events.find((candidate) => candidate.id === "e1");
+    const e1 = (robberyResolved as unknown as ResolvedGraph).events.find((candidate) => candidate.id === "e1");
     if (!e1) throw new Error("no e1");
     expect(e1.status).toBe("proposed");
     expect(statusOf(statuses, e1)).toBe("plausible");
@@ -313,5 +314,34 @@ describe("hold uses from ?? at (review fix 4)", () => {
     const g = graphOf([event("m", "a", "stand", 0, 5, { at: [9, 0, 0] })]);
 
     closeTo(actorPosition(buildActorPlayback(g, "a", (e) => e.status), 8), [9, 0, 0]);
+  });
+});
+
+describe("position fallback when the latest-ending event has no position", () => {
+  test("a positionless speak after a walk holds at the walk's end", () => {
+    const g = graphOf([
+      event("walk", "a", "walk", 0, 10, { path: [[0, 0, 0], [10, 0, 0]], from: [0, 0, 0], to: [10, 0, 0] }),
+      event("speak", "a", "speak", 12, 13),
+    ]);
+    const a = buildActorPlayback(g, "a", (e) => e.status);
+
+    closeTo(actorPosition(a, 14), [10, 0, 0]);
+    closeTo(actorPosition(a, 12.5), [10, 0, 0]);
+  });
+
+  test("falls back through several positionless events to the most recent one with a position", () => {
+    const g = graphOf([
+      event("stand", "a", "stand", 0, 4, { at: [2, 0, 2] }),
+      event("x", "a", "speak", 5, 6),
+      event("y", "a", "look", 7, 8),
+    ]);
+
+    closeTo(actorPosition(buildActorPlayback(g, "a", (e) => e.status), 20), [2, 0, 2]);
+  });
+
+  test("with no positioned event at all it uses the actor's rest position", () => {
+    const g = graphOf([event("x", "b", "speak", 5, 6)]);
+
+    closeTo(actorPosition(buildActorPlayback(g, "b", (e) => e.status), 8), [5, 0, 5]);
   });
 });

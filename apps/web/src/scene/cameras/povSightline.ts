@@ -1,4 +1,5 @@
 import type { ResolvedEvent, ResolvedGraph, Vec3 } from "@rashomon/engine";
+import type { Flag } from "@rashomon/schema";
 import { actorYaw } from "../playback/actorPose";
 import { playbacksFor } from "../playback/playbacks";
 import { statusOf } from "../playback/useGraph";
@@ -75,4 +76,42 @@ export function getPovSightline(): PovSightline | null {
   const actorId = followedActorId(state);
   if (!actorId || !state.resolved) return null;
   return povSightline(state.resolved, state.statuses, actorId, state.t);
+}
+
+export type PovRay = {
+  readonly eventId: string;
+  readonly blocked: boolean;
+  readonly blocker: string | null;
+  readonly from: Vec3;
+  readonly to: Vec3;
+};
+
+function blockedRay(sightline: PovSightline, flag: Flag): PovRay {
+  const distance = Number(flag.evidence.blockerDistanceM);
+  const length = Number(flag.evidence.rayLengthM);
+  const along = Number.isFinite(distance) && Number.isFinite(length) && length > 0 ? Math.min(distance / length, 1) : 1;
+  const to: Vec3 = [
+    sightline.eye[0] + (sightline.target[0] - sightline.eye[0]) * along,
+    sightline.eye[1] + (sightline.target[1] - sightline.eye[1]) * along,
+    sightline.eye[2] + (sightline.target[2] - sightline.eye[2]) * along,
+  ];
+  const blocker = typeof flag.evidence.blocker === "string" ? flag.evidence.blocker : null;
+  return { eventId: flag.eventId, blocked: true, blocker, from: sightline.eye, to };
+}
+
+export function povRay(resolved: ResolvedGraph, sightline: PovSightline | null): PovRay | null {
+  if (!sightline?.eventId) return null;
+  const event = resolved.events.find((candidate) => candidate.id === sightline.eventId);
+  if (!event || event.action !== "look" || !event.target) return null;
+  const flag = event.flags.find((candidate) => candidate.check === "sightline");
+  if (flag) return blockedRay(sightline, flag);
+  return { eventId: event.id, blocked: false, blocker: null, from: sightline.eye, to: sightline.target };
+}
+
+export function currentPovRay(): PovRay | null {
+  const state = useSceneStore.getState();
+  if (!state.resolved) return null;
+  const actorId = povActorId(state.resolved, state.povActor);
+  if (!actorId) return null;
+  return povRay(state.resolved, povSightline(state.resolved, state.statuses, actorId, state.t));
 }
