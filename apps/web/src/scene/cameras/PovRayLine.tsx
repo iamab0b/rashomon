@@ -1,6 +1,8 @@
 import { useFrame } from "@react-three/fiber";
 import { useRef } from "react";
 import { MeshBasicMaterial, Quaternion, Vector3, type Mesh } from "three";
+import { useSceneStore } from "../store";
+import { dimForWitness, eventWitnessHidden } from "../playback/witnessLayers";
 import { currentPovRay } from "./povSightline";
 
 const BLOCKED_COLOR = "#ff3b30";
@@ -14,6 +16,11 @@ const from = new Vector3();
 const to = new Vector3();
 const delta = new Vector3();
 const aim = new Quaternion();
+
+export function applyRayOpacity(hidden: boolean, beam: MeshBasicMaterial, hit: MeshBasicMaterial | undefined): void {
+  dimForWitness(beam, hidden);
+  if (hit) dimForWitness(hit, hidden);
+}
 
 export function PovRayLine() {
   const beam = useRef<Mesh>(null);
@@ -34,7 +41,10 @@ export function PovRayLine() {
     node.position.copy(from).addScaledVector(delta, 0.5);
     node.quaternion.copy(aim.setFromUnitVectors(UP, delta.divideScalar(length || 1)));
     node.scale.set(1, length, 1);
-    (node.material as MeshBasicMaterial).color.set(ray.blocked ? BLOCKED_COLOR : CLEAR_COLOR);
+    const material = node.material as MeshBasicMaterial;
+    material.color.set(ray.blocked ? BLOCKED_COLOR : CLEAR_COLOR);
+    const state = useSceneStore.getState();
+    applyRayOpacity(eventWitnessHidden(state.resolved, state.hiddenWitnesses, ray.eventId), material, hit.current?.material as MeshBasicMaterial | undefined);
     hit.current?.position.copy(to);
   });
 

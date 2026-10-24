@@ -29,10 +29,18 @@ export function contradictionFlags(resolved: ResolvedGraph, manifest: SceneManif
       if (d <= CONTRADICTION_DISTANCE_M) continue;
       const la = nearestLabel(pa, manifest);
       const lb = nearestLabel(pb, manifest);
-      const who = spokenActor(resolved, a.actor);
-      const said = who === "you" ? "you were" : `${who} was`;
       const detail = `${a.actor} is placed by the ${la} (${a.id}) and by the ${lb} (${b.id}), ${d.toFixed(1)} m apart, at t=${t.toFixed(1)}s.`;
       const evidence = { distanceM: Number(d.toFixed(2)), atTimeS: Number(t.toFixed(2)) };
+      const question = (own: ResolvedEvent, ownLabel: string, otherLabel: string): string => {
+        const who = spokenActor(resolved, own.actor, own.witnessId);
+        if (a.witnessId === b.witnessId) {
+          const said = who === "you" ? "you were" : `${who} was`;
+          return `Earlier you said ${said} by the ${ownLabel} around then; now the ${otherLabel}. Which came first?`;
+        }
+        const placed = who === "you" ? "you said you were" : `you placed ${who}`;
+        const where = who === "you" ? "Where were you" : `Where was ${who}`;
+        return `Another witness places ${who} by the ${otherLabel} around then; ${placed} by the ${ownLabel}. ${where}, as you saw it?`;
+      };
       flags.push(
         {
           eventId: a.id,
@@ -41,7 +49,7 @@ export function contradictionFlags(resolved: ResolvedGraph, manifest: SceneManif
           detail,
           evidence,
           conflictsWith: [b.id],
-          suggestedQuestion: `Earlier you said ${said} by the ${la} around then; now the ${lb}. Which came first?`,
+          suggestedQuestion: question(a, la, lb),
         },
         {
           eventId: b.id,
@@ -50,7 +58,7 @@ export function contradictionFlags(resolved: ResolvedGraph, manifest: SceneManif
           detail,
           evidence,
           conflictsWith: [a.id],
-          suggestedQuestion: `Earlier you said ${said} by the ${lb} around then; now the ${la}. Which came first?`,
+          suggestedQuestion: question(b, lb, la),
         },
       );
     }

@@ -98,6 +98,18 @@
       "paths": [
         "spacetimedb/server/src"
       ]
+    },
+    {
+      "id": "cartesia-agent-fixes",
+      "from": "Sahil",
+      "due": "15-18",
+      "todo": "PR #34 before merge: HIGH ask-back and cognitive-interview rules in apps/agent INSTRUCTIONS (one new unasked hard flag at a time, no judging words, answer recorded as a new statement) with tests; back-to-back identical answers not dropped; guard withTx in scene_context and end_interview; earlier-segment cap, 413, resend test name",
+      "doc": "tools/status/requests/cartesia-agent-fixes.md",
+      "grep": "the agent asks each new hard flag once",
+      "paths": [
+        "apps/agent",
+        "spacetimedb/server/src"
+      ]
     }
   ],
   "D": [
@@ -209,6 +221,17 @@
       "grep": "real-size placeholder",
       "paths": [
         "demo"
+      ]
+    },
+    {
+      "id": "statement-section-fixes",
+      "from": "Sahil",
+      "due": "16-18",
+      "todo": "PR #35 before merge: freeze a finished statement's result, include facing/sources/override/props in the change signature, let Escape close the drawer while typing, one test on the real StatementSection",
+      "doc": "tools/status/requests/statement-section-fixes.md",
+      "grep": "key !== \"Escape\"",
+      "paths": [
+        "apps/web/src/ui"
       ]
     }
   ],

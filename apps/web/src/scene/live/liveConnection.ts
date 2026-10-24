@@ -58,6 +58,14 @@ export function loadToken(options: Pick<LiveOptions, "uri" | "databaseName">): s
   }
 }
 
+export function clearToken(options: Pick<LiveOptions, "uri" | "databaseName">): void {
+  try {
+    globalThis.localStorage?.removeItem(tokenKey(options));
+  } catch {
+    return;
+  }
+}
+
 export function saveToken(options: Pick<LiveOptions, "uri" | "databaseName">, token: string): void {
   try {
     globalThis.localStorage?.setItem(tokenKey(options), token);
