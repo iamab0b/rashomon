@@ -30,6 +30,10 @@ export type SceneState = {
   statuses: StatusMap;
   actorsReady: boolean;
   selectedEventId: string | null;
+  povFollow: boolean;
+  povActor: string | null;
+  dimmedActors: ReadonlySet<string>;
+  dimmedMeshes: ReadonlySet<string>;
   setPreset: (preset: CameraPreset) => void;
   toggleDebug: () => void;
   setFps: (fps: number) => void;
@@ -45,7 +49,20 @@ export type SceneState = {
   setActorsReady: (ready: boolean) => void;
   select: (id: string) => void;
   clear: () => void;
+  setPovFollow: (follow: boolean) => void;
+  togglePov: () => void;
+  setPovActor: (actorId: string | null) => void;
+  setDimmedActors: (actorIds: ReadonlySet<string>) => void;
+  setDimmedMeshes: (names: ReadonlySet<string>) => void;
 };
+
+const NO_ACTORS: ReadonlySet<string> = new Set();
+
+function sameMembers(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
+  if (a.size !== b.size) return false;
+  for (const member of a) if (!b.has(member)) return false;
+  return true;
+}
 
 function clampT(t: number, duration: number): number {
   const lower = Number.isFinite(t) ? Math.max(0, t) : 0;
@@ -76,7 +93,11 @@ export const useSceneStore = create<SceneState>((set) => ({
   statuses: EMPTY_STATUSES,
   actorsReady: false,
   selectedEventId: null,
-  setPreset: (preset) => set((state) => ({ preset, poseResetCount: state.poseResetCount + 1 })),
+  povFollow: false,
+  povActor: null,
+  dimmedActors: NO_ACTORS,
+  dimmedMeshes: NO_ACTORS,
+  setPreset: (preset) => set((state) => ({ preset, povFollow: false, poseResetCount: state.poseResetCount + 1 })),
   toggleDebug: () => set((state) => ({ debugVisible: !state.debugVisible })),
   setFps: (fps) => set({ fps }),
   setFloorHit: (floorHit) => set({ floorHit }),
@@ -111,4 +132,13 @@ export const useSceneStore = create<SceneState>((set) => ({
   setActorsReady: (actorsReady) => set({ actorsReady }),
   select: (id) => set((state) => ({ selectedEventId: survivingSelection(id, state.resolved) ?? state.selectedEventId })),
   clear: () => set({ selectedEventId: null }),
+  setPovFollow: (povFollow) =>
+    set((state) => (povFollow ? { povFollow } : { povFollow, poseResetCount: state.poseResetCount + 1 })),
+  togglePov: () =>
+    set((state) => (state.povFollow ? { povFollow: false, poseResetCount: state.poseResetCount + 1 } : { povFollow: true })),
+  setPovActor: (povActor) => set({ povActor }),
+  setDimmedActors: (actorIds) =>
+    set((state) => (sameMembers(state.dimmedActors, actorIds) ? state : { dimmedActors: new Set(actorIds) })),
+  setDimmedMeshes: (names) =>
+    set((state) => (sameMembers(state.dimmedMeshes, names) ? state : { dimmedMeshes: new Set(names) })),
 }));

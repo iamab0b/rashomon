@@ -5,6 +5,8 @@ import { AnimatedCharacter } from "../characters/AnimatedCharacter";
 import type { CharacterHandle } from "../characters/Character";
 import { setOpacity } from "../characters/materials";
 import type { Rig } from "../characters/rigs";
+import { followedActorId } from "../cameras/povSightline";
+import { DIMMED_OPACITY } from "../cameras/visibility";
 import { useSceneStore } from "../store";
 import { actorPosition, actorStatus, actorYaw, type ActorPlayback, type PositionLookup } from "./actorPose";
 
@@ -34,13 +36,15 @@ export function ActorRig({ playback, rig, positionOf, onReady }: Props) {
   useFrame(() => {
     const node = group.current;
     if (!node) return;
-    const { t } = useSceneStore.getState();
+    const state = useSceneStore.getState();
+    const { t } = state;
     const position = actorPosition(playback, t);
-    node.visible = position !== null;
+    node.visible = position !== null && followedActorId(state) !== playback.actorId;
     if (!position) return;
     node.position.set(position[0], position[1], position[2]);
     node.rotation.set(0, actorYaw(playback, t, positionOf), 0);
-    const opacity = actorStatus(playback, t) === "proposed" ? PROPOSED_OPACITY : 1;
+    const statusOpacity = actorStatus(playback, t) === "proposed" ? PROPOSED_OPACITY : 1;
+    const opacity = state.dimmedActors.has(playback.actorId) ? Math.min(statusOpacity, DIMMED_OPACITY) : statusOpacity;
     if (handle && opacity !== appliedOpacity.current) {
       setOpacity(handle.root, opacity);
       appliedOpacity.current = opacity;

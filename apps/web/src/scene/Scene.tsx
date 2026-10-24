@@ -1,6 +1,8 @@
 import { Canvas } from "@react-three/fiber";
 import { useEffect, useMemo, useState } from "react";
 import { CameraRig } from "./cameras/CameraRig";
+import { PovRayLine } from "./cameras/PovRayLine";
+import { WitnessView } from "./cameras/WitnessView";
 import { CAMERA_PRESETS } from "./cameras/presets";
 import { RigDebug } from "./characters/RigDebug";
 import { RigReportPanel } from "./characters/RigReportPanel";
@@ -148,6 +150,8 @@ export function Scene({ fixture, debug, t }: SceneProps) {
             <LandmarkMarkers landmarks={loaded.manifest.landmarks} />
             <LabelProjector landmarks={loaded.manifest.landmarks} occluders={loaded.model} />
             <FloorProbe interior={loaded.manifest.interior} />
+            <WitnessView model={loaded.model} />
+            <PovRayLine />
             {hasGraph ? <Actors /> : null}
             {!hasGraph || actorsReady ? <ReadySignal /> : null}
           </>

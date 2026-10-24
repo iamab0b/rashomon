@@ -79,27 +79,22 @@ function pointAt(playback: ActorPlayback, event: ResolvedEvent, t: number): Vec3
   return getPose(event, t, playback.paths.get(event.id) ?? null)?.position ?? null;
 }
 
-function heldEvent(playback: ActorPlayback, t: number): ResolvedEvent | undefined {
-  let best: ResolvedEvent | undefined;
-  let bestEnd = Number.NEGATIVE_INFINITY;
-  for (const event of playback.events) {
-    if (event.tStart > t) break;
-    const reached = Math.min(event.tEnd, t);
-    if (reached > bestEnd || (reached === bestEnd && event.tStart >= (best?.tStart ?? Number.NEGATIVE_INFINITY))) {
-      best = event;
-      bestEnd = reached;
-    }
-  }
-  return best;
+function heldCandidates(playback: ActorPlayback, t: number): ResolvedEvent[] {
+  return playback.events
+    .filter((event) => event.tStart <= t)
+    .map((event) => ({ event, reached: Math.min(event.tEnd, t) }))
+    .sort((a, b) => b.reached - a.reached || b.event.tStart - a.event.tStart)
+    .map(({ event }) => event);
 }
 
 export function actorPosition(playback: ActorPlayback, t: number): Vec3 | null {
   const moving = activeMovement(playback, t);
   const movingPoint = moving ? pointAt(playback, moving, t) : null;
   if (movingPoint) return movingPoint;
-  const held = heldEvent(playback, t);
-  const heldPoint = held ? pointAt(playback, held, t) : null;
-  if (heldPoint) return heldPoint;
+  for (const event of heldCandidates(playback, t)) {
+    const point = pointAt(playback, event, t);
+    if (point) return point;
+  }
   const first = playback.events[0];
   return playback.restPosition ?? (first ? pointAt(playback, first, first.tStart) : null);
 }

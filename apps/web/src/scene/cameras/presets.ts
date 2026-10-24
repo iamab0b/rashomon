@@ -21,6 +21,8 @@ export const CAMERA_PRESETS: Readonly<Record<CameraPreset, CameraPose>> = {
   rig_debug: { position: [4, 1.3, 7], lookAt: [4, 0.9, 3], isPov: false },
 };
 
+export const POV_CAM = "pov";
+
 export const PRESET_KEYS: Readonly<Record<string, CameraPreset>> = {
   "1": "overview",
   "2": "counter_close",

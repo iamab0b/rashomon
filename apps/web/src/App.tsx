@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { isCameraPreset, Scene, useCamera } from "./scene";
+import { isCameraPreset, POV_CAM, Scene, useCamera } from "./scene";
 
 const PANEL_WIDTH_PX = 360;
 
@@ -10,11 +10,12 @@ export function App() {
   const cam = params.get("cam");
   const tParam = params.get("t");
   const t = tParam !== null && Number.isFinite(Number(tParam)) ? Number(tParam) : undefined;
-  const { setPreset } = useCamera();
+  const { setPreset, setFollowing } = useCamera();
 
   useEffect(() => {
     if (isCameraPreset(cam)) setPreset(cam);
-  }, [cam, setPreset]);
+    if (cam === POV_CAM) setFollowing(true);
+  }, [cam, setPreset, setFollowing]);
 
   return (
     <div style={{ display: "flex", width: "100%", height: "100%" }}>
