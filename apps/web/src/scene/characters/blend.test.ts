@@ -39,6 +39,7 @@ function event(
     path: [],
     pathLengthM: 0,
     reachable: true,
+    sources: [`utt_${id}`],
     tInferred: false,
     ...extra,
   };
