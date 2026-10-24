@@ -3,11 +3,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { AnimationAction } from "three";
 import { useSceneStore } from "../store";
 import { applySamples } from "./applySamples";
-import { buildClipWindows, sampleClips, type ClipWindowSet } from "./blend";
+import { buildClipWindows, createClipSampler, EMPTY_WINDOW_SET } from "./blend";
 import type { CharacterHandle } from "./Character";
 import { getClip, loadClips } from "./clips";
-
-const EMPTY_WINDOWS: ClipWindowSet = { windows: [], conflicts: [] };
 
 function useClipsLoaded(): boolean {
   const [loaded, setLoaded] = useState(false);
@@ -37,9 +35,10 @@ export function useActorAnimation(actorId: string, character: CharacterHandle | 
   const events = useSceneStore((state) => state.resolved?.events);
   const clipsLoaded = useClipsLoaded();
   const touched = useRef(new Map<string, AnimationAction>());
+  const sampler = useMemo(createClipSampler, []);
 
   const windowSet = useMemo(
-    () => (clipsLoaded && events ? buildClipWindows(actorId, events, hasClip) : EMPTY_WINDOWS),
+    () => (clipsLoaded && events ? buildClipWindows(actorId, events, hasClip) : EMPTY_WINDOW_SET),
     [actorId, events, clipsLoaded],
   );
 
@@ -60,6 +59,6 @@ export function useActorAnimation(actorId: string, character: CharacterHandle | 
   useFrame(() => {
     if (!character || !clipsLoaded) return;
     const { t } = useSceneStore.getState();
-    applySamples(character.mixer, sampleClips(windowSet.windows, t, durationOf), getClip, touched.current);
+    applySamples(character.mixer, sampler(windowSet, t, durationOf), getClip, touched.current);
   });
 }

@@ -3,22 +3,23 @@ import type { ClipSample } from "./blend";
 
 export type ActionCache = Map<string, AnimationAction>;
 
+function silence(action: AnimationAction): void {
+  action.setEffectiveWeight(0);
+}
+
 export function applySamples(
   mixer: AnimationMixer,
   samples: readonly ClipSample[],
   clipOf: (name: string) => AnimationClip | undefined,
   actions: ActionCache,
 ): void {
-  const active = new Set(samples.map((sample) => sample.clip));
-  for (const [name, action] of actions) {
-    if (!active.has(name)) action.setEffectiveWeight(0);
-  }
+  actions.forEach(silence);
   for (const sample of samples) {
-    const clip = clipOf(sample.clip);
-    if (!clip) continue;
-    const cached = actions.get(sample.clip);
-    const action = cached ?? mixer.clipAction(clip);
-    if (!cached) {
+    let action = actions.get(sample.clip);
+    if (!action) {
+      const clip = clipOf(sample.clip);
+      if (!clip) continue;
+      action = mixer.clipAction(clip);
       action.play();
       actions.set(sample.clip, action);
     }

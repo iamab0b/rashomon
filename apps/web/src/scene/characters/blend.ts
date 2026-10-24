@@ -16,8 +16,21 @@ export type ClipWindow = {
   readonly start: number;
   readonly end: number;
   readonly loop: boolean;
+  readonly anchor: number;
   readonly rampIn: Span;
   readonly rampOut: Span;
+  readonly suppressors: readonly number[];
+};
+
+export type IdleAnchor = {
+  readonly from: number;
+  readonly anchor: number;
+};
+
+export type ClipWindowSet = {
+  readonly windows: readonly ClipWindow[];
+  readonly conflicts: readonly (readonly string[])[];
+  readonly idleAnchors: readonly IdleAnchor[];
 };
 
 export type ClipSample = {
@@ -26,10 +39,9 @@ export type ClipSample = {
   readonly weight: number;
 };
 
-export type ClipWindowSet = {
-  readonly windows: readonly ClipWindow[];
-  readonly conflicts: readonly (readonly string[])[];
-};
+export type ClipDurationLookup = (clip: string) => number | undefined;
+
+export type ClipSampler = (set: ClipWindowSet, t: number, durationOf: ClipDurationLookup) => readonly ClipSample[];
 
 type Draft = {
   source: string;
@@ -42,8 +54,16 @@ type Draft = {
   blendOut: number;
 };
 
+type Shaped = Draft & { rampIn: Span; rampOut: Span; suppressors: number[] };
+
+export const EMPTY_WINDOW_SET: ClipWindowSet = { windows: [], conflicts: [], idleAnchors: [] };
+
 export function isPlayable(event: Pick<ResolvedEvent, "status">): boolean {
   return PLAYABLE_STATUSES.has(event.status);
+}
+
+function hasPositiveDuration(event: Pick<ResolvedEvent, "tStart" | "tEnd">): boolean {
+  return event.tEnd > event.tStart;
 }
 
 function ownDraft(event: ResolvedEvent, hasClip: (name: string) => boolean): Draft {
@@ -81,7 +101,7 @@ function draftsFor(
   events: readonly ResolvedEvent[],
   hasClip: (name: string) => boolean,
 ): Draft[] {
-  const playable = events.filter(isPlayable);
+  const playable = events.filter((event) => isPlayable(event) && hasPositiveDuration(event));
   const own = playable.filter((event) => event.actor === actorId).map((event) => ownDraft(event, hasClip));
   const reactions = playable
     .filter((event) => event.target === actorId && event.actor !== actorId)
@@ -110,27 +130,79 @@ function centered(at: number, width: number): Span {
   return [at - width / 2, at + width / 2];
 }
 
-function toWindow(draft: Draft, previous: Draft | undefined, next: Draft | undefined): ClipWindow {
-  const overlapsPrevious = previous !== undefined && previous.end > draft.start;
-  const overlapsNext = next !== undefined && next.start < draft.end;
-  const rampIn: Span =
-    draft.start <= TIMELINE_START_S
-      ? [draft.start, draft.start]
-      : overlapsPrevious
-        ? [draft.start, Math.min(previous.end, draft.end)]
-        : centered(draft.start, draft.blendIn);
-  const rampOut: Span = overlapsNext
-    ? [next.start, Math.min(draft.end, next.end)]
-    : centered(draft.end, draft.blendOut);
-  return {
-    source: draft.source,
-    clip: draft.clip,
-    start: draft.start,
-    end: draft.end,
-    loop: draft.loop,
-    rampIn,
-    rampOut,
-  };
+function rampInFor(draft: Draft, earlier: readonly Draft[]): Span {
+  if (draft.start <= TIMELINE_START_S) return [draft.start, draft.start];
+  const underneath = earlier.filter((other) => other.start <= draft.start && draft.start < other.end);
+  const nested = underneath.some((other) => other.end >= draft.end);
+  if (nested || underneath.length === 0) return centered(draft.start, draft.blendIn);
+  return [draft.start, Math.max(...underneath.map((other) => other.end))];
+}
+
+function rampOutFor(draft: Draft, later: readonly Draft[]): Span {
+  const coveredAtEnd = later.some((other) => other.start < draft.end && other.end >= draft.end);
+  return coveredAtEnd ? [draft.end, draft.end] : centered(draft.end, draft.blendOut);
+}
+
+function shape(drafts: readonly Draft[]): Shaped[] {
+  return drafts.map((draft, index) => {
+    const earlier = drafts.slice(0, index);
+    const later = drafts.slice(index + 1);
+    const suppressors = later
+      .map((other, offset) => ({ other, at: index + 1 + offset }))
+      .filter(({ other }) => other.start < draft.end)
+      .map(({ at }) => at);
+    return { ...draft, rampIn: rampInFor(draft, earlier), rampOut: rampOutFor(draft, later), suppressors };
+  });
+}
+
+function idleAnchorAt(anchors: readonly IdleAnchor[], t: number): number {
+  let anchor = TIMELINE_START_S;
+  for (const segment of anchors) {
+    if (segment.from > t) break;
+    anchor = segment.anchor;
+  }
+  return anchor;
+}
+
+function withAnchors(shaped: readonly Shaped[]): { windows: ClipWindow[]; idleAnchors: IdleAnchor[] } {
+  const windows: ClipWindow[] = [];
+  const idleAnchors: IdleAnchor[] = [];
+  shaped.forEach((draft, index) => {
+    const previous = windows[index - 1];
+    const contiguous = previous !== undefined && previous.end >= draft.start - ADJACENT_EPSILON_S;
+    const continuesClip = contiguous && previous.clip === draft.clip && previous.loop && draft.loop;
+    const bridgedByIdle = draft.clip === IDLE_CLIP && draft.loop && !contiguous;
+    const anchor = continuesClip
+      ? previous.anchor
+      : bridgedByIdle
+        ? idleAnchorAt(sortedAnchors(idleAnchors), draft.start)
+        : draft.start;
+    windows.push({
+      source: draft.source,
+      clip: draft.clip,
+      start: draft.start,
+      end: draft.end,
+      loop: draft.loop,
+      anchor,
+      rampIn: draft.rampIn,
+      rampOut: draft.rampOut,
+      suppressors: draft.suppressors,
+    });
+    const continuesIdle = draft.clip === IDLE_CLIP && draft.loop;
+    idleAnchors.push(
+      continuesIdle
+        ? { from: draft.rampIn[0], anchor }
+        : { from: draft.rampOut[0], anchor: draft.rampOut[0] },
+    );
+  });
+  return { windows, idleAnchors: sortedAnchors(idleAnchors) };
+}
+
+function sortedAnchors(anchors: readonly IdleAnchor[]): IdleAnchor[] {
+  return anchors
+    .map((segment, order) => ({ segment, order }))
+    .sort((a, b) => a.segment.from - b.segment.from || a.order - b.order)
+    .map(({ segment }) => segment);
 }
 
 function findConflicts(windows: readonly ClipWindow[]): string[][] {
@@ -148,8 +220,8 @@ export function buildClipWindows(
   hasClip: (name: string) => boolean,
 ): ClipWindowSet {
   const drafts = withHandoffs(withHolds(draftsFor(actorId, events, hasClip)));
-  const windows = drafts.map((draft, index) => toWindow(draft, drafts[index - 1], drafts[index + 1]));
-  return { windows, conflicts: findConflicts(windows) };
+  const { windows, idleAnchors } = withAnchors(shape(drafts));
+  return { windows, conflicts: findConflicts(windows), idleAnchors };
 }
 
 function clamp01(value: number): number {
@@ -166,59 +238,92 @@ function rampDown(t: number, [from, to]: Span): number {
   return clamp01((to - t) / (to - from));
 }
 
-export function envelope(window: ClipWindow, t: number): number {
+export function envelope(window: Pick<ClipWindow, "rampIn" | "rampOut">, t: number): number {
   return Math.min(rampUp(t, window.rampIn), rampDown(t, window.rampOut));
 }
 
-export function clipTime(window: Pick<ClipWindow, "start" | "loop">, t: number, duration: number): number {
-  const elapsed = t - window.start;
-  if (window.loop) return ((elapsed % duration) + duration) % duration;
-  return Math.min(Math.max(elapsed, 0), duration);
-}
-
-function contributions(windows: readonly ClipWindow[], t: number): { window: ClipWindow; weight: number }[] {
-  const active = windows.filter((window) => window.start <= t && t < window.end);
-  if (active.length > MAX_BLENDED_WINDOWS) {
-    const latest = active.reduce((a, b) => (b.start >= a.start ? b : a));
-    return [{ window: latest, weight: 1 }];
-  }
-  return windows
-    .map((window) => ({ window, weight: envelope(window, t) }))
-    .filter(({ weight }) => weight > 0);
-}
-
-function mergeByClip(samples: readonly ClipSample[]): ClipSample[] {
-  const merged = new Map<string, { sample: ClipSample; total: number }>();
-  for (const sample of samples) {
-    const existing = merged.get(sample.clip);
-    if (!existing) {
-      merged.set(sample.clip, { sample, total: sample.weight });
-      continue;
-    }
-    const dominant = sample.weight > existing.sample.weight ? sample : existing.sample;
-    merged.set(sample.clip, { sample: dominant, total: existing.total + sample.weight });
-  }
-  return [...merged.values()].map(({ sample, total }) => ({ ...sample, weight: total }));
-}
-
-export function sampleClips(
-  windows: readonly ClipWindow[],
+export function clipTime(
+  window: Pick<ClipWindow, "start" | "loop"> & { anchor?: number },
   t: number,
-  durationOf: (clip: string) => number | undefined,
-): ClipSample[] {
-  const weighted = contributions(windows, t).flatMap(({ window, weight }) => {
-    const duration = durationOf(window.clip);
-    if (!duration) return [];
-    return [{ clip: window.clip, time: clipTime(window, t, duration), weight }];
-  });
-  const total = weighted.reduce((sum, sample) => sum + sample.weight, 0);
-  const idleDuration = durationOf(IDLE_CLIP);
-  const withIdle =
-    total < 1 && idleDuration
-      ? [...weighted, { clip: IDLE_CLIP, time: clipTime({ start: 0, loop: true }, t, idleDuration), weight: 1 - total }]
-      : weighted;
-  const merged = mergeByClip(withIdle);
-  const sum = merged.reduce((acc, sample) => acc + sample.weight, 0);
-  if (sum <= 1) return merged;
-  return merged.map((sample) => ({ ...sample, weight: sample.weight / sum }));
+  duration: number,
+): number {
+  if (window.loop) {
+    const elapsed = t - (window.anchor ?? window.start);
+    return ((elapsed % duration) + duration) % duration;
+  }
+  return Math.min(Math.max(t - window.start, 0), duration);
+}
+
+type MutableSample = { clip: string; time: number; weight: number; dominant: number };
+
+export function createClipSampler(): ClipSampler {
+  const pool: MutableSample[] = [];
+  const result: MutableSample[] = [];
+  const envelopes: number[] = [];
+
+  const emit = (clip: string, time: number, weight: number): void => {
+    for (const existing of result) {
+      if (existing.clip !== clip) continue;
+      if (weight > existing.dominant) {
+        existing.time = time;
+        existing.dominant = weight;
+      }
+      existing.weight += weight;
+      return;
+    }
+    const slot = pool[result.length] ?? { clip, time, weight, dominant: weight };
+    pool[result.length] = slot;
+    slot.clip = clip;
+    slot.time = time;
+    slot.weight = weight;
+    slot.dominant = weight;
+    result.push(slot);
+  };
+
+  const latestActive = (windows: readonly ClipWindow[], t: number): ClipWindow | null => {
+    let count = 0;
+    let latest: ClipWindow | null = null;
+    for (const window of windows) {
+      if (window.start > t || t >= window.end) continue;
+      count += 1;
+      if (!latest || window.start >= latest.start) latest = window;
+    }
+    return count > MAX_BLENDED_WINDOWS ? latest : null;
+  };
+
+  return (set, t, durationOf) => {
+    result.length = 0;
+    const { windows } = set;
+    const override = latestActive(windows, t);
+    if (override) {
+      const duration = durationOf(override.clip);
+      if (duration) emit(override.clip, clipTime(override, t, duration), 1);
+    } else {
+      envelopes.length = windows.length;
+      windows.forEach((window, index) => {
+        envelopes[index] = envelope(window, t);
+      });
+      windows.forEach((window, index) => {
+        let weight = envelopes[index] ?? 0;
+        for (const above of window.suppressors) weight *= 1 - (envelopes[above] ?? 0);
+        if (weight <= 0) return;
+        const duration = durationOf(window.clip);
+        if (duration) emit(window.clip, clipTime(window, t, duration), weight);
+      });
+    }
+    let total = 0;
+    for (const sample of result) total += sample.weight;
+    const idleDuration = durationOf(IDLE_CLIP);
+    if (total < 1 && idleDuration) {
+      const anchor = idleAnchorAt(set.idleAnchors, t);
+      emit(IDLE_CLIP, clipTime({ start: anchor, loop: true, anchor }, t, idleDuration), 1 - total);
+      total = 1;
+    }
+    if (total > 1) for (const sample of result) sample.weight /= total;
+    return result;
+  };
+}
+
+export function sampleClips(set: ClipWindowSet, t: number, durationOf: ClipDurationLookup): ClipSample[] {
+  return createClipSampler()(set, t, durationOf).map(({ clip, time, weight }) => ({ clip, time, weight }));
 }

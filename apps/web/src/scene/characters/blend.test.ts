@@ -1,7 +1,7 @@
 import type { ResolvedEvent, ResolvedGraph } from "@rashomon/engine";
 import type { Action, Status } from "@rashomon/schema";
 import { describe, expect, test } from "vitest";
-import { buildClipWindows, clipTime, envelope, sampleClips, type ClipSample } from "./blend";
+import { buildClipWindows, clipTime, createClipSampler, envelope, sampleClips, type ClipSample } from "./blend";
 
 const DURATIONS: Readonly<Record<string, number>> = {
   clip_idle: 8.33,
@@ -44,7 +44,7 @@ function event(
 }
 
 function sample(actor: string, events: readonly ResolvedEvent[], t: number): ClipSample[] {
-  return sampleClips(buildClipWindows(actor, events, hasClip).windows, t, durationOf);
+  return sampleClips(buildClipWindows(actor, events, hasClip), t, durationOf);
 }
 
 function weightOf(samples: readonly ClipSample[], clip: string): number {
@@ -117,10 +117,13 @@ describe("single actor blending", () => {
     }
   });
 
-  test("idle fills a gap between events", () => {
+  test("idle fills a gap between events, starting its phase where the previous clip begins to fade", () => {
     const gappy = [event("a", "x", "walk", 0, 4), event("b", "x", "run", 8, 10)];
     const inGap = sample("x", gappy, 6);
-    expect(inGap).toEqual([{ clip: "clip_idle", time: 6, weight: 1 }]);
+    expect(inGap).toHaveLength(1);
+    expect(inGap[0]?.clip).toBe("clip_idle");
+    expect(inGap[0]?.weight).toBe(1);
+    expect(inGap[0]?.time).toBeCloseTo(6 - (4 - 0.25 / 2));
   });
 
   test("before any event and after the last one the actor idles", () => {
@@ -146,15 +149,145 @@ describe("single actor blending", () => {
 
   test("three overlapping events render only the latest and report a conflict", () => {
     const three = [event("a", "x", "walk", 0, 10), event("b", "x", "speak", 2, 10), event("c", "x", "look", 4, 10)];
-    const { conflicts, windows } = buildClipWindows("x", three, hasClip);
-    expect(conflicts).toEqual([["a", "b", "c"]]);
-    const samples = sampleClips(windows, 5, durationOf);
+    const set = buildClipWindows("x", three, hasClip);
+    expect(set.conflicts).toEqual([["a", "b", "c"]]);
+    const samples = sampleClips(set, 5, durationOf);
     expect(samples).toEqual([{ clip: "clip_look_around", time: 1, weight: 1 }]);
   });
 
   test("two overlapping events are not a conflict", () => {
     const two = [event("a", "x", "stand", 0, 11), event("b", "x", "look", 10, 12)];
     expect(buildClipWindows("x", two, hasClip).conflicts).toEqual([]);
+  });
+});
+
+describe("nested events (review fix 2)", () => {
+  const walkWithLook = [event("walk", "x", "walk", 0, 20), event("look", "x", "look", 5, 8)];
+
+  test("the nested event blends in over its own blend-in", () => {
+    expect(weightOf(sample("x", walkWithLook, 5), "clip_look_around")).toBeCloseTo(0.5);
+    expect(weightOf(sample("x", walkWithLook, 5), "clip_walk")).toBeCloseTo(0.5);
+    expect(weightOf(sample("x", walkWithLook, 6.5), "clip_look_around")).toBe(1);
+    expect(weightOf(sample("x", walkWithLook, 6.5), "clip_walk")).toBe(0);
+  });
+
+  test("the parent comes back after the nested event over the nested event's blend-out", () => {
+    expect(weightOf(sample("x", walkWithLook, 8), "clip_walk")).toBeCloseTo(0.5);
+    expect(weightOf(sample("x", walkWithLook, 8), "clip_look_around")).toBeCloseTo(0.5);
+    expect(weightOf(sample("x", walkWithLook, 8.15), "clip_walk")).toBeCloseTo(1);
+  });
+
+  test("the actor walks, not idles, for the rest of the parent event", () => {
+    for (let t = 8.2; t < 19.8; t += 0.5) {
+      const samples = sample("x", walkWithLook, t);
+      expect(weightOf(samples, "clip_walk"), `t=${t}`).toBe(1);
+      expect(weightOf(samples, "clip_idle"), `t=${t}`).toBe(0);
+    }
+  });
+
+  test("the parent's walk phase is unbroken by the nested event", () => {
+    expect(timeOf(sample("x", walkWithLook, 12), "clip_walk")).toBeCloseTo(12 % 1.03);
+  });
+
+  test("weights sum to 1 through the whole nested span", () => {
+    for (let t = 0; t <= 21; t += 0.05) {
+      expect(totalWeight(sample("x", walkWithLook, t)), `t=${t.toFixed(2)}`).toBeCloseTo(1, 6);
+    }
+  });
+});
+
+describe("phase continuity across same-clip events (review fix 3)", () => {
+  function maxTimeJump(events: readonly ResolvedEvent[], clip: string, from: number, to: number): number {
+    let worst = 0;
+    let previous: number | undefined;
+    const step = 0.01;
+    for (let t = from; t <= to; t += step) {
+      const time = timeOf(sample("x", events, t), clip);
+      if (time !== undefined && previous !== undefined) {
+        const duration = DURATIONS[clip] ?? 1;
+        const delta = Math.abs(time - previous);
+        worst = Math.max(worst, Math.min(delta, duration - delta));
+      }
+      previous = time;
+    }
+    return worst;
+  }
+
+  test("walk 0-5 then walk 5-9 keeps one continuous walk phase", () => {
+    const twoWalks = [event("a", "x", "walk", 0, 5), event("b", "x", "walk", 5, 9)];
+    expect(timeOf(sample("x", twoWalks, 7), "clip_walk")).toBeCloseTo(7 % 1.03);
+    expect(maxTimeJump(twoWalks, "clip_walk", 4.5, 5.5)).toBeLessThan(0.02);
+  });
+
+  test("stand, gap, stand keeps one continuous idle phase through the gap", () => {
+    const standGapStand = [event("a", "x", "stand", 0, 4), event("b", "x", "stand", 6, 9)];
+    expect(timeOf(sample("x", standGapStand, 7), "clip_idle")).toBeCloseTo(7);
+    expect(maxTimeJump(standGapStand, "clip_idle", 3.5, 6.5)).toBeLessThan(0.02);
+  });
+
+  test("a different clip in between restarts the second event's loop at its tStart", () => {
+    const standWalkStand = [
+      event("a", "x", "stand", 0, 3),
+      event("b", "x", "walk", 3, 5),
+      event("c", "x", "stand", 5, 9),
+    ];
+    expect(timeOf(sample("x", standWalkStand, 6), "clip_idle")).toBeCloseTo(1);
+  });
+
+  test("idle phase is continuous when an event hands off to the filler and back", () => {
+    const walkGapRun = [event("a", "x", "walk", 0, 4), event("b", "x", "stand", 6, 8)];
+    expect(maxTimeJump(walkGapRun, "clip_idle", 3.5, 8)).toBeLessThan(0.02);
+  });
+});
+
+describe("degenerate durations (review fix 4)", () => {
+  test.each([
+    ["zero", 5, 5],
+    ["negative", 6, 5],
+  ])("a %s-duration event gets no weight at any t", (_label, tStart, tEnd) => {
+    const events = [event("a", "x", "speak", tStart, tEnd)];
+    for (let t = 4; t <= 7; t += 0.01) {
+      expect(weightOf(sample("x", events, t), "clip_talk"), `t=${t.toFixed(2)}`).toBe(0);
+    }
+  });
+
+  test("a zero-duration shove does not make its target react", () => {
+    const events = [event("s", "a", "shove", 3, 3, { target: "b" })];
+    expect(weightOf(sample("b", events, 3.3), "clip_shoved")).toBe(0);
+  });
+});
+
+describe("createClipSampler scratch reuse (review fix 5)", () => {
+  const events = [event("a", "x", "walk", 0, 5), event("b", "x", "speak", 5, 9), event("c", "x", "fall", 9, 10)];
+  const set = buildClipWindows("x", events, hasClip);
+  const snapshot = (samples: readonly ClipSample[]) => samples.map(({ clip, time, weight }) => ({ clip, time, weight }));
+
+  test("same t gives the same output regardless of what was sampled before", () => {
+    const sampler = createClipSampler();
+    const fresh = snapshot(sampleClips(set, 5, durationOf));
+
+    sampler(set, 12, durationOf);
+    sampler(set, 0.3, durationOf);
+
+    expect(snapshot(sampler(set, 5, durationOf))).toEqual(fresh);
+  });
+
+  test("reuses its result array and sample objects between calls", () => {
+    const sampler = createClipSampler();
+
+    const first = sampler(set, 5, durationOf);
+    const firstSlot = first[0];
+    const second = sampler(set, 5.05, durationOf);
+
+    expect(second).toBe(first);
+    expect(second[0]).toBe(firstSlot);
+  });
+
+  test("matches the allocating sampleClips across the whole timeline", () => {
+    const sampler = createClipSampler();
+    for (let t = 0; t <= 12; t += 0.1) {
+      expect(snapshot(sampler(set, t, durationOf)), `t=${t.toFixed(1)}`).toEqual(sampleClips(set, t, durationOf));
+    }
   });
 });
 
