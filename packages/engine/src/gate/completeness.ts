@@ -6,7 +6,7 @@ import { endPoint, startPoint } from "./positions";
 function lastKnownPosition(resolved: ResolvedGraph, e: ResolvedEvent): Vec3 | undefined {
   let latest: ResolvedEvent | undefined;
   for (const o of resolved.events) {
-    if (o === e || o.status === "superseded" || o.tEnd > e.tStart || !endPoint(o)) continue;
+    if (o === e || o.actor !== e.actor || o.status === "superseded" || o.tEnd > e.tStart || !endPoint(o)) continue;
     if (!latest || o.tEnd >= latest.tEnd) latest = o;
   }
   return latest ? endPoint(latest) : undefined;

@@ -438,6 +438,24 @@ describe("unanchored and missing_time", () => {
     expect(unanchoredFlags(overlapping, manifest())[0]!.suggestedQuestion).toBe("Where in the room was that?");
   });
 
+  test("an unanchored event's hints never come from another actor's position", () => {
+    const aisle: [number, number, number] = [1.5, 0, 3.5];
+    const otherActor = graphOf([
+      ev({ id: "b1", actor: "b", at: aisle, tStart: 0, tEnd: 1 }),
+      ev({ id: "a1", actor: "a", tStart: 2, tEnd: 3 }),
+    ]);
+    const [flag] = unanchoredFlags(otherActor, storeScene);
+    expect(flag!.eventId).toBe("a1");
+    expect(flag!.suggestedQuestion).toBe("Where in the room was that?");
+    const sameActor = graphOf([
+      ev({ id: "a0", actor: "a", at: aisle, tStart: 0, tEnd: 1 }),
+      ev({ id: "a1", actor: "a", tStart: 2, tEnd: 3 }),
+    ]);
+    expect(unanchoredFlags(sameActor, storeScene)[0]!.suggestedQuestion).toMatch(
+      /^Where in the room was that\? Closer to the .+ or the .+\?$/,
+    );
+  });
+
   test("a movement with one anchor is unanchored", () => {
     const one = graphOf([ev({ id: "w", action: "walk", from: [1, 0, 1], path: [[1, 0, 1]] })]);
     expect(unanchoredFlags(one, manifest())[0]!.detail).toContain("1 of its 2");
