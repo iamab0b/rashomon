@@ -26,7 +26,8 @@ Change only packages/extractor/. Every fix gets a test that fails on main today.
    - Require every add_actor field.
    - Reject `xyz` anchors from the extractor. The schema allows xyz only for the editor's drag fallback.
 7. localGraph.ts line 239. A retraction sets superseded and drops the retract patch's `sources`. Keep them: append them to the event's sources and set `supersededBy` to the first retracting source. Statuses are the engine's job, so do not set `status` here once PR #11 (engine-override) is on main. Until then, keep superseded and say so.
-8. Add a test that runs the extractor on a recorded real-model response for the robbery's first segment. Use a JSON fixture under packages/extractor/fixtures/ with no key in it. Check that the output parses as Patch[] through the guard, every event has sources, every confidence is in {0.3, 0.6, 0.9}, every anchor is a storeScene landmark id, and same-batch prop references use minted ids.
+8. localGraph.ts lines 25 to 26 and line 46 force `p${n}` and `e${n}` ids, overwriting ids the patch supplies. Now that the schema's add_event and add_prop accept an optional `id` (PR #9), keep a supplied id, and mint only when none is given. Otherwise the local CLI path (cli.ts line 64) drops the minted `p_<type>` ids from step 1. Test that a supplied `p_knife_chef` survives.
+9. Add a test that runs the extractor on a recorded real-model response for the robbery's first segment. Use a JSON fixture under packages/extractor/fixtures/ with no key in it. Check that the output parses as Patch[] through the guard, every event has sources, every confidence is in {0.3, 0.6, 0.9}, every anchor is a storeScene landmark id, and same-batch prop references use minted ids.
 
 Done-check:
 - `pnpm -r typecheck` and `pnpm -r test` pass.
