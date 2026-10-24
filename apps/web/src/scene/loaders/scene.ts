@@ -23,6 +23,10 @@ const FIXTURES: Readonly<Record<string, SceneManifest>> = {
   store: storeScene,
 };
 
+export function isKnownFixture(fixture: string): boolean {
+  return Object.hasOwn(FIXTURES, fixture);
+}
+
 export function loadManifest(fixture: string): SceneManifest {
   const manifest = Object.hasOwn(FIXTURES, fixture) ? FIXTURES[fixture] : undefined;
   if (!manifest) throw new Error(`unknown scene fixture "${fixture}"`);

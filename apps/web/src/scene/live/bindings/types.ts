@@ -116,6 +116,19 @@ export const Events = __t.object("Events", {
 });
 export type Events = __Infer<typeof Events>;
 
+export const Extraction = __t.object("Extraction", {
+  segmentId: __t.string(),
+  patchCount: __t.u32(),
+  get statuses() {
+    return __t.array(StatusEntry);
+  },
+  get hardFlags() {
+    return __t.array(HardFlag);
+  },
+  error: __t.option(__t.string()),
+});
+export type Extraction = __Infer<typeof Extraction>;
+
 export const Flag = __t.object("Flag", {
   id: __t.string(),
   eventId: __t.string(),
@@ -147,6 +160,15 @@ export const GraphForScene = __t.object("GraphForScene", {
   sessionId: __t.string(),
 });
 export type GraphForScene = __Infer<typeof GraphForScene>;
+
+export const HardFlag = __t.object("HardFlag", {
+  id: __t.string(),
+  eventId: __t.string(),
+  check: __t.string(),
+  detail: __t.string(),
+  suggestedQuestion: __t.string(),
+});
+export type HardFlag = __Infer<typeof HardFlag>;
 
 export const OverrideRecord = __t.object("OverrideRecord", {
   by: __t.string(),
@@ -218,6 +240,12 @@ export const Segments = __t.object("Segments", {
   tEnd: __t.f64(),
   source: __t.string(),
   supersedes: __t.option(__t.string()),
+  extractModel: __t.option(__t.string()),
+  extractPromptHash: __t.option(__t.string()),
+  extractUtteranceIds: __t.option(__t.array(__t.string())),
+  extractedAt: __t.option(__t.timestamp()),
+  extractPatchCount: __t.option(__t.u32()),
+  extractError: __t.option(__t.string()),
 });
 export type Segments = __Infer<typeof Segments>;
 

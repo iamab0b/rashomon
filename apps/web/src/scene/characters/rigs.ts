@@ -6,6 +6,7 @@ export type Rig = Actor["rig"];
 
 export const MIXAMO_UNIT_SCALE = 0.01;
 export const HIP_BONE_SUFFIX = "Hips";
+export const RIGHT_HAND_BONE = "mixamorigRightHand";
 
 const RIG_URLS: Readonly<Record<Rig, string>> = {
   mixamo_ybot: "/characters/ybot.fbx",
@@ -40,6 +41,10 @@ export function findPrimarySkinnedMesh(meshes: readonly SkinnedMesh[]): SkinnedM
     const rootBone = mesh.skeleton.bones[0];
     return rootBone !== undefined && !isSubBone(rootBone);
   });
+}
+
+export function findRightHand(mesh: SkinnedMesh): Bone | undefined {
+  return mesh.skeleton.bones.find((bone) => bone.name === RIGHT_HAND_BONE);
 }
 
 export function findHipBone(mesh: SkinnedMesh): Bone | undefined {

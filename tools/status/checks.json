@@ -78,6 +78,17 @@
       "paths": [
         "packages/extractor/src"
       ]
+    },
+    {
+      "id": "procedure-followups",
+      "from": "Sahil",
+      "due": "13-16",
+      "todo": "After PR #16 merged: cap earlier segments in the extraction prompt, retry-safe default segment id, 413 for over-cap text, wrap the key read, drop code comments, PR text on -c=always and the required key",
+      "doc": "tools/status/requests/procedure-followups.md",
+      "grep": "a resend without a segmentId does not extract twice",
+      "paths": [
+        "spacetimedb/server/src"
+      ]
     }
   ],
   "D": [
@@ -143,6 +154,17 @@
       "todo": "PR #17 is clean and merges after scene-core-06b removes the Scene.tsx Timeline; meanwhile show useGraphErrors (badge disconnected, action error in the panel), drop the 'Checking against the room' spinner, label places from useGraph().graph once it lands",
       "doc": "tools/status/requests/ui-refine-followups.md",
       "grep": "useGraphErrors",
+      "paths": [
+        "apps/web/src/ui"
+      ]
+    },
+    {
+      "id": "pr22-fixes",
+      "from": "Sahil",
+      "due": "12-16",
+      "todo": "PR #22: restore apps/web/src/scene files to main (scene changes go to scene-core as a list), switcher through useCamera, keep witness_claimed reachable, stop shortcuts behind the dialog, and the ui-refine follow-ups (useGraphErrors, useSceneStatus)",
+      "doc": "tools/status/requests/pr22-fixes.md",
+      "grep": "useSceneStatus",
       "paths": [
         "apps/web/src/ui"
       ]

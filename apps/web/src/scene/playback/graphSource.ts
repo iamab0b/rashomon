@@ -15,6 +15,7 @@ export interface GraphSource {
 
 export interface FixtureGraphSource extends GraphSource {
   readonly kind: "fixture";
+  readonly edited: boolean;
   apply(patches: readonly Patch[]): void;
 }
 
@@ -59,6 +60,9 @@ function patchableSource(initial: () => FixtureState, manifest: SceneManifest): 
   const state = () => current ?? initial();
   return {
     kind: "fixture",
+    get edited() {
+      return current !== null;
+    },
     getSnapshot: () => state().snapshot,
     eventOf: (id) => state().graph.events.find((event) => event.id === id),
     subscribe(listener) {
@@ -79,6 +83,7 @@ function fixtureKey(fixture: string, scenario: string | null | undefined): strin
 }
 
 export function fixtureGraphSource(fixture: string, scenario?: string | null): FixtureGraphSource | null {
+  if (scenario && scenario !== CORRECTED_SCENARIO) return null;
   const key = fixtureKey(fixture, scenario);
   const build = Object.hasOwn(FIXTURE_STATES, key) ? FIXTURE_STATES[key] : undefined;
   return build ? patchableSource(build, storeScene) : null;
