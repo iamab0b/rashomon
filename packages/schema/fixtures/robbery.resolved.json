@@ -1,0 +1,299 @@
+{
+  "sceneId": "store_v1",
+  "version": 1,
+  "durationS": 24,
+  "actors": [
+    {
+      "id": "witness",
+      "label": "Witness (customer)",
+      "role": "witness",
+      "rig": "mixamo_ybot",
+      "position": [
+        1.5,
+        0,
+        3.3
+      ]
+    },
+    {
+      "id": "suspect",
+      "label": "Suspect",
+      "role": "suspect",
+      "rig": "mixamo_ybot",
+      "position": [
+        1.5,
+        0,
+        0.3
+      ]
+    },
+    {
+      "id": "clerk",
+      "label": "Clerk",
+      "role": "victim",
+      "rig": "mixamo_xbot",
+      "position": [
+        8.7,
+        0,
+        2.5
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "e1",
+      "actor": "suspect",
+      "action": "walk",
+      "tStart": 0,
+      "tEnd": 5,
+      "status": "proposed",
+      "flags": [],
+      "path": [
+        [
+          1.5,
+          0,
+          0.3
+        ],
+        [
+          6.4,
+          0,
+          1.6
+        ],
+        [
+          7.2,
+          0,
+          2.5
+        ]
+      ],
+      "pathLengthM": 6.273676,
+      "from": [
+        1.5,
+        0,
+        0.3
+      ],
+      "to": [
+        7.2,
+        0,
+        2.5
+      ],
+      "tInferred": false
+    },
+    {
+      "id": "e2",
+      "actor": "clerk",
+      "action": "stand",
+      "tStart": 0,
+      "tEnd": 13,
+      "status": "proposed",
+      "flags": [],
+      "path": [],
+      "pathLengthM": 0,
+      "at": [
+        8.7,
+        0,
+        2.5
+      ],
+      "facing": [
+        8.1,
+        0,
+        2.5
+      ],
+      "tInferred": false
+    },
+    {
+      "id": "e3",
+      "actor": "witness",
+      "action": "stand",
+      "tStart": 0,
+      "tEnd": 11,
+      "status": "proposed",
+      "flags": [],
+      "path": [],
+      "pathLengthM": 0,
+      "at": [
+        1.5,
+        0,
+        3.3
+      ],
+      "facing": [
+        2.9,
+        0,
+        3.3
+      ],
+      "tInferred": false
+    },
+    {
+      "id": "e4",
+      "actor": "suspect",
+      "action": "speak",
+      "tStart": 5,
+      "tEnd": 9,
+      "status": "proposed",
+      "flags": [],
+      "path": [],
+      "pathLengthM": 0,
+      "at": [
+        7.2,
+        0,
+        2.5
+      ],
+      "target": "clerk",
+      "tInferred": false
+    },
+    {
+      "id": "e5",
+      "actor": "witness",
+      "action": "look",
+      "tStart": 10,
+      "tEnd": 12,
+      "status": "proposed",
+      "flags": [],
+      "path": [],
+      "pathLengthM": 0,
+      "at": [
+        1.5,
+        0,
+        3.3
+      ],
+      "target": "suspect",
+      "tInferred": false
+    },
+    {
+      "id": "e6",
+      "actor": "suspect",
+      "action": "pick_up",
+      "tStart": 9,
+      "tEnd": 11,
+      "status": "proposed",
+      "flags": [],
+      "path": [],
+      "pathLengthM": 0,
+      "at": [
+        7.2,
+        0,
+        2.5
+      ],
+      "prop": "p_knife",
+      "tInferred": false
+    },
+    {
+      "id": "e7",
+      "actor": "suspect",
+      "action": "shove",
+      "tStart": 12,
+      "tEnd": 13,
+      "status": "proposed",
+      "flags": [],
+      "path": [],
+      "pathLengthM": 0,
+      "at": [
+        7.2,
+        0,
+        2.5
+      ],
+      "target": "clerk",
+      "tInferred": false
+    },
+    {
+      "id": "e8",
+      "actor": "clerk",
+      "action": "fall",
+      "tStart": 13,
+      "tEnd": 15,
+      "status": "proposed",
+      "flags": [],
+      "path": [],
+      "pathLengthM": 0,
+      "at": [
+        8.7,
+        0,
+        2.5
+      ],
+      "tInferred": false
+    },
+    {
+      "id": "e9",
+      "actor": "witness",
+      "action": "crouch",
+      "tStart": 13,
+      "tEnd": 24,
+      "status": "proposed",
+      "flags": [],
+      "path": [],
+      "pathLengthM": 0,
+      "at": [
+        1.5,
+        0,
+        3.3
+      ],
+      "tInferred": false
+    },
+    {
+      "id": "e10",
+      "actor": "suspect",
+      "action": "run",
+      "tStart": 20,
+      "tEnd": 23,
+      "status": "proposed",
+      "flags": [],
+      "path": [
+        [
+          7.2,
+          0,
+          2.5
+        ],
+        [
+          6.4,
+          0,
+          1.6
+        ],
+        [
+          1.5,
+          0,
+          0.3
+        ]
+      ],
+      "pathLengthM": 6.273676,
+      "from": [
+        7.2,
+        0,
+        2.5
+      ],
+      "to": [
+        1.5,
+        0,
+        0.3
+      ],
+      "tInferred": false
+    }
+  ],
+  "props": [
+    {
+      "id": "p_register",
+      "type": "register",
+      "position": [
+        8.1,
+        0,
+        1.8
+      ],
+      "notes": ""
+    },
+    {
+      "id": "p_knife",
+      "type": "knife_chef",
+      "position": [
+        7.3,
+        0,
+        2.5
+      ],
+      "heldBy": "suspect",
+      "notes": "witness: 'a kitchen knife, maybe eight inches'",
+      "heldByIntervals": [
+        {
+          "actor": "suspect",
+          "tStart": 11,
+          "tEnd": 24
+        }
+      ]
+    }
+  ],
+  "handwritten": false
+}

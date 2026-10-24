@@ -19,6 +19,45 @@
     { "id": "cooler", "label": "cooler", "kind": "appliance", "position": [4.5, 0, 6.0], "bounds": { "min": [1.0, 0, 6.4], "max": [8.0, 2.0, 7.0] }, "occludes": true, "aliases": ["the fridge", "the coolers", "the back wall", "drinks fridge", "the back"] },
     { "id": "back_door", "label": "back door", "kind": "door", "position": [8.6, 0, 6.6], "bounds": { "min": [8.0, 0, 6.2], "max": [9.0, 2.1, 7.0] }, "occludes": false, "aliases": ["staff door", "stock room door", "the back door"] }
   ],
+  "portals": {
+    "waypoints": [
+      { "id": "door_front", "x": 1.5, "z": 0.8 },
+      { "id": "window_front", "x": 4.5, "z": 1 },
+      { "id": "aisle_chips_s", "x": 1.5, "z": 1.4 },
+      { "id": "aisle_chips_n", "x": 1.5, "z": 5.5 },
+      { "id": "aisle_drinks_s", "x": 4.2, "z": 1.4 },
+      { "id": "aisle_drinks_n", "x": 4.2, "z": 5.6 },
+      { "id": "shelf_b_corner", "x": 6.4, "z": 1.6 },
+      { "id": "shelf_b_back", "x": 6.4, "z": 5.5 },
+      { "id": "counter_front", "x": 7.2, "z": 2.5 },
+      { "id": "counter_opening", "x": 7.8, "z": 4.8 },
+      { "id": "behind_counter", "x": 8.85, "z": 2.5 },
+      { "id": "behind_counter_n", "x": 8.85, "z": 4.8 }
+    ],
+    "edges": [
+      ["door_front", "window_front"],
+      ["door_front", "aisle_chips_s"],
+      ["door_front", "aisle_chips_n"],
+      ["door_front", "aisle_drinks_s"],
+      ["door_front", "shelf_b_corner"],
+      ["window_front", "aisle_drinks_s"],
+      ["window_front", "aisle_drinks_n"],
+      ["window_front", "shelf_b_corner"],
+      ["aisle_chips_s", "aisle_chips_n"],
+      ["aisle_chips_n", "aisle_drinks_n"],
+      ["aisle_chips_n", "shelf_b_back"],
+      ["aisle_drinks_s", "aisle_drinks_n"],
+      ["aisle_drinks_s", "shelf_b_corner"],
+      ["aisle_drinks_n", "shelf_b_back"],
+      ["shelf_b_corner", "shelf_b_back"],
+      ["shelf_b_corner", "counter_front"],
+      ["shelf_b_back", "counter_front"],
+      ["shelf_b_back", "counter_opening"],
+      ["shelf_b_back", "behind_counter_n"],
+      ["counter_opening", "behind_counter_n"],
+      ["behind_counter", "behind_counter_n"]
+    ]
+  },
   "cameras": {
     "overview": { "position": [4.5, 7.5, 9.5], "lookAt": [4.5, 0, 3.5] },
     "counter_close": { "position": [5.5, 2.2, 1.0], "lookAt": [8.0, 1.0, 2.5] }

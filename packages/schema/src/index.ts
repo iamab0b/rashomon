@@ -8,6 +8,11 @@ export type Landmark = {
   occludes: boolean;
 };
 
+export type Portals = {
+  waypoints: { id: string; x: number; z: number }[];
+  edges: [string, string][];
+};
+
 export type SceneManifest = {
   sceneId: string;
   meshUrl: string;
@@ -16,6 +21,7 @@ export type SceneManifest = {
   unitsPerMeter: 1;
   eyeHeight: 1.6;
   landmarks: Landmark[];
+  portals?: Portals;
 };
 
 export type Segment = {
