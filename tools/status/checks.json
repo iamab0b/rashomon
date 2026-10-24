@@ -233,6 +233,17 @@
       "paths": [
         "apps/web/src/ui"
       ]
+    },
+    {
+      "id": "statement-section-fixes-2",
+      "from": "Sahil",
+      "due": "18-20",
+      "todo": "PR #35 round 2: resubmitting a finished statement must show the saved result (no stuck Extracting), remove the code comments, live-mode freeze only past the baseline version",
+      "doc": "tools/status/requests/statement-section-fixes-2.md",
+      "grep": "Already added",
+      "paths": [
+        "apps/web/src/ui"
+      ]
     }
   ],
   "runtime": [

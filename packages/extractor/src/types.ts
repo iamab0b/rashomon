@@ -40,7 +40,8 @@ export type ModelRequest = {
   max_tokens: number;
   system: Array<Record<string, unknown>>;
   tools: ToolDef[];
-  tool_choice: { type: "any" };
+  tool_choice: { type: "auto" };
+  output_config: { effort: "low" };
   messages: ModelMessage[];
 };
 

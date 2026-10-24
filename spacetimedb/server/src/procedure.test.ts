@@ -7,10 +7,10 @@ import type { TestHttpResponder } from "spacetimedb/server/test-utils";
 import { robberyGraph } from "@rashomon/schema/fixtures";
 import robberyTranscript from "../../../packages/extractor/fixtures/robbery.transcript.json";
 import robberyToolUses from "./fixtures/robbery.tool-uses.json";
-import { EXTRACTION_MODEL } from "@rashomon/extractor";
+import { EXTRACTION_MODEL, NO_TOOL_CALL_NUDGE } from "@rashomon/extractor";
 import { SECRET_HEADER, defaultSegmentId, handleCartesia, secretsMatch } from "./http/cartesia";
 import { MAX_BODY_BYTES, MAX_SEGMENT_TEXT_CHARS, MAX_UTTERANCES } from "./limits";
-import { EXTRACTION_FAILED, PROMPT_HASH, runExtraction, type Io } from "./extract/run";
+import { EXTRACTION_FAILED, EXTRACTION_PARTLY_FAILED, PROMPT_HASH, runExtraction, type Io } from "./extract/run";
 import { NOT_THE_MODULE, extractAs } from "./procedures/extractSegment";
 import * as mod from "./index";
 import { eventGraphFromRow } from "./convert";
@@ -138,9 +138,13 @@ describe("extractSegment", () => {
     expect(requests).toHaveLength(1);
     expect(requests[0]?.headers).toContain(`x-api-key:${SECRET}`);
     expect(requests[0]?.body).not.toContain(SECRET);
-    const body = JSON.parse(requests[0]!.body) as { model: string; tools: unknown[] };
+    const body = JSON.parse(requests[0]!.body) as Record<string, unknown> & { tools: unknown[] };
     expect(body.model).toBe("claude-sonnet-5-5");
     expect(body.tools.length).toBeGreaterThan(0);
+    expect(body.tool_choice).toEqual({ type: "auto" });
+    expect(body.max_tokens).toBe(16000);
+    expect(body.output_config).toEqual({ effort: "low" });
+    expect(body).not.toHaveProperty("thinking");
     expect(JSON.stringify(result)).not.toContain(SECRET);
     expect(JSON.stringify(segmentRow(), (_k, v) => (typeof v === "bigint" ? v.toString() : v))).not.toContain(SECRET);
   });
@@ -187,6 +191,68 @@ describe("extractSegment", () => {
     expect(lastLog()).toMatch(/bad_tool_output: validation failed: add_event:/);
     expect(graph().events).toEqual([]);
     expect(graph().version).toBe(1);
+  });
+
+  test("a reply with no tool call is retried once with the assistant turn unchanged and a nudge, then applied", () => {
+    const prose = [
+      { type: "thinking", thinking: "", signature: "sig-1" },
+      { type: "text", text: "The suspect walked to the counter." },
+    ];
+    let n = 0;
+    const responder: TestHttpResponder<never> = (test, req, body) => {
+      n += 1;
+      return n === 1 ? ok(prose, { stop_reason: "end_turn" })(test, req, body) : ok([toolUse("tu_1", "add_event", walkInput)])(test, req, body);
+    };
+    const result = runExtraction(ioFor(responder), SESSION, "utt_2");
+    expect(n).toBe(2);
+    expect(result.error).toBeUndefined();
+    expect(graph().events).toHaveLength(1);
+    const [first, second] = requests.map((r) => JSON.parse(r.body) as { messages: unknown[]; tool_choice: unknown; output_config: unknown });
+    expect(first!.messages).toHaveLength(1);
+    expect(second!.messages).toHaveLength(3);
+    expect(second!.messages[0]).toEqual(first!.messages[0]);
+    expect(second!.messages[1]).toEqual({ role: "assistant", content: prose });
+    expect(second!.messages[2]).toEqual({ role: "user", content: NO_TOOL_CALL_NUDGE });
+    expect([first!.tool_choice, second!.tool_choice]).toEqual([{ type: "auto" }, { type: "auto" }]);
+    expect([first!.output_config, second!.output_config]).toEqual([{ effort: "low" }, { effort: "low" }]);
+  });
+
+  test("a reply cut off by max_tokens before any tool call is stored as truncated and not retried", () => {
+    const thinkingOnly = [{ type: "thinking", thinking: "", signature: "sig-1" }];
+    const result = runExtraction(ioFor(ok(thinkingOnly, { stop_reason: "max_tokens" })), SESSION, "utt_2");
+    expect(requests).toHaveLength(1);
+    expect(result.error).toBe(EXTRACTION_FAILED);
+    expect(segmentRow().extractError).toBe("truncated");
+    expect(lastLog()).toMatch(/truncated: the reply reached max_tokens before it finished/);
+    expect(graph().events).toEqual([]);
+  });
+
+  test("a truncated reply with a cut-off tool call is stored as truncated, not as bad tool output", () => {
+    const cutOff = [toolUse("tu_1", "add_event", { actor: "suspect", action: "walk" })];
+    const result = runExtraction(ioFor(ok(cutOff, { stop_reason: "max_tokens" })), SESSION, "utt_2");
+    expect(requests).toHaveLength(1);
+    expect(result.error).toBe(EXTRACTION_FAILED);
+    expect(segmentRow().extractError).toBe("truncated");
+    expect(graph().events).toEqual([]);
+  });
+
+  test("a retry cut off by max_tokens keeps and applies the calls the first reply got right", () => {
+    let n = 0;
+    const responder: TestHttpResponder<never> = (test, req, body) => {
+      n += 1;
+      if (n === 1)
+        return ok([toolUse("tu_ok", "add_event", walkInput), toolUse("tu_bad", "add_event", { ...walkInput, from: at("moon_base") })])(test, req, body);
+      return ok([toolUse("tu_fix", "add_event", { actor: "suspect" })], { stop_reason: "max_tokens" })(test, req, body);
+    };
+    const result = runExtraction(ioFor(responder), SESSION, "utt_2");
+    expect(n).toBe(2);
+    expect(result.patchCount).toBe(1);
+    expect(result.error).toBe(EXTRACTION_PARTLY_FAILED);
+    expect(graph().events).toHaveLength(1);
+    expect(segmentRow().extractError).toBe("truncated");
+    expect(segmentRow().extractedAt).toBeDefined();
+    expect(segmentRow().extractPatchCount).toBe(1);
+    expect(lastLog()).toMatch(/truncated: partly rejected: truncated/);
   });
 
   test("a retry that fixes the call is applied", () => {
