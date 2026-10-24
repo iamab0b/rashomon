@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { eventDisplay } from "./overridePending";
+import { canOverride, eventDisplay } from "./overridePending";
 
 const e5 = { id: "e5", status: "proposed" as const };
 
@@ -22,5 +22,14 @@ describe("eventDisplay", () => {
 
   test("without a gate status the resolved status is shown and nothing is pending", () => {
     expect(eventDisplay(e5, {}, {})).toEqual({ status: "proposed", pendingNote: null });
+  });
+});
+
+describe("canOverride", () => {
+  test("only an event the gate marks implausible offers Override", () => {
+    expect(canOverride("implausible")).toBe(true);
+    for (const status of ["plausible", "proposed", "overridden", "superseded"] as const) {
+      expect(canOverride(status)).toBe(false);
+    }
   });
 });
