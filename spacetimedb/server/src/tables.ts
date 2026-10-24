@@ -98,8 +98,9 @@ const sessions = table(
 const segments = table(
   { name: "segments", public: true },
   {
-    id: t.string().primaryKey(),
+    rowKey: t.string().primaryKey(),
     sessionId: t.string().index(),
+    id: t.string(),
     witnessId: t.string(),
     speaker: t.string(),
     text: t.string(),
@@ -116,7 +117,7 @@ const utterances = table(
     rowKey: t.string().primaryKey(),
     sessionId: t.string().index(),
     id: t.string(),
-    segmentId: t.string().index(),
+    segmentKey: t.string().index(),
     text: t.string(),
     tStart: t.f64(),
     tEnd: t.f64(),
