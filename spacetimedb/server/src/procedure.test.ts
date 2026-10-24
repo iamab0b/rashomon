@@ -1,0 +1,261 @@
+import { beforeEach, describe, expect, test } from "vitest";
+import { ConnectionId } from "spacetimedb";
+import { Request } from "spacetimedb/server";
+import { TestAuth, createModuleTestHarness } from "spacetimedb/server/test-utils";
+import type { TestHttpResponder } from "spacetimedb/server/test-utils";
+import { robberyGraph } from "@rashomon/schema/fixtures";
+import { EXTRACTION_MODEL } from "@rashomon/extractor";
+import { handleCartesia } from "./http/cartesia";
+import { PROMPT_HASH, runExtraction, type Io } from "./extract/run";
+import * as mod from "./index";
+import { eventGraphFromRow } from "./convert";
+import { spacetimedb } from "./tables";
+
+const auth = TestAuth.internal();
+const SESSION = "s1";
+const SECRET = "sk-test-secret-value";
+
+const h = () => createModuleTestHarness(spacetimedb, mod);
+let harness: ReturnType<typeof h>;
+let requests: { headers: string; body: string }[];
+
+const call = (fn: (ctx: never) => unknown) => harness.withReducerTx(auth, fn as never);
+
+const toolUse = (id: string, name: string, input: Record<string, unknown>) => ({ type: "tool_use", id, name, input });
+
+const at = (landmark: string) => ({ kind: "at", landmark, second_landmark: null, radius_m: null });
+
+const walkInput = {
+  actor: "suspect",
+  action: "walk",
+  from: at("front_door"),
+  to: { kind: "near", landmark: "counter", second_landmark: null, radius_m: 0.6 },
+  at: null,
+  facing: null,
+  target: null,
+  prop: null,
+  t_start: 0,
+  t_end: 5,
+  t_confidence: "inferred",
+  confidence: "high",
+  sources: ["utt_2"],
+};
+
+const ok = (content: unknown[], extra: Record<string, unknown> = {}): TestHttpResponder<never> => () => ({
+  code: 200,
+  headers: { entries: [] },
+  version: { tag: "Http11" },
+  body: JSON.stringify({ content, stop_reason: "tool_use", ...extra }),
+});
+
+const status =
+  (code: number, body: string): TestHttpResponder<never> =>
+  () => ({ code, headers: { entries: [] }, version: { tag: "Http11" }, body });
+
+const ioFor = (responder: TestHttpResponder<never>, apiKey: string = SECRET): Io => {
+  const recording: TestHttpResponder<never> = (test, req, body) => {
+    requests.push({
+      headers: req.headers.entries.map((e) => `${e.name}:${new TextDecoder().decode(e.value as Uint8Array)}`).join("\n"),
+      body: new TextDecoder().decode(body),
+    });
+    return responder(test, req, body);
+  };
+  const ctx = harness.procedureContextBuilder(auth).http(recording as never).build();
+  return { apiKey: () => apiKey, http: ctx.http as never, withTx: (body) => ctx.withTx(body as never) as never };
+};
+
+const graph = () =>
+  eventGraphFromRow(mod.graphForScene(harness.anonymousViewContext(), { sessionId: SESSION }) as never);
+
+const segmentRow = (id = "utt_2") => harness.db.segments.rowKey.find(`${SESSION}/${id}`)!;
+
+const insertWitnessSegment = (id = "utt_2", speaker = "witness") =>
+  call((ctx) =>
+    mod.insertSegment(ctx, {
+      id,
+      sessionId: SESSION,
+      witnessId: "w1",
+      speaker,
+      text: "A guy came in the front door and went straight up to the counter.",
+      tStart: 7.8,
+      tEnd: 16.7,
+      source: "upload_text",
+      supersedes: undefined,
+      utterances: [{ id: `${id}_a`, text: "A guy came in the front door.", tStart: 7.8, tEnd: 12 }],
+    }),
+  );
+
+beforeEach(() => {
+  harness = h();
+  requests = [];
+  call((ctx) => mod.createSession(ctx, { id: SESSION, sceneId: robberyGraph.sceneId }));
+  call((ctx) =>
+    mod.applyPatches(ctx, {
+      sessionId: SESSION,
+      baseVersion: 0,
+      patchesJson: JSON.stringify(robberyGraph.actors.map((actor) => ({ op: "add_actor", actor }))),
+    }),
+  );
+  insertWitnessSegment();
+});
+
+describe("extractSegment", () => {
+  test("a tool_use response becomes patches, the graph re-gates and provenance is recorded", () => {
+    const result = runExtraction(ioFor(ok([toolUse("tu_1", "add_event", walkInput)])), SESSION, "utt_2");
+    expect(result.error).toBeUndefined();
+    expect(result.patchCount).toBe(1);
+    expect(result.statuses).toEqual([{ eventId: "e1", status: "plausible" }]);
+    const g = graph();
+    expect(g.version).toBe(2);
+    expect(g.events).toHaveLength(1);
+    expect(g.events[0]).toMatchObject({ id: "e1", actor: "suspect", action: "walk", sources: ["utt_2"], confidence: 0.9, status: "plausible" });
+    expect(g.events[0]?.flags).toEqual([]);
+    const row = segmentRow();
+    expect(row.extractModel).toBe(EXTRACTION_MODEL);
+    expect(row.extractPromptHash).toBe(PROMPT_HASH);
+    expect(row.extractUtteranceIds).toEqual(["utt_2_a"]);
+    expect(row.extractedAt).toBeDefined();
+    expect(row.extractError).toBeUndefined();
+    expect(PROMPT_HASH).toMatch(/^[0-9a-f]{16}$/);
+  });
+
+  test("the request goes to the Messages API with the key in a header only and a 60 second timeout", () => {
+    const result = runExtraction(ioFor(ok([toolUse("tu_1", "add_event", walkInput)])), SESSION, "utt_2");
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.headers).toContain(`x-api-key:${SECRET}`);
+    expect(requests[0]?.body).not.toContain(SECRET);
+    const body = JSON.parse(requests[0]!.body) as { model: string; tools: unknown[] };
+    expect(body.model).toBe("claude-sonnet-5-5");
+    expect(body.tools.length).toBeGreaterThan(0);
+    expect(JSON.stringify(result)).not.toContain(SECRET);
+    expect(JSON.stringify(segmentRow(), (_k, v) => (typeof v === "bigint" ? v.toString() : v))).not.toContain(SECRET);
+  });
+
+  test("a new prop and an event using it apply together and stay resolvable", () => {
+    const prop = toolUse("tu_p", "add_prop", { type: "knife_chef", anchor: at("counter"), held_by: "suspect", notes: "maybe eight inches", sources: [] });
+    const event = toolUse("tu_e", "add_event", { ...walkInput, action: "pick_up", from: null, to: null, at: at("counter"), prop: "knife_chef" });
+    const result = runExtraction(ioFor(ok([prop, event])), SESSION, "utt_2");
+    if (result.error !== undefined) throw new Error(result.error);
+    expect(graph().props.map((p) => [p.id, p.type])).toEqual([["p_knife_chef", "knife_chef"]]);
+    expect(graph().events[0]?.prop).toBe("p_knife_chef");
+  });
+
+  test("a 500 writes the error on the segment and changes nothing", () => {
+    const before = graph();
+    const result = runExtraction(ioFor(status(500, JSON.stringify({ error: { message: "overloaded" } }))), SESSION, "utt_2");
+    expect(result).toMatchObject({ patchCount: 0, statuses: [], error: "Anthropic API 500: overloaded" });
+    expect(segmentRow().extractError).toBe("Anthropic API 500: overloaded");
+    expect(segmentRow().extractModel).toBeUndefined();
+    expect(graph()).toEqual(before);
+    expect(JSON.stringify(result)).not.toContain(SECRET);
+  });
+
+  test("a refusal and a response with no tool call are written as errors", () => {
+    expect(runExtraction(ioFor(ok([], { stop_reason: "refusal" })), SESSION, "utt_2").error).toMatch(/refused/);
+    expect(segmentRow().extractError).toMatch(/refused/);
+    const empty = runExtraction(ioFor(ok([{ type: "text", text: "hello" }])), SESSION, "utt_2");
+    expect(empty.error).toMatch(/validation failed: the model returned no tool call/);
+    expect(graph().events).toEqual([]);
+  });
+
+  test("an invalid tool result is rejected by the validator, retried once, and changes nothing", () => {
+    const badInput = { ...walkInput, from: at("moon_base") };
+    const result = runExtraction(ioFor(ok([toolUse("tu_1", "add_event", badInput)])), SESSION, "utt_2");
+    expect(requests).toHaveLength(2);
+    expect(JSON.parse(requests[1]!.body).messages).toHaveLength(3);
+    expect(result.patchCount).toBe(0);
+    expect(result.error).toMatch(/^validation failed: add_event:/);
+    expect(segmentRow().extractError).toBe(result.error);
+    expect(graph().events).toEqual([]);
+    expect(graph().version).toBe(1);
+  });
+
+  test("a retry that fixes the call is applied", () => {
+    let n = 0;
+    const responder: TestHttpResponder<never> = (test, req, body) => {
+      n += 1;
+      return ok([toolUse("tu_1", "add_event", n === 1 ? { ...walkInput, from: at("moon_base") } : walkInput)])(test, req, body);
+    };
+    const result = runExtraction(ioFor(responder), SESSION, "utt_2");
+    expect(n).toBe(2);
+    expect(result.error).toBeUndefined();
+    expect(graph().events).toHaveLength(1);
+  });
+
+  test("a failure while applying rolls back and is written as an error", () => {
+    const dangling = { ...walkInput, actor: "suspect", target: "nobody" };
+    const result = runExtraction(ioFor(ok([toolUse("tu_1", "add_event", dangling)])), SESSION, "utt_2");
+    expect(result.error).toBeDefined();
+    expect(result.patchCount).toBe(0);
+    expect(graph().events).toEqual([]);
+    expect(graph().version).toBe(1);
+    expect(segmentRow().extractError).toBe(result.error);
+  });
+
+  test("no key, an unknown segment and a non-witness segment never reach the model", () => {
+    expect(runExtraction(ioFor(ok([]), ""), SESSION, "utt_2").error).toMatch(/ANTHROPIC_API_KEY is not set/);
+    expect(runExtraction(ioFor(ok([])), SESSION, "nope").error).toMatch(/unknown segment/);
+    expect(runExtraction(ioFor(ok([])), "nope", "utt_2").error).toMatch(/unknown session/);
+    insertWitnessSegment("q1", "interviewer");
+    expect(runExtraction(ioFor(ok([])), SESSION, "q1")).toMatchObject({ patchCount: 0, error: undefined });
+    expect(requests).toHaveLength(0);
+  });
+
+  test("the key is declared as a required module env string and never stored", () => {
+    const dump = JSON.stringify(
+      [...harness.db.segments.iter(), ...harness.db.sessions.iter(), ...harness.db.patches.iter()],
+      (_k, v) => (typeof v === "bigint" ? v.toString() : v),
+    );
+    expect(dump).not.toContain("sk-");
+  });
+});
+
+describe("the Cartesia webhook", () => {
+  const webhookIo = (responder: TestHttpResponder<never>) => ({ ...ioFor(responder), nowMicros: () => 1234n });
+  const body = (over: Record<string, unknown> = {}) =>
+    JSON.stringify({
+      sessionId: SESSION,
+      witness: "w1",
+      utterances: [{ text: "A guy came in the front door.", tStart: 7.8, tEnd: 12 }],
+      ...over,
+    });
+
+  test("a bad body is a 400 and nothing is stored", () => {
+    const io = webhookIo(ok([]));
+    expect(handleCartesia(io, "not json").status).toBe(400);
+    expect(handleCartesia(io, "[]").status).toBe(400);
+    expect(handleCartesia(io, body({ sessionId: undefined })).status).toBe(400);
+    expect(handleCartesia(io, body({ utterances: [] })).status).toBe(400);
+    expect(handleCartesia(io, body({ utterances: undefined })).status).toBe(400);
+    expect(handleCartesia(io, body({ utterances: [{ text: "", tStart: 0, tEnd: 1 }] })).status).toBe(400);
+    expect(handleCartesia(io, body({ utterances: [{ text: "x", tStart: 5, tEnd: 1 }] })).status).toBe(400);
+    expect(handleCartesia(io, body({ sessionId: "nope" })).status).toBe(400);
+    expect([...harness.db.segments.sessionId.filter(SESSION)]).toHaveLength(1);
+    expect(requests).toHaveLength(0);
+  });
+
+  test("the exported handler answers 400 to a bad body without touching the database", () => {
+    const res = (mod.cartesiaWebhook as unknown as (ctx: never, req: Request) => { status: number })(
+      {} as never,
+      new Request("http://localhost/webhook/cartesia", { method: "POST", body: "{}" }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  test("a good body inserts the segment, runs the extraction and returns its result", () => {
+    const io = webhookIo(ok([toolUse("tu_1", "add_event", { ...walkInput, sources: ["seg_1234"] })]));
+    const out = handleCartesia(io, body());
+    expect(out.status).toBe(200);
+    expect(out.body).toMatchObject({ segmentId: "seg_1234", patchCount: 1, statuses: [{ eventId: "e1", status: "plausible" }] });
+    const row = harness.db.segments.rowKey.find(`${SESSION}/seg_1234`)!;
+    expect(row).toMatchObject({ speaker: "witness", witnessId: "w1", source: "live", tStart: 7.8, tEnd: 12 });
+    expect(row.extractUtteranceIds).toEqual(["seg_1234_u1"]);
+    expect(graph().events).toHaveLength(1);
+  });
+
+  test("an extraction error still returns 200 with the error as a value", () => {
+    const out = handleCartesia(webhookIo(status(500, "{}")), body());
+    expect(out.status).toBe(200);
+    expect(out.body).toMatchObject({ patchCount: 0, error: "Anthropic API 500" });
+  });
+});
