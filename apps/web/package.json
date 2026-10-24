@@ -16,6 +16,7 @@
     "@react-three/fiber": "9.8.2",
     "@react-three/rapier": "2.2.0",
     "@rashomon/engine": "workspace:*",
+    "@rashomon/extractor": "workspace:*",
     "@rashomon/props": "workspace:*",
     "@rashomon/schema": "workspace:*",
     "mediabunny": "1.62.1",
