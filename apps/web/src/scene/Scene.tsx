@@ -7,6 +7,7 @@ import { CAMERA_PRESETS } from "./cameras/presets";
 import { RigDebug } from "./characters/RigDebug";
 import { RigReportPanel } from "./characters/RigReportPanel";
 import { DebugOverlay } from "./DebugOverlay";
+import { AnchorGizmo } from "./editing/AnchorGizmo";
 import { FloorProbe } from "./FloorProbe";
 import { FpsProbe } from "./FpsProbe";
 import { LabelLayer } from "./landmarks/LabelLayer";
@@ -163,6 +164,7 @@ export function Scene({ fixture, debug, t }: SceneProps) {
             <WitnessView model={loaded.model} manifest={loaded.manifest} />
             <PovRayLine />
             {hasGraph ? <Actors /> : null}
+            {hasGraph ? <AnchorGizmo manifest={loaded.manifest} /> : null}
             {!hasGraph || actorsReady ? <ReadySignal /> : null}
           </>
         ) : null}
