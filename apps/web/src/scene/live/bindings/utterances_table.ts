@@ -14,7 +14,7 @@ export default __t.row({
   rowKey: __t.string().primaryKey().name("row_key"),
   sessionId: __t.string().name("session_id"),
   id: __t.string(),
-  segmentId: __t.string().name("segment_id"),
+  segmentKey: __t.string().name("segment_key"),
   text: __t.string(),
   tStart: __t.f64().name("t_start"),
   tEnd: __t.f64().name("t_end"),

@@ -8,6 +8,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@rashomon/engine": "workspace:*",
     "@rashomon/schema": "workspace:*",
     "spacetimedb": "2.13.0"
   },
