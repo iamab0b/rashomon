@@ -1,4 +1,4 @@
-import type { Event, EventGraph, Portals, SceneManifest } from "@rashomon/schema";
+import type { Event, EventGraph, Portals, SceneManifest, Status } from "@rashomon/schema";
 import type {
   HeldInterval,
   ResolvedEvent,
@@ -28,6 +28,9 @@ function facingPoint(
   if (!id || !manifest.landmarks.some((l) => l.id === id)) return undefined;
   return anchorToPoint({ kind: "at", landmark: id }, manifest);
 }
+
+const isRetracted = (e: { status?: Status; supersededBy?: string }): boolean =>
+  e.status === "superseded" || Boolean(e.supersededBy);
 
 type Sighting = { t: number; order: number; p: Vec3 };
 
@@ -99,7 +102,7 @@ function heldIntervals(
     .filter(
       (e) =>
         e.prop === prop.id &&
-        e.status !== "superseded" &&
+        !isRetracted(e) &&
         (e.action === "pick_up" || e.action === "drop"),
     )
     .sort((a, b) => a.tStart - b.tStart || handoffRank(a.action) - handoffRank(b.action));
@@ -157,8 +160,10 @@ export function resolve(
     const t = resolveInterval(e.t, e.action, route.travelM, previousEnd);
     previousEndByActor.set(e.actor, t.tEnd);
     const arrivedAt = isMove ? (route.reachable ? to : from) : at;
-    tracker.note(e.actor, t.tStart, isMove ? from : at);
-    tracker.note(e.actor, t.tEnd, arrivedAt);
+    if (!isRetracted(e)) {
+      tracker.note(e.actor, t.tStart, isMove ? from : at);
+      tracker.note(e.actor, t.tEnd, arrivedAt);
+    }
 
     const facing = facingPoint(e.facing, manifest);
     return {
