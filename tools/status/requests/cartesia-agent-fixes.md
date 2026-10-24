@@ -1,0 +1,33 @@
+# PR #34 (cartesia-agent): what is left before merge (from Sahil)
+
+PR #34 is the Cartesia track, second only to the extraction fix. Two fresh reviews (Opus and Sonnet) of 28308e5 and Greptile verified most of it:
+- every route checks the secret first, constant-time and fail-closed, with the 413 before parse;
+- the plain-text route shares the insert and extraction path;
+- scene context leaks nothing;
+- setup.ts reads keys from env only, redacts errors and pins cartesia-version 2026-08-14;
+- no real key anywhere;
+- the merge with main kept submit_statement, editors-only insert_segment and the queue;
+- the request shapes match Cartesia's docs.
+
+Your 75e053e addresses Greptile's timeout and overridden-flag findings and the #27 witness-id collision; the leader re-reviews it next. #27 merges as part of #34, so you do not need to touch the spacetime-procedure branch. Push new commits to cartesia-agent; no force-push, no rebase, and do not merge it yourself.
+
+1. **HIGH: the agent's system instructions have no ask-back rule and no cognitive-interview rules** (apps/agent/src/instructions.ts lines 1 to 6). The only hint is the tool description ("ask the first flag's suggestedQuestion"). The agent therefore re-asks the same e5 question after every turn once a flag comes back or is overridden. It also sees each flag's `detail` and `check`, with nothing stopping it from telling the witness their account is implausible. Put both into INSTRUCTIONS:
+   - after record_statement returns, ask the suggestedQuestion of one new hard flag it has not asked before, on its next turn, in its own words but keeping the content;
+   - never say "implausible", "impossible", "lie", "wrong" or anything that judges the witness, and never read out `detail` or `check`;
+   - record the witness's answer with record_statement as a new statement;
+   - the interview order: free narrative first without interrupting, then anchor each event to landmarks ("closer to the window or the fridge?"), then times ("before or after he came through the door?"), then sightlines.
+   - Test in agent.test.ts: INSTRUCTIONS contains each rule. Add a server test with the faked e5 webhook response (procedure.test.ts, the robbery path) showing the response carries one unasked, non-overridden hard flag with its suggestedQuestion.
+2. **MEDIUM: back-to-back identical statements are dropped** (http/cartesia.ts lines 63 to 78, resolveSegmentId). A witness who answers "Yes." twice in a row, which is common in the ask-back flow, has the second answer treated as a retry and gets the previous result.
+   - For the plain-text route, which has no times, dedupe only when the client sends the same segmentId, or when the same witness's previous segment has identical text and was stored less than 15 seconds ago (a Cartesia retry), not otherwise.
+   - Test: two identical "Yes." statements 20 s apart (faked clock) both extract.
+3. **LOW: unguarded transactions** (cartesia.ts lines 185 and 221). withTx in scene_context and end_interview has no try/catch, so a host error becomes a 500 that may carry the raw message. Catch it and return the generic error, as the statement route does.
+4. **Still open from procedure-followups (do them on this branch):**
+   - cap earlier segments in snapshot before Claude (run.ts line 119);
+   - a 413 before storing over-cap text;
+   - rename the resend test to exactly "a resend without a segmentId does not extract twice".
+
+Done-check:
+- `pnpm -r typecheck && pnpm -r test` pass.
+- `git grep -n "the agent asks each new hard flag once" apps/agent spacetimedb/server/src` shows the new test.
+- No real keys; no code comments.
+- Greptile reviews every push. Read its comments and fix what it confirms; the leader triggers it.

@@ -98,6 +98,18 @@
       "paths": [
         "spacetimedb/server/src"
       ]
+    },
+    {
+      "id": "cartesia-agent-fixes",
+      "from": "Sahil",
+      "due": "15-18",
+      "todo": "PR #34 before merge: HIGH ask-back and cognitive-interview rules in apps/agent INSTRUCTIONS (one new unasked hard flag at a time, no judging words, answer recorded as a new statement) with tests; back-to-back identical answers not dropped; guard withTx in scene_context and end_interview; earlier-segment cap, 413, resend test name",
+      "doc": "tools/status/requests/cartesia-agent-fixes.md",
+      "grep": "the agent asks each new hard flag once",
+      "paths": [
+        "apps/agent",
+        "spacetimedb/server/src"
+      ]
     }
   ],
   "D": [
