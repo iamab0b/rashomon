@@ -1,4 +1,4 @@
-import { FlagCard, type PanelContext } from "./shared";
+import { FlagCard, PendingNote, type PanelContext } from "./shared";
 
 export function openFlagCount({ graph, statusOf }: Pick<PanelContext, "graph" | "statusOf">): number {
   return graph.events
@@ -6,7 +6,7 @@ export function openFlagCount({ graph, statusOf }: Pick<PanelContext, "graph" | 
     .reduce((count, event) => count + event.flags.length, 0);
 }
 
-export function FlagsTab({ graph, statusOf, jumpTo, openOverride }: PanelContext) {
+export function FlagsTab({ graph, statusOf, pendingNoteOf, jumpTo, openOverride }: PanelContext) {
   const flagged = graph.events
     .filter((event) => event.flags.length > 0 && statusOf(event) !== "overridden")
     .sort((a, b) => b.tStart - a.tStart);
@@ -29,14 +29,16 @@ export function FlagsTab({ graph, statusOf, jumpTo, openOverride }: PanelContext
         <div className="flag-list">
           {flagged.flatMap((event) =>
             event.flags.map((flag) => (
-              <FlagCard
-                key={flag.id}
-                flag={flag}
-                eventLabel={`${event.id} · ${event.actor} · ${event.action}`}
-                waived={false}
-                onJump={() => jumpTo(event.id)}
-                onOverride={() => openOverride(event.id)}
-              />
+              <div key={flag.id}>
+                <FlagCard
+                  flag={flag}
+                  eventLabel={`${event.id} · ${event.actor} · ${event.action}`}
+                  waived={false}
+                  onJump={() => jumpTo(event.id)}
+                  onOverride={() => openOverride(event.id)}
+                />
+                <PendingNote note={pendingNoteOf(event)} />
+              </div>
             )),
           )}
         </div>
