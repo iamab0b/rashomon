@@ -1,8 +1,13 @@
-import type { Event, EventGraph, Patch, SceneManifest } from "@rashomon/schema";
+import { extractSegment, type CallModel, type ExtractContext } from "@rashomon/extractor";
+import propsJson from "@rashomon/props";
+import type { Event, EventGraph, Patch, PropType, SceneManifest, Segment } from "@rashomon/schema";
 import { robberyGraph, storeScene } from "@rashomon/schema/fixtures";
 import type { GraphSnapshot } from "../store";
 import { applyPatches } from "./applyPatches";
 import { gatedSnapshot } from "./gatedSnapshot";
+import { RECORDED_NOTE, recordedToolCalls } from "./recordedStatements";
+import { checkStatement, statementSegmentId } from "./statementId";
+import { NO_STATEMENTS, type StatementStatus, type StatementStatuses, type SubmittedStatement } from "./statementStatus";
 
 export { gatedSnapshot } from "./gatedSnapshot";
 
@@ -17,6 +22,8 @@ export interface FixtureGraphSource extends GraphSource {
   readonly kind: "fixture";
   readonly edited: boolean;
   apply(patches: readonly Patch[]): void;
+  statementStatuses(): StatementStatuses;
+  submitStatement(text: string, witnessName: string): Promise<SubmittedStatement>;
 }
 
 type FixtureState = {
@@ -54,16 +61,82 @@ const FIXTURE_STATES: Readonly<Record<string, () => FixtureState>> = {
   ),
 };
 
+const FIXTURE_SESSION = "fixture";
+const FIXTURE_WITNESS = "w1";
+const WORDS_PER_SECOND = 1 / 15;
+
+const recordedModelFor =
+  (statement: string): CallModel =>
+  async () => ({ content: [...recordedToolCalls(statement)] });
+
+function statementSegment(text: string): Segment {
+  const body = text.trim();
+  const words = body.split(/\s+/).length;
+  return {
+    id: statementSegmentId(FIXTURE_SESSION, FIXTURE_WITNESS, body),
+    sessionId: FIXTURE_SESSION,
+    witnessId: FIXTURE_WITNESS,
+    speaker: "witness",
+    text: body,
+    t: [0, Math.max(1, words * WORDS_PER_SECOND)],
+    source: "upload_text",
+  };
+}
+
 function patchableSource(initial: () => FixtureState, manifest: SceneManifest): FixtureGraphSource {
   let current: FixtureState | null = null;
+  let statements: StatementStatuses = NO_STATEMENTS;
   const listeners = new Set<() => void>();
   const state = () => current ?? initial();
+  const notify = () => {
+    for (const listener of [...listeners]) listener();
+  };
+  const setStatement = (segmentId: string, status: StatementStatus) => {
+    statements = { ...statements, [segmentId]: status };
+    notify();
+  };
+  const run = async (segment: Segment) => {
+    const graph = state().graph;
+    const context: ExtractContext = {
+      landmarks: manifest.landmarks,
+      actors: graph.actors,
+      propTypes: propsJson as unknown as PropType[],
+      events: graph.events,
+      props: graph.props,
+      recentSegments: [segment],
+    };
+    try {
+      const result = await extractSegment(segment, context, recordedModelFor(segment.text));
+      if (result.patches.length > 0) {
+        current = gatedState(applyPatches(graph, result.patches, Date.now(), manifest), manifest);
+      }
+      setStatement(segment.id, {
+        state: "done",
+        patchCount: result.patches.length,
+        ...(result.patches.length === 0 ? { note: RECORDED_NOTE } : {}),
+      });
+    } catch (error) {
+      setStatement(segment.id, { state: "failed", error: error instanceof Error ? error.message : String(error) });
+    }
+  };
   return {
     kind: "fixture",
     get edited() {
       return current !== null;
     },
     getSnapshot: () => state().snapshot,
+    statementStatuses: () => statements,
+    submitStatement(text, witnessName) {
+      const invalid = checkStatement(text, witnessName);
+      if (invalid) return Promise.reject(new Error(invalid));
+      const segment = statementSegment(text);
+      const baseVersion = state().graph.version;
+      if (!statements[segment.id]) {
+        setStatement(segment.id, { state: "extracting" });
+        setTimeout(() => void run(segment), 0);
+      }
+      return Promise.resolve({ segmentId: segment.id, baseVersion });
+    },
     eventOf: (id) => state().graph.events.find((event) => event.id === id),
     subscribe(listener) {
       listeners.add(listener);
@@ -73,7 +146,7 @@ function patchableSource(initial: () => FixtureState, manifest: SceneManifest): 
     },
     apply(patches) {
       current = gatedState(applyPatches(state().graph, patches, Date.now(), manifest), manifest);
-      for (const listener of [...listeners]) listener();
+      notify();
     },
   };
 }
