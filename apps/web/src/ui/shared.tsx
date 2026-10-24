@@ -75,7 +75,7 @@ export function eventDetail(graph: ResolvedGraph, event: ResolvedEvent): string 
   return parts.filter(Boolean).join(" · ") || "no target or prop";
 }
 
-function formatEvidence(flag: Flag): string {
+export function formatEvidence(flag: Flag): string {
   return Object.entries(flag.evidence)
     .map(([key, value]) => `${key} ${typeof value === "number" ? Number(value.toFixed(2)) : value}`)
     .join(" · ");

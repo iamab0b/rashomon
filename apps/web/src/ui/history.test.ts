@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { eventNeighbors, versionChain, versionChanges } from "./history";
+import { eventNeighbors, overrideTrail, versionChain, versionChanges } from "./history";
 
 const ev = (id: string, tStart: number, tEnd: number, supersededBy?: string) => ({ id, tStart, tEnd, supersededBy });
 
@@ -39,5 +39,24 @@ describe("eventNeighbors", () => {
 
   test("no selection offers the first event as next", () => {
     expect(eventNeighbors(events, null)).toMatchObject({ index: -1, prev: null, next: { id: "b" } });
+  });
+});
+
+describe("overrideTrail", () => {
+  const flag = (id: string) => ({ id, eventId: "e5", check: "sightline" as const, severity: "hard" as const, detail: "", evidence: {}, suggestedQuestion: "" });
+  const override = { by: "investigator", reason: "Recalled the window view.", at: 0, flagIds: ["sightline:e5"] };
+
+  test("links the recorded flag ids to the event's flags; the previous status is implausible", () => {
+    expect(overrideTrail({ flags: [flag("sightline:e5"), flag("other")], override })).toEqual({
+      recorded: [flag("sightline:e5")],
+      missingFlagIds: [],
+      previousStatus: "implausible",
+    });
+  });
+
+  test("reports recorded flags it cannot find instead of inventing them", () => {
+    expect(overrideTrail({ flags: [], override })).toEqual({ recorded: [], missingFlagIds: ["sightline:e5"], previousStatus: "implausible" });
+    expect(overrideTrail({ flags: [], override: { ...override, flagIds: [] } })?.previousStatus).toBeNull();
+    expect(overrideTrail({ flags: [flag("sightline:e5")] })).toBeNull();
   });
 });

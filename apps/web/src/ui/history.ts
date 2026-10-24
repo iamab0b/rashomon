@@ -1,4 +1,4 @@
-import type { ResolvedEvent } from "../scene";
+import type { Flag, ResolvedEvent } from "../scene";
 import { compareDisplayOrder, inDisplayOrder } from "./playback";
 
 type Linked = Pick<ResolvedEvent, "id" | "tStart" | "tEnd" | "supersededBy">;
@@ -53,4 +53,21 @@ export function eventNeighbors<T extends Pick<ResolvedEvent, "id" | "tStart" | "
   const index = selectedId === null ? -1 : ordered.findIndex((event) => event.id === selectedId);
   if (index === -1) return { index: -1, total: ordered.length, prev: null, next: ordered[0] ?? null };
   return { index, total: ordered.length, prev: ordered[index - 1] ?? null, next: ordered[index + 1] ?? null };
+}
+
+export type OverrideTrail = {
+  recorded: Flag[];
+  missingFlagIds: string[];
+  previousStatus: "implausible" | null;
+};
+
+export function overrideTrail(event: Pick<ResolvedEvent, "flags" | "override">): OverrideTrail | null {
+  if (!event.override) return null;
+  const ids = event.override.flagIds;
+  const recorded = event.flags.filter((flag) => ids.includes(flag.id));
+  return {
+    recorded,
+    missingFlagIds: ids.filter((id) => !recorded.some((flag) => flag.id === id)),
+    previousStatus: ids.length > 0 ? "implausible" : null,
+  };
 }
