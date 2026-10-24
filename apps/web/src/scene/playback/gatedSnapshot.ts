@@ -13,5 +13,5 @@ export function gatedSnapshot(graph: EventGraph, manifest: SceneManifest): Graph
       flags: verdict.flags.filter((flag) => flag.eventId === event.id),
     })),
   };
-  return { resolved: gated, statuses: verdict.statuses };
+  return { resolved: gated, statuses: verdict.statuses, graph };
 }

@@ -14,7 +14,9 @@ export interface LiveGraphSource extends GraphSource {
   eventOf(id: string): Event | undefined;
 }
 
-const EMPTY_SNAPSHOT: GraphSnapshot = { resolved: null, statuses: {} };
+const CHANGE_IN_FLIGHT = "a change is still being applied; try again in a moment";
+
+const EMPTY_SNAPSHOT: GraphSnapshot = { resolved: null, statuses: {}, graph: null };
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -26,7 +28,8 @@ function liveState(row: LiveGraphRow, manifest: SceneManifest): { graph: EventGr
     throw new Error(`live row rejected: scene ${graph.sceneId} does not match manifest ${manifest.sceneId}`);
   }
   const resolved = resolve(graph, manifest);
-  return { graph, snapshot: { resolved, statuses: Object.fromEntries(resolved.events.map((event) => [event.id, event.status])) } };
+  const statuses = Object.fromEntries(resolved.events.map((event) => [event.id, event.status]));
+  return { graph, snapshot: { resolved, statuses, graph } };
 }
 
 export function liveSnapshot(row: LiveGraphRow, manifest: SceneManifest): GraphSnapshot {
@@ -43,6 +46,7 @@ export function liveGraphSource(
   let baseVersion: number | null = null;
   let error: string | null = null;
   let actionError: string | null = null;
+  let inFlight = false;
   let connection: LiveConnection | null = null;
   let generation = 0;
   const listeners = new Set<() => void>();
@@ -56,6 +60,7 @@ export function liveGraphSource(
     connection = connect(options, {
       onRow(row) {
         if (!live()) return;
+        inFlight = false;
         baseVersion = row.version;
         try {
           const next = liveState(row, manifest);
@@ -78,6 +83,7 @@ export function liveGraphSource(
 
   const close = () => {
     generation += 1;
+    inFlight = false;
     const closing = connection;
     connection = null;
     closing?.disconnect();
@@ -99,12 +105,20 @@ export function liveGraphSource(
       if (baseVersion === null) {
         throw new Error("patches rejected: no live graph row has arrived yet, so there is no base version to send");
       }
+      if (inFlight) throw new Error(CHANGE_IN_FLIGHT);
       const mine = generation;
-      sending.applyPatches(baseVersion, JSON.stringify(patches)).catch((rejected: unknown) => {
-        if (mine !== generation) return;
-        actionError = errorMessage(rejected);
-        notify();
-      });
+      inFlight = true;
+      sending.applyPatches(baseVersion, JSON.stringify(patches)).then(
+        () => {
+          if (mine === generation) inFlight = false;
+        },
+        (rejected: unknown) => {
+          if (mine !== generation) return;
+          inFlight = false;
+          actionError = errorMessage(rejected);
+          notify();
+        },
+      );
     },
     subscribe(listener) {
       listeners.add(listener);

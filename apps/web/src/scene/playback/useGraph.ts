@@ -1,11 +1,15 @@
-import type { ResolvedEvent } from "@rashomon/engine";
-import type { Status } from "@rashomon/schema";
+import type { ResolvedEvent, ResolvedGraph } from "@rashomon/engine";
+import type { EventGraph, Status } from "@rashomon/schema";
 import { useEffect } from "react";
 import type { LiveGraphSource } from "../live/liveGraphSource";
-import { useSceneStore, type GraphErrors, type GraphSnapshot, type StatusMap } from "../store";
+import { useSceneStore, type GraphErrors, type StatusMap } from "../store";
 import type { GraphSource } from "./graphSource";
 
-export type GraphView = GraphSnapshot;
+export type GraphView = {
+  readonly resolved: ResolvedGraph | null;
+  readonly statuses: StatusMap;
+  readonly graph: EventGraph | null;
+};
 
 export function statusOf(statuses: StatusMap, event: Pick<ResolvedEvent, "id" | "status">): Status {
   return Object.hasOwn(statuses, event.id) ? (statuses[event.id] ?? event.status) : event.status;
@@ -53,5 +57,6 @@ export function useGraphErrors(): { connectionError: string | null; actionError:
 export function useGraph(): GraphView {
   const resolved = useSceneStore((state) => state.resolved);
   const statuses = useSceneStore((state) => state.statuses);
-  return { resolved, statuses };
+  const graph = useSceneStore((state) => state.graph);
+  return { resolved, statuses, graph };
 }

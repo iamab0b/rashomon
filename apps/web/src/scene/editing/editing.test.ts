@@ -107,4 +107,30 @@ describe("drag session", () => {
     expect(session.cancel()).toBe(false);
     expect(session.end()).toBeNull();
   });
+
+  it("a reset requested mid-drag waits and is handed back once when the drag ends", () => {
+    const session = createDragSession();
+    expect(session.requestReset()).toBe(true);
+    expect(session.takePendingReset()).toBe(false);
+
+    session.start();
+    session.move([1, 0, 1]);
+    expect(session.requestReset()).toBe(false);
+    expect(session.requestReset()).toBe(false);
+    session.end();
+
+    expect(session.takePendingReset()).toBe(true);
+    expect(session.takePendingReset()).toBe(false);
+    expect(session.requestReset()).toBe(true);
+  });
+
+  it("a reset requested during a cancelled drag still waits until the pointer is released", () => {
+    const session = createDragSession();
+    session.start();
+    session.cancel();
+
+    expect(session.requestReset()).toBe(false);
+    expect(session.end()).toBeNull();
+    expect(session.takePendingReset()).toBe(true);
+  });
 });

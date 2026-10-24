@@ -2,6 +2,8 @@ import type { Patch } from "@rashomon/schema";
 import { robberyGraph, storeScene } from "@rashomon/schema/fixtures";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { anchorDropPatch } from "../editing/anchorDrop";
+import { callHook } from "../testing/hookHost";
+import { pushSource, useGraph } from "./useGraph";
 import { useSceneStore } from "../store";
 import { ENGINE_OVERRIDE_PR, engineHonorsOverride } from "./engineOverrideProbe";
 import { fixtureGraphSource, robberyCorrectionPatches, type GraphSource } from "./graphSource";
@@ -87,6 +89,31 @@ describe("useGraphActions", () => {
         expected.map((check) => `${check}:soft`),
       );
     }
+  });
+
+  it("after the e5 drop, useGraph exposes the graph the snapshot was resolved from with e5's new anchor", () => {
+    const source = mountStoreFixture();
+    source.subscribe(() => pushSource(source));
+    pushSource(source);
+    expect(callHook(() => useGraph()).graph?.events.find((event) => event.id === "e5")?.at).toEqual({
+      kind: "at",
+      landmark: "aisle_chips",
+    });
+    const e5 = robberyGraph.events.find((event) => event.id === "e5")!;
+    const window = storeScene.landmarks.find((l) => l.id === "window_front")!;
+    const patch = anchorDropPatch(e5, "at", [window.position[0], 0, window.position[2]], storeScene);
+
+    useGraphActions().applyPatches([patch!]);
+
+    const view = callHook(() => useGraph());
+    expect(view.graph?.events.find((event) => event.id === "e5")?.at).toEqual({ kind: "at", landmark: "window_front" });
+    expect(view.graph?.events).toHaveLength(10);
+    expect(view.resolved?.events.find((event) => event.id === "e5")?.status).toBe("plausible");
+  });
+
+  it("useGraph's graph is null when nothing is mounted", () => {
+    useSceneStore.getState().setGraph({ resolved: null, statuses: {} });
+    expect(callHook(() => useGraph()).graph).toBeNull();
   });
 
   it("the e1 drop on back_door puts the first point of e1's path within 0.5 m of back_door", () => {
