@@ -31,7 +31,7 @@
     },
     "D": {
       "owner": "Hazel",
-      "aliases": ["Hazel", "hsoh0408", "hsoh0408@gmail.com"],
+      "aliases": ["Hazel", "hsoh0408", "162292511+hsoh0408@users.noreply.github.com"],
       "folders": ["apps/web/src/ui", "packages/props", "docs/pitch", "docs/design"],
       "milestones": [
         {"hours": "0-3", "goal": "props.json values verified with sources; UI shell, dark theme, right panel layout", "signals": ["apps/web/src/ui/*.tsx"]},
