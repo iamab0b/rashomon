@@ -6,7 +6,7 @@ You are working on the 3D workspace of Rashomon, a Cal Hacks 13.0 project: witne
 
 **No position, path, duration or status is computed in this folder.** The resolver in `packages/engine` turns the event graph into world positions, path points and durations; the gate sets statuses. `scene/` reads `ResolvedGraph` and a timeline `t` and draws. If you find yourself computing where an actor should be, stop: the number belongs in the engine, and the fix is to ask Seat A for it in the resolver output.
 
-The only exceptions: the editor converts a drag end position into an `update_event` patch (anchor by nearest landmark within 0.75 m, else `xyz`), and `gate.preview(graph, scene)` from `packages/engine` may be called locally for red/green feedback while dragging.
+Facing may be computed here: a yaw or direction from an actor's resolved position toward a resolved point, landmark anchor or path tangent is direction only and is allowed, as long as it never produces or changes a position. The only other exceptions: the editor converts a drag end position into an `update_event` patch (anchor by nearest landmark within 0.75 m, else `xyz`), and `gate.preview(graph, scene)` from `packages/engine` may be called locally for red/green feedback while dragging.
 
 ## Stack and versions (pinned, do not upgrade)
 
@@ -46,7 +46,7 @@ The clip table is `docs/clip-action-map.md`; `characters/actionMap.ts` carries i
 
 ## Testing and screenshots
 
-`pnpm -F web shot -- --fixture robbery --t 12 --cam witness_claimed` renders a PNG to `apps/web/shots/`. Look at it before saying a visual task is done. `pnpm -F web test` runs Vitest on `actionMap`, `playback` math and the patch emitter. Both must pass before a merge.
+`pnpm -F web shot -- --fixture store --t 12 --cam witness_claimed` (the harness opens `?fixture=store&t=12&cam=witness_claimed`; the robbery graph loads by default in fixture mode) renders a PNG to `apps/web/shots/`. Look at it before saying a visual task is done. `pnpm -F web test` runs Vitest on `actionMap`, `playback` math and the patch emitter. Both must pass before a merge.
 
 ## Fixtures
 
