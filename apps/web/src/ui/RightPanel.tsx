@@ -1,14 +1,14 @@
-import { useEffect, useState, type ComponentType, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type ComponentType, type CSSProperties, type ReactNode } from "react";
 import { useGraph, useGraphActions, useSelection, useTimeline, type ResolvedEvent, type Status } from "../scene";
 import { EventsTab } from "./EventsTab";
 import { FlagsTab, openFlagCount } from "./FlagsTab";
-import { HistoryTab } from "./HistoryTab";
+import { HISTORY_PANEL_ID, HistoryPanel } from "./HistoryPanel";
 import { OverrideDialog } from "./OverrideDialog";
 import { eventDisplay, type PendingOverrides } from "./overridePending";
 import { anchorsFor, eventPlace } from "./places";
 import { playbackActiveIds } from "./playback";
 import { usePlaybackKeys } from "./usePlaybackKeys";
-import type { PanelContext } from "./shared";
+import { actorLabel, words, type PanelContext } from "./shared";
 import { transcriptFor } from "./transcript";
 import { TranscriptDrawer } from "./TranscriptDrawer";
 import { useGraphMode } from "./useGraphMode";
@@ -25,11 +25,25 @@ type Tab = {
 const TABS: Tab[] = [
   { id: "flags", label: "Flags", count: openFlagCount, Component: FlagsTab },
   { id: "events", label: "Events", count: ({ graph }) => graph.events.length, Component: EventsTab },
-  { id: "history", label: "History", Component: HistoryTab },
   { id: "witnesses", label: "Witnesses", Component: WitnessesTab },
 ];
 
 const TOAST_MS = 2200;
+const PANEL_WIDTH_PX = 360;
+
+const COLUMN_STYLE: CSSProperties = {
+  width: PANEL_WIDTH_PX,
+  flex: "0 0 auto",
+  borderLeft: "1px solid #222831",
+  color: "#c9d1d9",
+  padding: 16,
+  boxSizing: "border-box",
+  overflowY: "auto",
+};
+
+function PanelColumn({ children }: { children: ReactNode }) {
+  return <div style={COLUMN_STYLE}>{children}</div>;
+}
 
 export function RightPanel({ by = "investigator" }: { by?: string }) {
   const { resolved, statuses } = useGraph();
@@ -43,6 +57,24 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
   const [dialogEventId, setDialogEventId] = useState<string | null>(null);
   const [sourceId, setSourceId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const historyButtonRef = useRef<HTMLButtonElement>(null);
+
+  const closeHistory = () => {
+    setHistoryOpen(false);
+    historyButtonRef.current?.focus({ preventScroll: true });
+  };
+
+  useEffect(() => {
+    if (!historyOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented || dialogEventId) return;
+      setHistoryOpen(false);
+      historyButtonRef.current?.focus({ preventScroll: true });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [historyOpen, dialogEventId]);
 
   useEffect(() => {
     if (!toast) return;
@@ -52,11 +84,13 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
 
   if (!resolved) {
     return (
-      <div className="rui">
-        <div className="flags-empty">
-          <p>Loading the reconstruction…</p>
+      <PanelColumn>
+        <div className="rui">
+          <div className="flags-empty">
+            <p>Loading the reconstruction…</p>
+          </div>
         </div>
-      </div>
+      </PanelColumn>
     );
   }
 
@@ -94,61 +128,90 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
   );
   const tab = TABS[tabIndex]!;
   const dialogEvent = resolved.events.find((e) => e.id === dialogEventId) ?? null;
+  const selectedEvent = resolved.events.find((e) => e.id === selectedEventId) ?? null;
 
   return (
-    <div className="rui panel">
-      <nav
-        className="tabs"
-        role="tablist"
-        style={{ "--tab-count": TABS.length, "--tab-index": tabIndex } as CSSProperties}
-      >
-        {TABS.map((t) => (
-          <button
-            type="button"
-            role="tab"
-            aria-selected={t.id === tab.id}
-            key={t.id}
-            className={t.id === tab.id ? "tab active" : "tab"}
-            onClick={() => setActiveTab(t.id)}
+    <>
+      <PanelColumn>
+        <div className="rui panel">
+          <nav
+            className="tabs"
+            role="tablist"
+            style={{ "--tab-count": TABS.length, "--tab-index": tabIndex } as CSSProperties}
           >
-            {t.label}
-            {t.count && <span>{t.count(context)}</span>}
-          </button>
-        ))}
-        <span className="tab-indicator" aria-hidden />
-      </nav>
+            {TABS.map((t) => (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={t.id === tab.id}
+                key={t.id}
+                className={t.id === tab.id ? "tab active" : "tab"}
+                onClick={() => setActiveTab(t.id)}
+              >
+                {t.label}
+                {t.count && <span>{t.count(context)}</span>}
+              </button>
+            ))}
+            <span className="tab-indicator" aria-hidden />
+          </nav>
 
-      <div className="tab-panel" key={tab.id} role="tabpanel">
-        <tab.Component {...context} />
-      </div>
+          <div className="selection-bar">
+            <div>
+              <span className="eyebrow">Selected event</span>
+              {selectedEvent ? (
+                <strong>
+                  {selectedEvent.id} · {actorLabel(resolved, selectedEvent.actor)} · {words(selectedEvent.action)}
+                </strong>
+              ) : (
+                <strong className="none">None selected</strong>
+              )}
+            </div>
+            <button
+              type="button"
+              ref={historyButtonRef}
+              className="button button--small"
+              aria-expanded={historyOpen}
+              aria-controls={HISTORY_PANEL_ID}
+              onClick={() => (historyOpen ? closeHistory() : setHistoryOpen(true))}
+            >
+              History
+            </button>
+          </div>
 
-      {sourceId && (
-        <TranscriptDrawer transcript={context.transcript} activeId={sourceId} onClose={() => setSourceId(null)} />
-      )}
+          <div className="tab-panel" key={tab.id} role="tabpanel">
+            <tab.Component {...context} />
+          </div>
 
-      {dialogEvent && (
-        <OverrideDialog
-          key={dialogEvent.id}
-          event={dialogEvent}
-          status={statusOf(dialogEvent)}
-          by={by}
-          onClose={() => setDialogEventId(null)}
-          onConfirm={(override) => {
-            applyPatches([{ op: "override", id: dialogEvent.id, reason: override.reason, by: override.by }]);
-            setPending((prev) => ({ ...prev, [dialogEvent.id]: override.reason }));
-            setDialogEventId(null);
-            select(dialogEvent.id);
-            setToast("Override sent. Reason recorded in History.");
-          }}
-        />
-      )}
+          {sourceId && (
+            <TranscriptDrawer transcript={context.transcript} activeId={sourceId} onClose={() => setSourceId(null)} />
+          )}
 
-      {toast && (
-        <div className="toast" role="status">
-          {!toast.startsWith("Couldn't") && <span>✓</span>}
-          {toast}
+          {dialogEvent && (
+            <OverrideDialog
+              key={dialogEvent.id}
+              event={dialogEvent}
+              status={statusOf(dialogEvent)}
+              by={by}
+              onClose={() => setDialogEventId(null)}
+              onConfirm={(override) => {
+                applyPatches([{ op: "override", id: dialogEvent.id, reason: override.reason, by: override.by }]);
+                setPending((prev) => ({ ...prev, [dialogEvent.id]: override.reason }));
+                setDialogEventId(null);
+                select(dialogEvent.id);
+                setToast("Override sent. Reason recorded in History.");
+              }}
+            />
+          )}
+
+          {toast && (
+            <div className="toast" role="status">
+              {!toast.startsWith("Couldn't") && <span>✓</span>}
+              {toast}
+            </div>
+          )}
         </div>
-      )}
-    </div>
+      </PanelColumn>
+      <HistoryPanel open={historyOpen} onClose={closeHistory} context={context} />
+    </>
   );
 }

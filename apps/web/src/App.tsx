@@ -3,8 +3,6 @@ import { isCameraPreset, POV_CAM, Scene, Timeline, useCamera } from "./scene";
 import { RightPanel } from "./ui/RightPanel";
 import { TopBar } from "./ui/TopBar";
 
-const PANEL_WIDTH_PX = 360;
-
 export function App() {
   const params = new URLSearchParams(window.location.search);
   const fixture = params.get("fixture") ?? "store";
@@ -29,18 +27,7 @@ export function App() {
           </div>
           <Timeline />
         </div>
-        <div
-          style={{
-            width: PANEL_WIDTH_PX,
-            borderLeft: "1px solid #222831",
-            color: "#c9d1d9",
-            padding: 16,
-            boxSizing: "border-box",
-            overflowY: "auto",
-          }}
-        >
-          <RightPanel />
-        </div>
+        <RightPanel />
       </div>
     </div>
   );
