@@ -19,9 +19,7 @@ import type {
   PropInstance as PropRow,
 } from "./bindings/types";
 
-export type LiveGraphRow = GraphRow & {
-  witnesses?: { id: string; label: string; actorId?: string }[];
-};
+export type LiveGraphRow = GraphRow;
 
 const STATUSES: readonly Status[] = ["proposed", "plausible", "implausible", "overridden", "superseded"];
 const CHECKS: readonly Flag["check"][] = [

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { convertGraphRow, type LiveGraphRow } from "./convert";
 
-const row = (witnesses: LiveGraphRow["witnesses"]): LiveGraphRow =>
+const row = (witnesses: { id: string; label: string; actorId?: string }[] | undefined): LiveGraphRow =>
   ({ sceneId: "store_v1", actors: [], events: [], props: [], version: 2, witnesses }) as unknown as LiveGraphRow;
 
 describe("convertGraphRow witnesses", () => {
