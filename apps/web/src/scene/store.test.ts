@@ -97,3 +97,50 @@ describe("timeline state", () => {
     expect(useSceneStore.getState().resolved).toBe(graph);
   });
 });
+
+describe("timeline transport", () => {
+  const graph = { sceneId: "s", version: 1, durationS: 24, actors: [], events: [], props: [] };
+
+  test("duration follows resolved.durationS through setResolved and setGraph", () => {
+    useSceneStore.getState().setResolved(graph);
+    expect(useSceneStore.getState().duration).toBe(24);
+
+    useSceneStore.getState().setGraph({ resolved: { ...graph, durationS: 12 }, statuses: { e1: "plausible" } });
+    expect(useSceneStore.getState().duration).toBe(12);
+    expect(useSceneStore.getState().statuses).toEqual({ e1: "plausible" });
+
+    useSceneStore.getState().setGraph({ resolved: null, statuses: {} });
+    expect(useSceneStore.getState().duration).toBe(0);
+  });
+
+  test("play and pause toggle playing without moving t", () => {
+    useSceneStore.getState().setResolved(graph);
+    useSceneStore.getState().setT(5);
+
+    useSceneStore.getState().play();
+    expect(useSceneStore.getState()).toMatchObject({ playing: true, t: 5 });
+    useSceneStore.getState().pause();
+    expect(useSceneStore.getState()).toMatchObject({ playing: false, t: 5 });
+  });
+
+  test("play at the end rewinds to 0", () => {
+    useSceneStore.getState().setResolved(graph);
+    useSceneStore.getState().setT(24);
+
+    useSceneStore.getState().play();
+
+    expect(useSceneStore.getState()).toMatchObject({ playing: true, t: 0 });
+  });
+
+  test("speed defaults to 1 and rejects non-positive values", () => {
+    const { setSpeed } = useSceneStore.getState();
+    expect(useSceneStore.getState().speed).toBe(1);
+
+    setSpeed(2);
+    expect(useSceneStore.getState().speed).toBe(2);
+    setSpeed(0);
+    expect(useSceneStore.getState().speed).toBe(1);
+    setSpeed(Number.NaN);
+    expect(useSceneStore.getState().speed).toBe(1);
+  });
+});

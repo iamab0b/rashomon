@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AnimationMixer, type Bone, type Object3D, type SkinnedMesh } from "three";
+import { ownMaterials } from "./materials";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import {
   findHipBone,
@@ -27,6 +28,7 @@ type Props = {
 function instantiate(rig: Rig, source: Object3D): CharacterHandle {
   const root = cloneSkinned(source);
   root.scale.setScalar(MIXAMO_UNIT_SCALE);
+  ownMaterials(root);
   root.traverse((object) => {
     object.castShadow = true;
     object.receiveShadow = true;
@@ -43,7 +45,7 @@ function instantiate(rig: Rig, source: Object3D): CharacterHandle {
   };
 }
 
-function useCharacter(rig: Rig): CharacterHandle | null {
+export function useCharacter(rig: Rig): CharacterHandle | null {
   const [handle, setHandle] = useState<CharacterHandle | null>(null);
 
   useEffect(() => {

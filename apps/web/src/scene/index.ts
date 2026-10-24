@@ -3,3 +3,8 @@ export type { SceneProps } from "./Scene";
 export { useCamera } from "./cameras/useCamera";
 export { isCameraPreset } from "./cameras/presets";
 export type { CameraPreset } from "./cameras/presets";
+export { useGraph } from "./playback/useGraph";
+export type { GraphView } from "./playback/useGraph";
+export type { GraphSource, LiveGraphSourceFactory, LiveGraphSourceOptions } from "./playback/graphSource";
+export { useTimeline } from "./playback/useTimeline";
+export type { TimelineApi } from "./playback/useTimeline";

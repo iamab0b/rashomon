@@ -58,8 +58,12 @@ type Shaped = Draft & { rampIn: Span; rampOut: Span; suppressors: number[] };
 
 export const EMPTY_WINDOW_SET: ClipWindowSet = { windows: [], conflicts: [], idleAnchors: [] };
 
-export function isPlayable(event: Pick<ResolvedEvent, "status">): boolean {
-  return PLAYABLE_STATUSES.has(event.status);
+export type EventStatusLookup = (event: ResolvedEvent) => Status;
+
+const OWN_STATUS: EventStatusLookup = (event) => event.status;
+
+export function isPlayable(status: Status): boolean {
+  return PLAYABLE_STATUSES.has(status);
 }
 
 function hasPositiveDuration(event: Pick<ResolvedEvent, "tStart" | "tEnd">): boolean {
@@ -100,8 +104,9 @@ function draftsFor(
   actorId: string,
   events: readonly ResolvedEvent[],
   hasClip: (name: string) => boolean,
+  statusOf: EventStatusLookup,
 ): Draft[] {
-  const playable = events.filter((event) => isPlayable(event) && hasPositiveDuration(event));
+  const playable = events.filter((event) => isPlayable(statusOf(event)) && hasPositiveDuration(event));
   const own = playable.filter((event) => event.actor === actorId).map((event) => ownDraft(event, hasClip));
   const reactions = playable
     .filter((event) => event.target === actorId && event.actor !== actorId)
@@ -218,8 +223,9 @@ export function buildClipWindows(
   actorId: string,
   events: readonly ResolvedEvent[],
   hasClip: (name: string) => boolean,
+  statusOf: EventStatusLookup = OWN_STATUS,
 ): ClipWindowSet {
-  const drafts = withHandoffs(withHolds(draftsFor(actorId, events, hasClip)));
+  const drafts = withHandoffs(withHolds(draftsFor(actorId, events, hasClip, statusOf)));
   const { windows, idleAnchors } = withAnchors(shape(drafts));
   return { windows, conflicts: findConflicts(windows), idleAnchors };
 }

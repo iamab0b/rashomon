@@ -13,8 +13,9 @@ export function Playhead() {
     const step = stepPlayhead(memo.current, {
       t: state.t,
       playing: state.playing,
-      duration: state.resolved?.durationS ?? Number.POSITIVE_INFINITY,
+      duration: state.duration > 0 ? state.duration : Number.POSITIVE_INFINITY,
       clockS: clock.elapsedTime,
+      speed: state.speed,
     });
     memo.current = step.memo;
     if (!state.playing) return;
