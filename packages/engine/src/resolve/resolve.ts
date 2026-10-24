@@ -179,6 +179,8 @@ export function resolve(
       ...(e.target ? { target: e.target } : {}),
       ...(e.prop ? { prop: e.prop } : {}),
       sources: e.sources,
+      ...(e.override ? { override: { ...e.override, flagIds: [...e.override.flagIds] } } : {}),
+      ...(e.supersededBy !== undefined ? { supersededBy: e.supersededBy } : {}),
       tInferred: t.tInferred,
     };
   });
