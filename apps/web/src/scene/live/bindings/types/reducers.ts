@@ -11,10 +11,12 @@ import CreateSessionReducer from "../create_session_reducer";
 import InsertSegmentReducer from "../insert_segment_reducer";
 import OverrideReducer from "../override_reducer";
 import SetStatusesReducer from "../set_statuses_reducer";
+import SubmitStatementReducer from "../submit_statement_reducer";
 
 export type ApplyPatchesParams = __Infer<typeof ApplyPatchesReducer>;
 export type CreateSessionParams = __Infer<typeof CreateSessionReducer>;
 export type InsertSegmentParams = __Infer<typeof InsertSegmentReducer>;
 export type OverrideParams = __Infer<typeof OverrideReducer>;
 export type SetStatusesParams = __Infer<typeof SetStatusesReducer>;
+export type SubmitStatementParams = __Infer<typeof SubmitStatementReducer>;
 

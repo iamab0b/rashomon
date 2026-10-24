@@ -35,8 +35,7 @@ function anchorFor(point: FloorPoint, manifest: SceneManifest): Anchor {
   const close = nearestBy(
     snappable.filter(
       (landmark) =>
-        Math.abs(point.x - landmark.position[0]) <= SNAP_RADIUS_M &&
-        Math.abs(point.z - landmark.position[2]) <= SNAP_RADIUS_M,
+        distance(point, landmark) <= SNAP_RADIUS_M,
     ),
     point,
   );

@@ -1,3 +1,4 @@
+import type { LiveSegmentRow } from "../playback/statementStatus";
 import type { LiveGraphRow } from "./convert";
 
 export type LiveOptions = {
@@ -9,11 +10,14 @@ export type LiveOptions = {
 export type LiveHandlers = {
   readonly onRow: (row: LiveGraphRow) => void;
   readonly onError: (message: string) => void;
+  readonly onSegment?: (row: LiveSegmentRow) => void;
+  readonly onIdentity?: (identity: string) => void;
 };
 
 export interface LiveConnection {
   disconnect(): void;
   applyPatches(baseVersion: number, patchesJson: string): Promise<void>;
+  submitStatement(text: string, witnessName: string): Promise<void>;
 }
 
 export type LiveConnector = (options: LiveOptions, handlers: LiveHandlers) => LiveConnection;
@@ -36,6 +40,30 @@ export function liveOptionsFromSearch(search: string): LiveOptions {
     databaseName: param(params, "db", DEFAULT_LIVE_OPTIONS.databaseName),
     sessionId: param(params, "session", DEFAULT_LIVE_OPTIONS.sessionId),
   };
+}
+
+export function segmentsQuery(sessionId: string): string {
+  return `SELECT * FROM segments WHERE session_id = '${sessionId.replaceAll("'", "''")}'`;
+}
+
+export function tokenKey(options: Pick<LiveOptions, "uri" | "databaseName">): string {
+  return `rashomon.stdb.token.${options.uri}.${options.databaseName}`;
+}
+
+export function loadToken(options: Pick<LiveOptions, "uri" | "databaseName">): string | undefined {
+  try {
+    return globalThis.localStorage?.getItem(tokenKey(options)) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function saveToken(options: Pick<LiveOptions, "uri" | "databaseName">, token: string): void {
+  try {
+    globalThis.localStorage?.setItem(tokenKey(options), token);
+  } catch {
+    return;
+  }
 }
 
 export function graphQuery(sessionId: string): string {

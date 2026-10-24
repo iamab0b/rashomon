@@ -1,8 +1,10 @@
 import type { ResolvedGraph } from "@rashomon/engine";
-import type { Status } from "@rashomon/schema";
+import type { EventGraph, Status } from "@rashomon/schema";
 import { create } from "zustand";
 import type { CameraPreset } from "./cameras/presets";
+import type { CharacterHandle } from "./characters/Character";
 import type { GraphSource } from "./playback/graphSource";
+import { NO_STATEMENTS, type StatementStatuses } from "./playback/statementStatus";
 
 export type SceneStatus = "loading" | "ready" | "error";
 
@@ -11,6 +13,7 @@ export type StatusMap = Readonly<Record<string, Status>>;
 export type GraphSnapshot = {
   readonly resolved: ResolvedGraph | null;
   readonly statuses: StatusMap;
+  readonly graph?: EventGraph | null;
 };
 
 export const DEFAULT_SPEED = 1;
@@ -28,17 +31,22 @@ export type SceneState = {
   fps: number;
   floorHit: readonly [number, number, number] | null;
   status: SceneStatus;
+  error: string | null;
   t: number;
   playing: boolean;
   speed: number;
   duration: number;
   resolved: ResolvedGraph | null;
   statuses: StatusMap;
+  graph: EventGraph | null;
   graphSource: GraphSource | null;
   connectionError: string | null;
   actionError: string | null;
   errorEpoch: number;
+  liveIdentity: string | null;
+  statements: StatementStatuses;
   actorsReady: boolean;
+  characterHandles: ReadonlyMap<string, CharacterHandle>;
   selectedEventId: string | null;
   povFollow: boolean;
   povActor: string | null;
@@ -48,7 +56,7 @@ export type SceneState = {
   toggleDebug: () => void;
   setFps: (fps: number) => void;
   setFloorHit: (hit: readonly [number, number, number] | null) => void;
-  setStatus: (status: SceneStatus) => void;
+  setStatus: (status: SceneStatus, error?: string | null) => void;
   setT: (t: number) => void;
   setPlaying: (playing: boolean) => void;
   setSpeed: (speed: number) => void;
@@ -58,8 +66,11 @@ export type SceneState = {
   setGraph: (snapshot: GraphSnapshot) => void;
   setGraphSource: (source: GraphSource | null) => void;
   setGraphErrors: (errors: GraphErrors) => void;
+  setLiveIdentity: (identity: string | null) => void;
+  setStatements: (statements: StatementStatuses) => void;
   setActionError: (message: string | null) => void;
   setActorsReady: (ready: boolean) => void;
+  setCharacterHandle: (actorId: string, handle: CharacterHandle | null) => void;
   select: (id: string) => void;
   clear: () => void;
   setPovFollow: (follow: boolean) => void;
@@ -70,6 +81,7 @@ export type SceneState = {
 };
 
 const NO_ACTORS: ReadonlySet<string> = new Set();
+const NO_HANDLES: ReadonlyMap<string, CharacterHandle> = new Map();
 
 function sameMembers(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
   if (a.size !== b.size) return false;
@@ -98,17 +110,22 @@ export const useSceneStore = create<SceneState>((set) => ({
   fps: 0,
   floorHit: null,
   status: "loading",
+  error: null,
   t: 0,
   playing: false,
   speed: DEFAULT_SPEED,
   duration: 0,
   resolved: null,
   statuses: EMPTY_STATUSES,
+  graph: null,
   graphSource: null,
   connectionError: null,
   actionError: null,
   errorEpoch: 0,
+  liveIdentity: null,
+  statements: NO_STATEMENTS,
   actorsReady: false,
+  characterHandles: NO_HANDLES,
   selectedEventId: null,
   povFollow: false,
   povActor: null,
@@ -118,7 +135,7 @@ export const useSceneStore = create<SceneState>((set) => ({
   toggleDebug: () => set((state) => ({ debugVisible: !state.debugVisible })),
   setFps: (fps) => set({ fps }),
   setFloorHit: (floorHit) => set({ floorHit }),
-  setStatus: (status) => set({ status }),
+  setStatus: (status, error = null) => set({ status, error: status === "error" ? error : null }),
   setT: (t) => set((state) => ({ t: clampT(t, state.duration) })),
   setPlaying: (playing) => set({ playing }),
   setSpeed: (speed) => set({ speed: Number.isFinite(speed) && speed > 0 ? speed : DEFAULT_SPEED }),
@@ -130,17 +147,19 @@ export const useSceneStore = create<SceneState>((set) => ({
       return {
         resolved,
         statuses: EMPTY_STATUSES,
+        graph: null,
         duration,
         t: clampT(state.t, duration),
         selectedEventId: survivingSelection(state.selectedEventId, resolved),
       };
     }),
-  setGraph: ({ resolved, statuses }) =>
+  setGraph: ({ resolved, statuses, graph }) =>
     set((state) => {
       const duration = durationOf(resolved);
       return {
         resolved,
         statuses,
+        graph: graph ?? null,
         duration,
         t: clampT(state.t, duration),
         selectedEventId: survivingSelection(state.selectedEventId, resolved),
@@ -150,7 +169,17 @@ export const useSceneStore = create<SceneState>((set) => ({
   setGraphErrors: ({ connection, action }) =>
     set((state) => ({ connectionError: connection, actionError: action, errorEpoch: state.errorEpoch + 1 })),
   setActionError: (actionError) => set({ actionError }),
+  setLiveIdentity: (liveIdentity) => set((state) => (state.liveIdentity === liveIdentity ? state : { liveIdentity })),
+  setStatements: (statements) => set((state) => (state.statements === statements ? state : { statements })),
   setActorsReady: (actorsReady) => set({ actorsReady }),
+  setCharacterHandle: (actorId, handle) =>
+    set((state) => {
+      if (handle === null && !state.characterHandles.has(actorId)) return state;
+      const next = new Map(state.characterHandles);
+      if (handle === null) next.delete(actorId);
+      else next.set(actorId, handle);
+      return { characterHandles: next };
+    }),
   select: (id) => set((state) => ({ selectedEventId: survivingSelection(id, state.resolved) ?? state.selectedEventId })),
   clear: () => set({ selectedEventId: null }),
   setPovFollow: (povFollow) =>

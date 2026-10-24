@@ -1,11 +1,16 @@
-import type { ResolvedEvent } from "@rashomon/engine";
-import type { Status } from "@rashomon/schema";
+import type { ResolvedEvent, ResolvedGraph } from "@rashomon/engine";
+import type { EventGraph, Status } from "@rashomon/schema";
 import { useEffect } from "react";
 import type { LiveGraphSource } from "../live/liveGraphSource";
-import { useSceneStore, type GraphErrors, type GraphSnapshot, type StatusMap } from "../store";
+import { useSceneStore, type GraphErrors, type StatusMap } from "../store";
 import type { GraphSource } from "./graphSource";
+import { NO_STATEMENTS, type StatementStatuses } from "./statementStatus";
 
-export type GraphView = GraphSnapshot;
+export type GraphView = {
+  readonly resolved: ResolvedGraph | null;
+  readonly statuses: StatusMap;
+  readonly graph: EventGraph | null;
+};
 
 export function statusOf(statuses: StatusMap, event: Pick<ResolvedEvent, "id" | "status">): Status {
   return Object.hasOwn(statuses, event.id) ? (statuses[event.id] ?? event.status) : event.status;
@@ -23,6 +28,9 @@ export function pushSource(source: GraphSource): void {
   const state = useSceneStore.getState();
   state.setGraph(source.getSnapshot());
   state.setGraphErrors(errorsOf(source));
+  const extra = source as Partial<{ identity: string | null; statementStatuses: () => StatementStatuses }>;
+  state.setLiveIdentity(source.kind === "live" ? (extra.identity ?? null) : null);
+  state.setStatements(extra.statementStatuses?.() ?? NO_STATEMENTS);
 }
 
 export function useGraphSource(source: GraphSource | null): void {
@@ -40,6 +48,8 @@ export function useGraphSource(source: GraphSource | null): void {
       setGraphSource(null);
       setGraph({ resolved: null, statuses: {} });
       setGraphErrors(NO_ERRORS);
+      useSceneStore.getState().setLiveIdentity(null);
+      useSceneStore.getState().setStatements(NO_STATEMENTS);
     };
   }, [source, setGraph, setGraphSource, setGraphErrors]);
 }
@@ -53,5 +63,6 @@ export function useGraphErrors(): { connectionError: string | null; actionError:
 export function useGraph(): GraphView {
   const resolved = useSceneStore((state) => state.resolved);
   const statuses = useSceneStore((state) => state.statuses);
-  return { resolved, statuses };
+  const graph = useSceneStore((state) => state.graph);
+  return { resolved, statuses, graph };
 }

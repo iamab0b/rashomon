@@ -7,19 +7,23 @@ import { CAMERA_PRESETS } from "./cameras/presets";
 import { RigDebug } from "./characters/RigDebug";
 import { RigReportPanel } from "./characters/RigReportPanel";
 import { DebugOverlay } from "./DebugOverlay";
+import { Dressing } from "./dressing/Dressing";
 import { AnchorGizmo } from "./editing/AnchorGizmo";
 import { FloorProbe } from "./FloorProbe";
+import { ShotButton } from "./export/ShotButton";
 import { FpsProbe } from "./FpsProbe";
 import { LabelLayer } from "./landmarks/LabelLayer";
 import { LabelProjector } from "./landmarks/LabelProjector";
 import { LandmarkMarkers } from "./landmarks/LandmarkMarkers";
-import { loadScene, type LoadedScene } from "./loaders/scene";
+import { isKnownFixture, loadScene, type LoadedScene } from "./loaders/scene";
 import { Actors } from "./playback/Actors";
 import { Playhead } from "./playback/Playhead";
+import { Props } from "./props/Props";
 import { selectSource } from "./playback/selectSource";
 import { useGraphSource } from "./playback/useGraph";
+import { SceneErrorCard } from "./SceneErrorCard";
+import { sceneFailure, shouldSignalReady, unknownFixtureMessage } from "./sceneFailure";
 import { useSceneStore } from "./store";
-import { Timeline } from "./timeline";
 import { useSceneKeys } from "./useSceneKeys";
 
 const BACKGROUND = "#0b0d10";
@@ -38,16 +42,7 @@ export type SceneProps = {
 };
 
 const RIG_DEBUG = "rig";
-
-const TIMELINE_SLOT = {
-  position: "absolute",
-  left: 12,
-  right: 12,
-  bottom: 12,
-  zIndex: 30,
-  borderRadius: 6,
-  overflow: "hidden",
-} as const;
+const STORE_FIXTURE = "store";
 
 function useLoadedScene(fixture: string | undefined): LoadedScene | null {
   const [loaded, setLoaded] = useState<LoadedScene | null>(null);
@@ -63,7 +58,9 @@ function useLoadedScene(fixture: string | undefined): LoadedScene | null {
       })
       .catch((error: unknown) => {
         console.error("scene load failed", error);
-        if (!cancelled) setStatus("error");
+        if (cancelled) return;
+        const detail = error instanceof Error ? error.message : String(error);
+        setStatus("error", isKnownFixture(fixture) ? `The scene could not be loaded: ${detail}` : unknownFixtureMessage(fixture));
       });
     return () => {
       cancelled = true;
@@ -71,6 +68,18 @@ function useLoadedScene(fixture: string | undefined): LoadedScene | null {
   }, [fixture, setStatus]);
 
   return loaded;
+}
+
+function useSceneFailure(fixture: string | undefined, skip: boolean, hasGraphSource: boolean): string | null {
+  const setStatus = useSceneStore((state) => state.setStatus);
+  const failure = useMemo(
+    () => (!fixture || skip ? null : sceneFailure(fixture, window.location.search, hasGraphSource)),
+    [fixture, skip, hasGraphSource],
+  );
+  useEffect(() => {
+    if (failure) setStatus("error", failure);
+  }, [failure, setStatus]);
+  return failure;
 }
 
 function Lights() {
@@ -134,6 +143,7 @@ export function Scene({ fixture, debug, t }: SceneProps) {
     [isRigDebug, fixture],
   );
   useGraphSource(graphSource);
+  const failure = useSceneFailure(fixture, isRigDebug, graphSource !== null);
   const hasGraph = useSceneStore((state) => state.resolved !== null);
   const actorsReady = useSceneStore((state) => state.actorsReady);
   const status = useSceneStore((state) => state.status);
@@ -158,25 +168,26 @@ export function Scene({ fixture, debug, t }: SceneProps) {
         {loaded ? (
           <>
             <primitive object={loaded.model} />
+            {loaded.isPlaceholder && fixture === STORE_FIXTURE ? (
+              <Dressing manifest={loaded.manifest} placeholder={loaded.model} />
+            ) : null}
             <LandmarkMarkers landmarks={loaded.manifest.landmarks} />
             <LabelProjector landmarks={loaded.manifest.landmarks} occluders={loaded.model} />
             <FloorProbe interior={loaded.manifest.interior} />
             <WitnessView model={loaded.model} manifest={loaded.manifest} />
             <PovRayLine />
             {hasGraph ? <Actors /> : null}
+            {hasGraph ? <Props manifest={loaded.manifest} /> : null}
             {hasGraph ? <AnchorGizmo manifest={loaded.manifest} /> : null}
-            {!hasGraph || actorsReady ? <ReadySignal /> : null}
+            {shouldSignalReady({ hasGraph, actorsReady, failure }) ? <ReadySignal /> : null}
           </>
         ) : null}
       </Canvas>
       {loaded ? <LabelLayer landmarks={loaded.manifest.landmarks} /> : null}
       {isRigDebug ? <RigReportPanel /> : null}
-      {hasGraph ? (
-        <div style={TIMELINE_SLOT}>
-          <Timeline />
-        </div>
-      ) : null}
+      <SceneErrorCard />
       <DebugOverlay />
+      {import.meta.env.DEV && !isRigDebug ? <ShotButton /> : null}
     </div>
   );
 }

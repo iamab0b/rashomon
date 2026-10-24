@@ -1,0 +1,36 @@
+# extract_segment follow-ups after PR #16 merged (from Sahil)
+
+PR #16 merged to main as ba4f821 at 103524e. Two fresh reviews (Opus and Sonnet) found it clean: the caller check works (a client cannot present the module identity, and the webhook calls runExtraction directly), the 32,000-character cap is in snapshot, short error codes are stored, and none of the first eight items regressed. Thank you.
+
+Four items from the third review were not done, and the reviews found one new gap. Start a new branch `procedure-followups` from origin/main, open a PR to main, and do not merge it yourself. Each fix needs a test that fails without it. No force-push.
+
+1. **MEDIUM: earlier segments reach Claude uncapped (extract/run.ts line 123, packages/extractor/src/prompt.ts lines 77 to 80).** The cap checks only the segment being extracted. The prompt also carries the last five earlier witness segments at full length, and insert_segment is open to any client for the demo. A probe test pushed a 320,000-character earlier segment into the request body. In snapshot, drop or truncate every earlier segment over MAX_SEGMENT_TEXT_CHARS before Claude is called. Sahil is separately adding a text cap to insert_segment itself.
+2. **MEDIUM: retry-safe default segment id (http/cartesia.ts line 69).** With no segmentId the id is `seg_<now>`, so a Cartesia retry after a slow Claude call extracts again and duplicates events. Use `seg_` plus fnv1a64 over sessionId and each utterance's text and times, and add a test named "a resend without a segmentId does not extract twice".
+3. **LOW: over-cap text answers 413 before anything is stored (cartesia.ts line 9 vs run.ts line 30).** A 64 KB body can carry more than 32,000 characters of text, which today becomes a stored segment and a 502 segment_too_long.
+4. **LOW: wrap the key read (run.ts line 231).** A throwing `io.apiKey()` returns the host's raw error. Treat a throw as `no_api_key` and return the generic 502.
+5. **LOW: code comments (cartesia.ts lines 34 and 85, run.ts lines 25, 67, 79 to 80 and 249).** .greptile/rules.md says no code comments; move the explanations into the PR description.
+6. **PR text.** Say that publishing needs -c=always, because the segments columns have no defaults, and that `spacetime publish` refuses to run without ANTHROPIC_API_KEY set (seen locally). Fix the stale line that says a 500 stores "Anthropic API 500: overloaded"; it now stores `model_error`.
+
+`/team-status` closes this item when a file under `spacetimedb/server/src/` contains the test name `a resend without a segmentId does not extract twice`.
+
+## Review of 84f0c86, 46a852c, 060e9c7 on spacetime-procedure (Sat 12:15 PM)
+
+Two fresh reviews (Opus and Sonnet) found the three commits clean: the content-derived id has no collisions (JSON encoding, sessionId in both the hash and the key), the key read is wrapped, and no comments are left. They are not merged, because there is no PR: PR #16 is already merged, so new commits on spacetime-procedure reach nobody.
+
+1. **Open a PR to main** from spacetime-procedure (or push the same commits to a `procedure-followups` branch). The leader reviews and merges; do not merge it yourself.
+2. **Still open: item 1 (MEDIUM), earlier segments uncapped** (run.ts lines 119 to 129). This is the one that matters for Maincloud: any client can store a huge earlier segment with insert_segment, and every later extraction on that session sends it to Claude.
+3. **Still open: item 3 (LOW), 413 before storing** over-cap text (cartesia.ts lines 58 and 86).
+4. **Rename the resend test** to exactly "a resend without a segmentId does not extract twice" (procedure.test.ts line 458), so the tracker closes the item.
+5. **Optional:** include witnessId in the hashed tuple, so two witnesses with identical words and times in one session are not treated as a resend (cartesia.ts line 50).
+
+## Sat 12:55 PM: open the PR now
+
+Your three commits on spacetime-procedure (84f0c86, 46a852c, 060e9c7) are reviewed and clean, and only a PR is missing. Run `gh pr create --base main --head spacetime-procedure --title "spacetimedb: procedure follow-ups (content-derived segment id, guarded key read, no comments)"`, or open it on GitHub. Sahil is about to publish main to Maincloud. The webhook URL there will be `https://maincloud.spacetimedb.com/v1/database/rashomon/route/webhook/cartesia`, with header `x-rashomon-webhook-secret`; Sahil sends you the secret privately. Item 1 (cap earlier segments) is what makes that public URL safe for Anthropic credits, so do it next, on the same branch.
+
+## Sat 1:30 PM: PR #27 needs main merged in
+
+Thanks for opening PR #27. Sahil's PR #25 (insert_segment cap, limits.ts shared with the webhook) merged as 9b9257f, and it conflicts with #27 in spacetimedb/server/src/procedure.test.ts. Run `git fetch origin && git merge origin/main` on spacetime-procedure, resolve the test file (keep both sides' tests; import MAX_BODY_BYTES and MAX_UTTERANCES from ../limits), and push. No rebase, no force-push. Then item 1 (cap earlier segments in snapshot) on the same branch, before Sahil republishes Maincloud.
+
+## Sat 1:45 PM: the agent asks the flag's question back (from Sahil)
+
+When `record_statement` returns, its response already carries the session's hard flags after the gate (`hardFlags: [{ id, eventId, check, detail, suggestedQuestion }]`, the webhook's Extraction). The agent should ask each new hard flag's `suggestedQuestion` back to the witness on its very next turn, in its own voice but keeping the question's content. It asks one flag at a time, ones it has not asked before, and never says "implausible", "lie" or anything that judges the witness. It submits the witness's answer through `record_statement` as a new segment, so the extraction and the gate run again on the answer; that is how the e5 correction happens by voice. Put the rule in the agent's system prompt in apps/agent (your cartesia-agent branch). Test it with the faked webhook response that already holds e5's sightline question (procedure.test.ts, the robbery path). Also: please merge main into cartesia-agent and open its PR, since it conflicts with main in http/cartesia.ts and procedure.test.ts, and it is what the Cartesia track is judged on.

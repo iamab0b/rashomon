@@ -1,14 +1,13 @@
 import { Router, SyncResponse, type Request } from "spacetimedb/server";
 import { fnv1a64 } from "../extract/hash";
 import { EXTRACTION_FAILED, runExtraction, type Extraction, type Io } from "../extract/run";
-import { insertSegment, key } from "../reducers";
+import { MAX_BODY_BYTES, MAX_UTTERANCES } from "../limits";
+import { insertSegmentRow, key } from "../reducers";
 import { spacetimedb } from "../tables";
 
 export type WebhookIo = Io & { webhookSecret: () => string | undefined };
 
 export const SECRET_HEADER = "x-rashomon-webhook-secret";
-export const MAX_BODY_BYTES = 64 * 1024;
-export const MAX_UTTERANCES = 50;
 
 export type WebhookOutcome = { status: number; body: Extraction | { error: string } };
 
@@ -88,7 +87,7 @@ export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
     io.withTx((ctx) => {
       const existing = ctx.db.segments.rowKey.find(key(sessionId, segmentId));
       if (existing && existing.sessionId === sessionId && existing.text === text) return;
-      insertSegment(ctx, {
+      insertSegmentRow(ctx, {
         id: segmentId,
         sessionId,
         witnessId,

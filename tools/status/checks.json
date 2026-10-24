@@ -26,6 +26,24 @@
       "paths": [
         "packages/schema"
       ]
+    },
+    {
+      "id": "insert-segment-cap",
+      "due": "14-16",
+      "todo": "Before Maincloud: cap insert_segment's text to match the Cartesia webhook (64 KB, 50 utterances; share the constants with http/cartesia.ts once PR #16 merges), with a test named 'insert_segment rejects a segment over the webhook caps'; create_session and insert_segment stay open to any caller for the demo",
+      "grep": "insert_segment rejects a segment over the webhook caps",
+      "paths": [
+        "spacetimedb/server/src"
+      ]
+    },
+    {
+      "id": "insert-segment-cap-2",
+      "due": "16-20",
+      "todo": "After #25: cap insert_segment's text at MAX_SEGMENT_TEXT_CHARS (32,000) so a stored earlier segment can never exceed what extraction accepts (worst-case prompt today ~359K chars), and measure text and utterance texts separately so the webhook's doubled text no longer turns 31K-64K bodies into 400; test named 'insert_segment caps text at the extraction limit'",
+      "grep": "insert_segment caps text at the extraction limit",
+      "paths": [
+        "spacetimedb/server/src"
+      ]
     }
   ],
   "C": [
@@ -44,9 +62,9 @@
       "id": "procedure-extract-segment",
       "from": "Sahil",
       "due": "14-16",
-      "todo": "extractSegment and the Cartesia webhook are built (PR #16, branch spacetime-procedure); fix the review items before merge: webhook shared-secret check, request caps, hard flags in the response, idempotency, generic errors, real rollback and robbery tests",
+      "todo": "PR #16: all eight review items verified; blocker left: close extract_segment to outside callers (anonymous clients spend the key without the webhook secret) and cap segment text; then retry-safe default segment id, short error codes in the public segments table",
       "doc": "tools/status/requests/procedure-extract-segment.md",
-      "grep": "CARTESIA_WEBHOOK_SECRET",
+      "grep": "an anonymous caller cannot run extraction",
       "paths": [
         "spacetimedb/server/src"
       ]
@@ -68,6 +86,17 @@
       "grep": "p_\\$\\{",
       "paths": [
         "packages/extractor/src"
+      ]
+    },
+    {
+      "id": "procedure-followups",
+      "from": "Sahil",
+      "due": "13-16",
+      "todo": "Open a PR to main for 060e9c7 on spacetime-procedure (content-derived segment id, key read guard, comments: reviewed clean twice, waiting only on a PR); then cap earlier segments in the prompt, 413 for over-cap text, and rename the resend test to 'a resend without a segmentId does not extract twice'",
+      "doc": "tools/status/requests/procedure-followups.md",
+      "grep": "a resend without a segmentId does not extract twice",
+      "paths": [
+        "spacetimedb/server/src"
       ]
     }
   ],
@@ -136,6 +165,50 @@
       "grep": "useGraphErrors",
       "paths": [
         "apps/web/src/ui"
+      ]
+    },
+    {
+      "id": "pr22-fixes",
+      "from": "Sahil",
+      "due": "12-16",
+      "todo": "PR #22: restore apps/web/src/scene files to main (scene changes go to scene-core as a list), switcher through useCamera, keep witness_claimed reachable, stop shortcuts behind the dialog, and the ui-refine follow-ups (useGraphErrors, useSceneStatus)",
+      "doc": "tools/status/requests/pr22-fixes.md",
+      "grep": "useSceneStatus",
+      "paths": [
+        "apps/web/src/ui"
+      ]
+    },
+    {
+      "id": "ui-polish-followups",
+      "from": "Sahil",
+      "due": "13-18",
+      "todo": "Leftovers from #22-#24: playhead grab area over block edges, an unapplied override shown as applied in History, 'Override pending' after a live rejection; new branch ui-polish, PR to main",
+      "doc": "tools/status/requests/ui-polish-followups.md",
+      "grep": "not applied by the gate",
+      "paths": [
+        "apps/web/src/ui"
+      ]
+    },
+    {
+      "id": "interview-screen",
+      "from": "Sahil",
+      "due": "16-19",
+      "todo": "Statement box in the right panel: submitStatement(text, witnessName), 'Extracting…' until done, then new events and flags; not-an-editor shows the browser identity; voice button behind a flag until Eric's agent; branch interview-screen, PR to main",
+      "doc": "tools/status/requests/interview-screen.md",
+      "grep": "submitStatement",
+      "paths": [
+        "apps/web/src/ui"
+      ]
+    },
+    {
+      "id": "pitch-fixes",
+      "from": "Sahil",
+      "due": "16-19",
+      "todo": "PR #28: make the pitch and video plan match main (no agent, no statement box, no export label yet; props are placeholder boxes; quote the real flag questions and fixture words); catch in the first 15 s of the 2-minute cut",
+      "doc": "tools/status/requests/pitch-fixes.md",
+      "grep": "real-size placeholder",
+      "paths": [
+        "demo"
       ]
     }
   ],

@@ -39,4 +39,10 @@ describe("modeBadge", () => {
     expect(modeBadge("live", false)).toEqual({ label: "Live · connecting", tone: "red" });
     expect(modeBadge("live", true)).toEqual({ label: "Live", tone: "green" });
   });
+
+  test("a live connection error turns the badge red over a stale snapshot", () => {
+    expect(modeBadge("live", true, true)).toEqual({ label: "Live · disconnected", tone: "red" });
+    expect(modeBadge("live", false, true)).toEqual({ label: "Live · disconnected", tone: "red" });
+    expect(modeBadge("fixture", true, true)).toEqual({ label: "Fixture data", tone: "amber" });
+  });
 });

@@ -1,7 +1,8 @@
 import type { Override } from "@rashomon/schema";
-import { useId, useState, type KeyboardEvent } from "react";
+import { useId, useRef, useState, type KeyboardEvent } from "react";
 import type { ResolvedEvent, Status } from "../scene";
 import { Icon } from "./Icon";
+import { createSubmitGuard, OverrideConfirm } from "./OverrideConfirm";
 import { buildOverride, canConfirm, MIN_REASON_LENGTH, reasonLength } from "./overrideReason";
 import { eventTime, eventTitle, StatusToken, words } from "./shared";
 
@@ -34,11 +35,34 @@ export function OverrideDialog({ event, status, by, onConfirm, onClose }: Overri
   const [error, setError] = useState("");
   const titleId = useId();
   const [opener] = useState(() => (document.activeElement instanceof HTMLElement ? document.activeElement : null));
+  const [confirming, setConfirming] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const guard = useRef(createSubmitGuard()).current;
+  const acceptRef = useRef<HTMLButtonElement>(null);
   const valid = canConfirm(reason);
 
   const close = () => {
     onClose();
     opener?.focus();
+  };
+
+  const cancelConfirm = () => {
+    setConfirming(false);
+    acceptRef.current?.focus();
+  };
+
+  const apply = () => {
+    if (!valid || !guard.claim()) return;
+    setSubmitting(true);
+    try {
+      onConfirm(buildOverride(by, reason, event.flags.map((flag) => flag.id), Date.now()));
+      opener?.focus();
+    } catch (err) {
+      guard.release();
+      setSubmitting(false);
+      setConfirming(false);
+      setError(err instanceof Error ? err.message : String(err));
+    }
   };
 
   return (
@@ -47,9 +71,12 @@ export function OverrideDialog({ event, status, by, onConfirm, onClose }: Overri
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        aria-hidden={confirming || undefined}
+        inert={confirming}
         className="modal"
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
+          e.stopPropagation();
           if (e.key === "Escape") {
             e.preventDefault();
             close();
@@ -59,19 +86,13 @@ export function OverrideDialog({ event, status, by, onConfirm, onClose }: Overri
         }}
         onSubmit={(e) => {
           e.preventDefault();
-          if (!valid) return;
-          try {
-            onConfirm(buildOverride(by, reason, event.flags.map((flag) => flag.id), Date.now()));
-            opener?.focus();
-          } catch (err) {
-            setError(err instanceof Error ? err.message : String(err));
-          }
+          if (valid && !confirming) setConfirming(true);
         }}
       >
         <div className="modal-header">
           <div>
             <span className="eyebrow">Investigator override</span>
-            <h2 id={titleId}>Override the room’s reading</h2>
+            <h2 id={titleId}>Override the scene reading</h2>
           </div>
           <button type="button" className="close" onClick={close} aria-label="Close">
             <Icon name="x" />
@@ -112,7 +133,7 @@ export function OverrideDialog({ event, status, by, onConfirm, onClose }: Overri
               setReason(e.currentTarget.value);
               setError("");
             }}
-            placeholder="Why the room’s reading should be overridden here, in one sentence"
+            placeholder="Why this reading should be overridden here, in one sentence"
           />
           <small className={valid ? "ok" : undefined}>
             {reasonLength(reason)} / {MIN_REASON_LENGTH} characters minimum
@@ -134,12 +155,22 @@ export function OverrideDialog({ event, status, by, onConfirm, onClose }: Overri
           <button type="button" className="button" onClick={close}>
             Cancel
           </button>
-          <button type="submit" className="button button--primary" disabled={!valid}>
+          <button type="submit" ref={acceptRef} className="button button--primary" disabled={!valid}>
             <span className="status-diamond" />
             Accept with reason
           </button>
         </div>
       </form>
+      {confirming && (
+        <OverrideConfirm
+          event={event}
+          reason={reason}
+          submitting={submitting}
+          onCancel={cancelConfirm}
+          onConfirm={apply}
+          trapTab={trapTab}
+        />
+      )}
     </div>
   );
 }

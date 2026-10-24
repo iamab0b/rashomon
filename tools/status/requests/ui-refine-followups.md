@@ -18,3 +18,7 @@ Done-check:
 - `git grep -n "useGraphErrors" apps/web/src/ui` shows the badge and the panel using it.
 - `git grep -n "Checking against the room" apps/web/src/ui` prints nothing.
 - Greptile is not running; do not wait for it. The leader reviews and merges.
+
+## Added Sat 11:40 AM: unknown fixture
+
+5. `/?fixture=nope` shows "Loading the reconstruction…" in the panel and "Loading…" in the top bar forever, because `useGraph().resolved` never arrives. Scene-core's polish PR (branch polish-h14) exports `useSceneStatus(): { status, error }` from apps/web/src/scene/index.ts. When it is on main and the status is "error", show the error message in the panel in place of the loading line, and "Scene not loaded" in the top bar. Until then, leave both as they are.

@@ -59,6 +59,20 @@ describe("anchorDropPatch", () => {
     });
   });
 
+  it("the snap radius is a distance, not a square: 0.6 m off on both axes is 0.85 m away and does not snap", () => {
+    const door = storeScene.landmarks.find((l) => l.id === "front_door")!;
+    const diagonal: [number, number, number] = [door.position[0] + 0.6, 0, door.position[2] + 0.6];
+    expect(Math.hypot(0.6, 0.6)).toBeGreaterThan(SNAP_RADIUS_M);
+    expect(anchorDropPatch(event("e5"), "at", diagonal, storeScene)).toMatchObject({
+      changes: { at: { kind: "xyz", position: [diagonal[0], 0, diagonal[2]] } },
+    });
+    const inside: [number, number, number] = [door.position[0] + 0.5, 0, door.position[2] + 0.5];
+    expect(Math.hypot(0.5, 0.5)).toBeLessThan(SNAP_RADIUS_M);
+    expect(anchorDropPatch(event("e5"), "at", inside, storeScene)).toMatchObject({
+      changes: { at: { kind: "at", landmark: "front_door" } },
+    });
+  });
+
   it("only zones and doors are snap targets, and the nearest one wins", () => {
     const furnitureOnly: SceneManifest = {
       ...storeScene,

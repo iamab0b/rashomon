@@ -15,6 +15,7 @@ import type { ReducerCtx, SyncResponse } from "spacetimedb/server";
 import { eventGraphFromRow } from "../convert";
 import { buildGraph, type ModuleSchema } from "../graph";
 import { applyPatchBatch, key, manifestFor } from "../reducers";
+import { MAX_SEGMENT_TEXT_CHARS } from "../limits";
 import { fnv1a64 } from "./hash";
 import { mintPropIds } from "./props";
 
@@ -26,7 +27,6 @@ export const EXTRACTION_FAILED = "extraction failed";
 export const EXTRACTION_PARTLY_FAILED = "extraction partly failed";
 export const UNKNOWN_SESSION = "unknown session";
 export const UNKNOWN_SEGMENT = "unknown segment";
-export const MAX_SEGMENT_TEXT_CHARS = 32_000;
 
 export type ErrorCode =
   | "no_api_key"

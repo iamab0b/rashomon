@@ -48,3 +48,22 @@ It is not merged. Push fixes to branch `spacetime-procedure` (no force-push, no 
 8. **Decision to note in the PR.** run.ts line 190 applies at the session's current version, so the stale-version check can never fail on this path. That is acceptable, because the procedure owns the read and the write. Say so in the PR description so nobody relies on the check there.
 
 `/team-status` closes this item when a file under `spacetimedb/server/src/` contains `CARTESIA_WEBHOOK_SECRET`, the shared-secret check from fix 1.
+
+
+## Third review (PR #16 at 966627c, Sat 10:55 AM)
+
+Two fresh reviews (Opus and Sonnet) verified all eight items above, each with a test that fails when the fix is reverted. Typecheck, 94 module tests, `spacetime build` and a fresh `spacetime generate` all pass on the trial merge with main. It is not merged, because both reviews found the same blocker. Push to `spacetime-procedure`, no force-push and no rebase.
+
+1. **Blocker: the procedure is a second, unauthenticated way to spend the key (procedures/extractSegment.ts lines 5 to 14).**
+   - `extract_segment` is a public procedure in the generated bindings, with no `ctx.sender` check, and `create_session` and `insert_segment` are open to any client.
+   - On Maincloud, anyone can create a session (and so be its creator), insert a segment of any size, and call `extract_segment`. That spends Claude credits with no webhook secret and no 64 KB cap, again and again under new segment ids.
+   - The webhook calls `runExtraction` directly and nothing else calls the procedure, so close it to outside callers. Either reject every `ctx.sender` other than `ctx.databaseIdentity` before any read or Claude call, or stop exporting it from index.ts and regenerate the bindings.
+   - Also cap the segment text length in `snapshot` (run.ts line 88) before Claude is called, so a large row inserted through `insert_segment` cannot reach the model.
+   - Add a test named "an anonymous caller cannot run extraction" that fails without the fix.
+2. **MEDIUM: a retry duplicates events (cartesia.ts line 69).** With no `segmentId`, the id is `seg_<now>`, so a Cartesia retry after a slow Claude call makes a new segment, a second Claude call and duplicate events. Derive the default id from `fnv1a64` over sessionId plus the utterance texts and times, and test a resend without a segmentId.
+3. **MEDIUM: error detail in a public table (run.ts lines 128 and 167, tables.ts line 99).** `segments` is public, so `extractError` shows Anthropic's upstream messages to every subscriber. Store a short code there (for example `model_error`, `apply_failed`, `bad_tool_output`) and send the detail to the module log.
+4. **LOW: the key read is unguarded (run.ts line 211).** `io.apiKey()` is not wrapped the way `readSecret` is, so a throwing env read returns the host's raw error. Wrap it and return the generic 502.
+5. **LOW: code comments (cartesia.ts lines 34 and 85, run.ts lines 25, 55, 67 and 228).** .greptile/rules.md says no code comments. Move them into the PR description.
+6. **Note:** the six new `segments` columns have no defaults, so publishing over an existing database needs `-c=always`. That is fine locally, and nothing is on Maincloud yet. Say so in the PR description.
+
+`/team-status` closes this item when a file under `spacetimedb/server/src/` contains the test name `an anonymous caller cannot run extraction`.
