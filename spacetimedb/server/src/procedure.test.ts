@@ -334,7 +334,7 @@ describe("the Cartesia webhook", () => {
     ...ioFor(responder),
     webhookSecret: () => secret,
   });
-  const SEG = defaultSegmentId(SESSION, [{ text: "A guy came in the front door.", tStart: 7.8, tEnd: 12 }]);
+  const SEG = defaultSegmentId(SESSION, "w1", [{ text: "A guy came in the front door.", tStart: 7.8, tEnd: 12 }]);
   const body = (over: Record<string, unknown> = {}) =>
     JSON.stringify({
       sessionId: SESSION,
@@ -420,7 +420,7 @@ describe("the Cartesia webhook", () => {
     const out = handleCartesia(io, post(body({ utterances: fifty })));
     expect(out.status).toBe(200);
     const id = (out.body as { segmentId: string }).segmentId;
-    expect(id).toBe(defaultSegmentId(SESSION, fifty));
+    expect(id).toBe(defaultSegmentId(SESSION, "w1", fifty));
     expect(harness.db.segments.rowKey.find(`${SESSION}/${id}`)).toMatchObject({ tStart: 0, tEnd: 49.5 });
   });
 
@@ -471,10 +471,27 @@ describe("the Cartesia webhook", () => {
 
   test("the default segment id changes with the session, the text or the times", () => {
     const u = { text: "A guy came in the front door.", tStart: 7.8, tEnd: 12 };
-    expect(defaultSegmentId(SESSION, [u])).toBe(SEG);
-    expect(defaultSegmentId("s2", [u])).not.toBe(SEG);
-    expect(defaultSegmentId(SESSION, [{ ...u, text: "A guy came in the back door." }])).not.toBe(SEG);
-    expect(defaultSegmentId(SESSION, [{ ...u, tEnd: 12.5 }])).not.toBe(SEG);
+    expect(defaultSegmentId(SESSION, "w1", [u])).toBe(SEG);
+    expect(defaultSegmentId("s2", "w1", [u])).not.toBe(SEG);
+    expect(defaultSegmentId(SESSION, "w1", [{ ...u, text: "A guy came in the back door." }])).not.toBe(SEG);
+    expect(defaultSegmentId(SESSION, "w1", [{ ...u, tEnd: 12.5 }])).not.toBe(SEG);
+    expect(defaultSegmentId(SESSION, "w2", [u])).not.toBe(SEG);
+  });
+
+  test("two witnesses sending the same words and times without a segmentId get two segments", () => {
+    const second = defaultSegmentId(SESSION, "w2", [{ text: "A guy came in the front door.", tStart: 7.8, tEnd: 12 }]);
+    let n = 0;
+    const sources = [SEG, second];
+    const responder: TestHttpResponder<never> = (test, req, b) =>
+      ok([toolUse(`tu_${n}`, "add_event", { ...walkInput, sources: [sources[n++]] })])(test, req, b);
+    const io = webhookIo(responder);
+    expect(handleCartesia(io, post(body())).body).toMatchObject({ segmentId: SEG });
+    const out = handleCartesia(io, post(body({ witness: "w2" })));
+    expect(out.status).toBe(200);
+    expect(out.body).toMatchObject({ segmentId: second, patchCount: 1 });
+    expect(requests).toHaveLength(2);
+    expect(harness.db.segments.rowKey.find(`${SESSION}/${SEG}`)).toMatchObject({ witnessId: "w1" });
+    expect(harness.db.segments.rowKey.find(`${SESSION}/${second}`)).toMatchObject({ witnessId: "w2" });
   });
 
   test("a key read that throws is a generic 502 and never reaches the model", () => {

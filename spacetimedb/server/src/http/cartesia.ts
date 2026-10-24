@@ -46,8 +46,11 @@ const readSecret = (io: WebhookIo): string | undefined => {
   }
 };
 
-export const defaultSegmentId = (sessionId: string, utterances: { text: string; tStart: number; tEnd: number }[]): string =>
-  `seg_${fnv1a64(JSON.stringify([sessionId, utterances.map((u) => [u.text, u.tStart, u.tEnd])]))}`;
+export const defaultSegmentId = (
+  sessionId: string,
+  witnessId: string,
+  utterances: { text: string; tStart: number; tEnd: number }[],
+): string => `seg_${fnv1a64(JSON.stringify([sessionId, witnessId, utterances.map((u) => [u.text, u.tStart, u.tEnd])]))}`;
 
 export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
   const expected = readSecret(io);
@@ -79,7 +82,7 @@ export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
     if (tStart === undefined || tEnd === undefined || tStart > tEnd) return bad(`utterance ${i} needs tStart and tEnd in order`);
     parsed.push({ id: firstString(raw, ["id"]), text, tStart, tEnd });
   }
-  const segmentId = firstString(body, ["segmentId", "segment_id"]) ?? defaultSegmentId(sessionId, parsed);
+  const segmentId = firstString(body, ["segmentId", "segment_id"]) ?? defaultSegmentId(sessionId, witnessId, parsed);
   const utterances = parsed.map((u, i) => ({ ...u, id: u.id ?? `${segmentId}_u${i + 1}` }));
 
   const text = utterances.map((u) => u.text).join(" ");
