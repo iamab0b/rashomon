@@ -83,7 +83,7 @@
       "id": "procedure-followups",
       "from": "Sahil",
       "due": "13-16",
-      "todo": "After PR #16 merged: cap earlier segments in the extraction prompt, retry-safe default segment id, 413 for over-cap text, wrap the key read, drop code comments, PR text on -c=always and the required key",
+      "todo": "Open a PR to main for 060e9c7 on spacetime-procedure (content-derived segment id, key read guard, comments: reviewed clean twice, waiting only on a PR); then cap earlier segments in the prompt, 413 for over-cap text, and rename the resend test to 'a resend without a segmentId does not extract twice'",
       "doc": "tools/status/requests/procedure-followups.md",
       "grep": "a resend without a segmentId does not extract twice",
       "paths": [
@@ -165,6 +165,17 @@
       "todo": "PR #22: restore apps/web/src/scene files to main (scene changes go to scene-core as a list), switcher through useCamera, keep witness_claimed reachable, stop shortcuts behind the dialog, and the ui-refine follow-ups (useGraphErrors, useSceneStatus)",
       "doc": "tools/status/requests/pr22-fixes.md",
       "grep": "useSceneStatus",
+      "paths": [
+        "apps/web/src/ui"
+      ]
+    },
+    {
+      "id": "ui-polish-followups",
+      "from": "Sahil",
+      "due": "13-18",
+      "todo": "Leftovers from #22-#24: playhead grab area over block edges, an unapplied override shown as applied in History, 'Override pending' after a live rejection; new branch ui-polish, PR to main",
+      "doc": "tools/status/requests/ui-polish-followups.md",
+      "grep": "not applied by the gate",
       "paths": [
         "apps/web/src/ui"
       ]

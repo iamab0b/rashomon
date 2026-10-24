@@ -22,3 +22,7 @@ Two fresh reviews (Opus and Sonnet) found the three commits clean: the content-d
 3. **Still open: item 3 (LOW), 413 before storing** over-cap text (cartesia.ts lines 58 and 86).
 4. **Rename the resend test** to exactly "a resend without a segmentId does not extract twice" (procedure.test.ts line 458), so the tracker closes the item.
 5. **Optional:** include witnessId in the hashed tuple, so two witnesses with identical words and times in one session are not treated as a resend (cartesia.ts line 50).
+
+## Sat 12:55 PM: open the PR now
+
+Your three commits on spacetime-procedure (84f0c86, 46a852c, 060e9c7) are reviewed and clean, and only a PR is missing. Run `gh pr create --base main --head spacetime-procedure --title "spacetimedb: procedure follow-ups (content-derived segment id, guarded key read, no comments)"`, or open it on GitHub. Sahil is about to publish main to Maincloud. The webhook URL there will be `https://maincloud.spacetimedb.com/v1/database/rashomon/route/webhook/cartesia`, with header `x-rashomon-webhook-secret`; Sahil sends you the secret privately. Item 1 (cap earlier segments) is what makes that public URL safe for Anthropic credits, so do it next, on the same branch.
