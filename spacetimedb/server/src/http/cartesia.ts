@@ -1,13 +1,12 @@
 import { Router, SyncResponse, type Request } from "spacetimedb/server";
 import { EXTRACTION_FAILED, runExtraction, type Extraction, type Io } from "../extract/run";
+import { MAX_BODY_BYTES, MAX_UTTERANCES } from "../limits";
 import { insertSegment, key } from "../reducers";
 import { spacetimedb } from "../tables";
 
 export type WebhookIo = Io & { nowMicros: () => bigint; webhookSecret: () => string | undefined };
 
 export const SECRET_HEADER = "x-rashomon-webhook-secret";
-export const MAX_BODY_BYTES = 64 * 1024;
-export const MAX_UTTERANCES = 50;
 
 export type WebhookOutcome = { status: number; body: Extraction | { error: string } };
 
