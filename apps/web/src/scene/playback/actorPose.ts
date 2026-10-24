@@ -17,6 +17,8 @@ export type ActorPlayback = {
   readonly paths: ReadonlyMap<string, EventPath>;
   readonly restPosition: Vec3 | null;
   readonly turnTimes: readonly number[];
+  readonly byStartDesc: readonly ResolvedEvent[];
+  readonly byEndDesc: readonly ResolvedEvent[];
   readonly statusOf: StatusLookup;
 };
 
@@ -37,6 +39,16 @@ function turnTimesFor(events: readonly ResolvedEvent[], paths: ReadonlyMap<strin
   return [...times].sort((a, b) => a - b);
 }
 
+function orderedBy(
+  events: readonly ResolvedEvent[],
+  compare: (a: ResolvedEvent, b: ResolvedEvent) => number,
+): ResolvedEvent[] {
+  return events
+    .map((event, index) => ({ event, index }))
+    .sort((a, b) => compare(a.event, b.event) || a.index - b.index)
+    .map(({ event }) => event);
+}
+
 export function buildActorPlayback(graph: ResolvedGraph, actorId: string, statusOf: StatusLookup): ActorPlayback {
   const events = graph.events
     .filter((event) => event.actor === actorId && isDrawn(statusOf(event)))
@@ -53,6 +65,8 @@ export function buildActorPlayback(graph: ResolvedGraph, actorId: string, status
     paths,
     restPosition: actor?.position ?? null,
     turnTimes: turnTimesFor(events, paths),
+    byStartDesc: orderedBy(events, (a, b) => b.tStart - a.tStart),
+    byEndDesc: orderedBy(events, (a, b) => b.tEnd - a.tEnd || b.tStart - a.tStart),
     statusOf,
   };
 }
@@ -79,22 +93,26 @@ function pointAt(playback: ActorPlayback, event: ResolvedEvent, t: number): Vec3
   return getPose(event, t, playback.paths.get(event.id) ?? null)?.position ?? null;
 }
 
-function heldCandidates(playback: ActorPlayback, t: number): ResolvedEvent[] {
-  return playback.events
-    .filter((event) => event.tStart <= t)
-    .map((event) => ({ event, reached: Math.min(event.tEnd, t) }))
-    .sort((a, b) => b.reached - a.reached || b.event.tStart - a.event.tStart)
-    .map(({ event }) => event);
+function heldPoint(playback: ActorPlayback, t: number): Vec3 | null {
+  for (const event of playback.byStartDesc) {
+    if (event.tStart > t || event.tEnd < t) continue;
+    const point = pointAt(playback, event, t);
+    if (point) return point;
+  }
+  for (const event of playback.byEndDesc) {
+    if (event.tStart > t || event.tEnd >= t) continue;
+    const point = pointAt(playback, event, t);
+    if (point) return point;
+  }
+  return null;
 }
 
 export function actorPosition(playback: ActorPlayback, t: number): Vec3 | null {
   const moving = activeMovement(playback, t);
   const movingPoint = moving ? pointAt(playback, moving, t) : null;
   if (movingPoint) return movingPoint;
-  for (const event of heldCandidates(playback, t)) {
-    const point = pointAt(playback, event, t);
-    if (point) return point;
-  }
+  const held = heldPoint(playback, t);
+  if (held) return held;
   const first = playback.events[0];
   return playback.restPosition ?? (first ? pointAt(playback, first, first.tStart) : null);
 }
