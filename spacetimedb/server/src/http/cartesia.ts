@@ -32,7 +32,6 @@ const firstNumber = (o: Record<string, unknown>, names: string[]): number | unde
 
 const bad = (error: string): WebhookOutcome => ({ status: 400, body: { error } });
 
-// Runs over the whole of the longer input, so the time taken does not depend on where the first mismatch is.
 export function secretsMatch(given: string, expected: string): boolean {
   const n = Math.max(given.length, expected.length);
   let diff = given.length ^ expected.length;
@@ -87,7 +86,6 @@ export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
   const text = utterances.map((u) => u.text).join(" ");
   try {
     io.withTx((ctx) => {
-      // A resend of a segment that is already stored (same id, same text) goes straight to the stored result.
       const existing = ctx.db.segments.rowKey.find(key(sessionId, segmentId));
       if (existing && existing.sessionId === sessionId && existing.text === text) return;
       insertSegment(ctx, {

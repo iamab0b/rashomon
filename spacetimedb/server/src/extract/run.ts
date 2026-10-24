@@ -22,7 +22,6 @@ export const REQUEST_TIMEOUT_MS = 60_000;
 export const MAX_RETRIES = 1;
 export const PROMPT_HASH = fnv1a64(`${SYSTEM_PROMPT}\n${JSON.stringify(EXTRACTOR_TOOLS)}`);
 
-// The only error strings a caller ever sees. The detail stays in the segment's extractError.
 export const EXTRACTION_FAILED = "extraction failed";
 export const EXTRACTION_PARTLY_FAILED = "extraction partly failed";
 export const UNKNOWN_SESSION = "unknown session";
@@ -64,7 +63,6 @@ const done = (
   error?: string,
 ): Extraction => ({ segmentId, patchCount, statuses, hardFlags, error });
 
-// The session's hard flags after the gate, in the gate's order, so the agent can ask the suggested question next turn.
 const hardFlagsOf = (ctx: ReducerCtx<ModuleSchema>, sessionId: string): HardFlag[] =>
   [...ctx.db.flags.sessionId.filter(sessionId)]
     .filter((f) => f.severity === "hard")
@@ -76,8 +74,6 @@ const statusesOf = (ctx: ReducerCtx<ModuleSchema>, sessionId: string): Extractio
 
 type SegmentRow = NonNullable<ReturnType<ReducerCtx<ModuleSchema>["db"]["segments"]["rowKey"]["find"]>>;
 
-// A segment that already has extractedAt is answered from what was stored, without calling the model again.
-// Statuses and hard flags are the session's current ones.
 const storedResult = (ctx: ReducerCtx<ModuleSchema>, row: SegmentRow): Extraction =>
   done(
     row.id,
@@ -251,7 +247,6 @@ export function runExtraction(io: Io, sessionId: string, segmentId: string): Ext
       if (!session) throw new Error(`unknown session ${sessionId}`);
       const before = ctx.db.segments.rowKey.find(key(sessionId, segmentId));
       if (!before) throw new Error(`unknown segment ${segmentId}`);
-      // Another call for the same segment may have finished while this one waited on the model.
       if (before.extractedAt !== undefined) return storedResult(ctx, before);
       if (patches.length > 0) applyPatchBatch(ctx, sessionId, session.version, patches);
       const row = ctx.db.segments.rowKey.find(key(sessionId, segmentId));

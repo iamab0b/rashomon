@@ -222,8 +222,6 @@ describe("extractSegment", () => {
         ]),
       }),
     );
-    // e7 is retracted while the model call is in flight, so the batch is valid against the
-    // snapshot the model saw but its second patch fails inside applyPatchBatch.
     const responder: TestHttpResponder<never> = (test, req, b) => {
       call((ctx) =>
         mod.applyPatches(ctx, {
@@ -300,7 +298,6 @@ describe("extractSegment", () => {
   test("when two calls overlap, only the first to finish applies its patches", () => {
     let nested: ReturnType<typeof runExtraction> | undefined;
     const outer: TestHttpResponder<never> = (test, req, b) => {
-      // A second call for the same segment starts and finishes while this one waits on the model.
       if (!nested) nested = runExtraction(ioFor(ok([toolUse("tu_n", "add_event", walkInput)])), SESSION, "utt_2");
       return ok([toolUse("tu_o", "add_event", { ...walkInput, actor: "clerk", t_start: 15, t_end: 18 })])(test, req, b);
     };
