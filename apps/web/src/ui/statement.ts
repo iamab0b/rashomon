@@ -35,6 +35,7 @@ export type StatementRun = {
   segmentId: string | null;
   error: string | null;
   result: StatementResult | null;
+  resent: boolean | null;
 };
 
 function signature(event: ResolvedEvent): string {
@@ -74,7 +75,6 @@ export function isEditorRefusal(message: string): boolean {
   return /\beditor/i.test(message);
 }
 
-// The Statement box shows its own rejections inline, so RightPanel skips the toast for them.
 const shownInline = new Set<string>();
 
 export function noteStatementRejection(message: string): void {
@@ -99,14 +99,36 @@ export function addedLabel(patchCount: number | undefined, outcome: StatementOut
   return "No events found in that statement";
 }
 
-// The result is ready once extraction is done and, if it produced patches, the graph shows them: its
-// version moved past the one the statement was sent against, or (the fixture keeps its version) it changed.
-// In live mode the graph row can arrive after the status.
-export function resultOf(baseline: GraphBaseline, status: StatementStatus | null, graph: ResolvedGraph | null): StatementResult | null {
+const finished = new Map<string, StatementResult>();
+
+export function rememberResult(segmentId: string, result: StatementResult): void {
+  finished.set(segmentId, result);
+}
+
+export function alreadyAddedResult(segmentId: string, status: StatementStatus | null): StatementResult {
+  const saved = finished.get(segmentId);
+  if (saved) {
+    const n = saved.outcome.added.length + saved.outcome.changed.length;
+    return { ...saved, label: n > 0 ? `Already added: ${plural(n, "event")}` : `Already added: ${saved.label}` };
+  }
+  const count = status?.patchCount ?? 0;
+  return {
+    label: count > 0 ? `Already added: ${plural(count, "change")}` : "Already added: no events found",
+    outcome: { added: [], changed: [], props: [], flags: [] },
+  };
+}
+
+export function resultOf(
+  baseline: GraphBaseline,
+  status: StatementStatus | null,
+  graph: ResolvedGraph | null,
+  live = false,
+): StatementResult | null {
   if (status?.state !== "done") return null;
   const outcome = outcomeSince(baseline, graph);
+  const advanced = (graph?.version ?? 0) > baseline.version;
   const changed = outcome.added.length + outcome.changed.length + outcome.props.length > 0;
-  if (status.patchCount && !changed && (graph?.version ?? 0) <= baseline.version) return null;
+  if (status.patchCount && !advanced && (live || !changed)) return null;
   return {
     label: addedLabel(status.patchCount, outcome),
     outcome,
@@ -121,11 +143,13 @@ export function statementView(
   graph: ResolvedGraph | null,
   identity: string | null,
   slow: boolean,
+  live = false,
 ): StatementView {
   if (!run) return { kind: "idle" };
   if (run.error) return isEditorRefusal(run.error) ? { kind: "refused", identity } : { kind: "failed", error: run.error };
   if (run.result) return { kind: "done", ...run.result };
   if (status?.state === "failed") return { kind: "failed", error: status.error ?? "Extraction failed." };
-  const result = run.segmentId ? resultOf(run.baseline, status, graph) : null;
+  if (run.segmentId && run.resent) return { kind: "done", ...alreadyAddedResult(run.segmentId, status) };
+  const result = run.segmentId && run.resent === false ? resultOf(run.baseline, status, graph, live) : null;
   return result ? { kind: "done", ...result } : { kind: "extracting", sent: run.sent, slow };
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState, type KeyboardEvent } from "react";
-import { useGraphActions, useLiveIdentity, useStatementStatus, type ResolvedEvent, type ResolvedGraph } from "../scene";
+import { modeFromSearch, useGraphActions, useLiveIdentity, useStatementStatus, type ResolvedEvent, type ResolvedGraph } from "../scene";
 import { flagHeadline } from "./flagCopy";
 import { placeName } from "./places";
 import { actorLabel, StatusToken, words } from "./shared";
@@ -7,6 +7,7 @@ import {
   baselineOf,
   DEFAULT_WITNESS_NAME,
   noteStatementRejection,
+  rememberResult,
   resultOf,
   SLOW_AFTER_MS,
   statementView,
@@ -65,7 +66,6 @@ export function StatementSectionView({
   copyState = "idle",
 }: StatementSectionViewProps) {
   const canSubmit = text.trim().length > 0 && !isBusy(view);
-  // Scene shortcuts stay out of the fields; Escape still reaches the drawer so it can close.
   const stopKeys = (e: KeyboardEvent) => {
     if (e.key !== "Escape") e.stopPropagation();
   };
@@ -189,12 +189,20 @@ export function StatementSection({ graph, onSelect }: { graph: ResolvedGraph | n
   const [slow, setSlow] = useState(false);
   const [copyState, setCopyState] = useState<CopyState>("idle");
   const status = useStatementStatus(run?.segmentId ?? null);
-  const view = statementView(run, status, graph, identity, slow);
+  const live = typeof window !== "undefined" && modeFromSearch(window.location.search) === "live";
+  const view = statementView(run, status, graph, identity, slow, live);
 
-  // Freeze the result the first time it is ready, so later overrides or other statements don't change it.
-  const ready = run && !run.result && !run.error && run.segmentId ? resultOf(run.baseline, status, graph) : null;
+  const firstState = run?.segmentId && run.resent === null ? (status?.state ?? null) : null;
   useEffect(() => {
-    if (ready) setRun((current) => (current && !current.result && current.segmentId === run?.segmentId ? { ...current, result: ready } : current));
+    if (!firstState) return;
+    setRun((current) => (current && current.resent === null ? { ...current, resent: firstState === "done" } : current));
+  }, [firstState]);
+
+  const ready = run && !run.result && !run.error && run.segmentId && run.resent === false ? resultOf(run.baseline, status, graph, live) : null;
+  useEffect(() => {
+    if (!ready || !run?.segmentId) return;
+    rememberResult(run.segmentId, ready);
+    setRun((current) => (current && !current.result && current.segmentId === run.segmentId ? { ...current, result: ready } : current));
   }, [ready, run?.segmentId]);
 
   const extracting = view.kind === "extracting";
@@ -213,7 +221,7 @@ export function StatementSection({ graph, onSelect }: { graph: ResolvedGraph | n
   const onSubmit = () => {
     if (!text.trim() || extracting) return;
     const sent = text;
-    const fresh: StatementRun = { sent, baseline: baselineOf(graph), segmentId: null, error: null, result: null };
+    const fresh: StatementRun = { sent, baseline: baselineOf(graph), segmentId: null, error: null, result: null, resent: null };
     setRun(fresh);
     setCopyState("idle");
     const fail = (err: unknown) => {

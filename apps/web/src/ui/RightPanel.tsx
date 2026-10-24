@@ -103,7 +103,6 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
 
   useEffect(() => {
     if (!actionError) return;
-    // Wait a tick: the Statement box notes its rejection when the submit promise settles.
     const id = window.setTimeout(() => {
       if (!isStatementRejection(actionError)) setToast(`Couldn't apply the change: ${actionError}`);
     }, 0);
