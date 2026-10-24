@@ -10,7 +10,7 @@ import type { Rig } from "../characters/rigs";
 import { followedActorId } from "../cameras/povSightline";
 import { useSceneStore } from "../store";
 import { ghostAnchor, ghostVisible, ghostYaw, type PositionLookup } from "./actorPose";
-import { HIDDEN_WITNESS_OPACITY } from "./witnessLayers";
+import { dimForWitness } from "./witnessLayers";
 
 const GHOST_COLOR = "#ff6b6b";
 const GHOST_OPACITY = 0.6;
@@ -23,12 +23,25 @@ type Props = {
   rig: Rig;
   positionOf: PositionLookup;
   onReady: (id: string) => void;
+  readyId?: string;
   color?: string;
   badge?: boolean;
   shownAt?: (t: number) => boolean;
 };
 
-export function Ghost({ event, rig, positionOf, onReady, color = GHOST_COLOR, badge = true, shownAt }: Props) {
+export function applyGhostOpacity(
+  hidden: ReadonlySet<string>,
+  event: Pick<ResolvedEvent, "witnessId">,
+  body: MeshBasicMaterial,
+  badge: MeshBasicMaterial,
+): void {
+  const dim = hidden.has(event.witnessId);
+  dimForWitness(body, dim, GHOST_OPACITY);
+  dimForWitness(badge, dim);
+}
+
+export function Ghost({ event, rig, positionOf, onReady, readyId, color = GHOST_COLOR, badge = true, shownAt }: Props) {
+  const ready = readyId ?? event.id;
   const handle = useCharacter(rig);
   const group = useRef<Group>(null);
   const material = useMemo(
@@ -36,7 +49,10 @@ export function Ghost({ event, rig, positionOf, onReady, color = GHOST_COLOR, ba
     [color],
   );
 
+  const badgeMaterial = useMemo(() => new MeshBasicMaterial({ color: BADGE_COLOR }), []);
+
   useEffect(() => () => material.dispose(), [material]);
+  useEffect(() => () => badgeMaterial.dispose(), [badgeMaterial]);
 
   useEffect(() => {
     if (!handle) return;
@@ -52,13 +68,13 @@ export function Ghost({ event, rig, positionOf, onReady, color = GHOST_COLOR, ba
           action.time = 0;
           handle.mixer.update(0);
         }
-        onReady(event.id);
+        onReady(ready);
       })
       .catch((error: unknown) => console.error("ghost pose failed", error));
     return () => {
       cancelled = true;
     };
-  }, [handle, material, event.id, onReady]);
+  }, [handle, material, ready, onReady]);
 
   useFrame(() => {
     const node = group.current;
@@ -68,7 +84,7 @@ export function Ghost({ event, rig, positionOf, onReady, color = GHOST_COLOR, ba
     const { t } = state;
     node.visible = (shownAt ? shownAt(t) : ghostVisible(event, t)) && followedActorId(state) !== event.actor;
     if (!node.visible) return;
-    material.opacity = state.hiddenWitnesses.has(event.witnessId) ? HIDDEN_WITNESS_OPACITY : GHOST_OPACITY;
+    applyGhostOpacity(state.hiddenWitnesses, event, material, badgeMaterial);
     node.position.set(anchor[0], anchor[1], anchor[2]);
     node.rotation.set(0, ghostYaw(event, t, positionOf), 0);
   });
@@ -80,7 +96,7 @@ export function Ghost({ event, rig, positionOf, onReady, color = GHOST_COLOR, ba
       {badge ? (
         <mesh position={[0, BADGE_HEIGHT_M, 0]}>
           <sphereGeometry args={[BADGE_RADIUS_M, 16, 12]} />
-          <meshBasicMaterial color={BADGE_COLOR} />
+          <primitive object={badgeMaterial} attach="material" />
         </mesh>
       ) : null}
     </group>

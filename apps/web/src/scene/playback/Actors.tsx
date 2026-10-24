@@ -95,7 +95,7 @@ export function Actors() {
     const expected = [
       ...actors.map(({ playback }) => playback.actorId),
       ...ghosts.map(({ event }) => event.id),
-      ...markers.map(({ event }) => event.id),
+      ...markers.map(({ event }) => `marker:${event.id}`),
     ];
     setActorsReady(clipsReady && expected.every((id) => readyIds.has(id)));
   }, [actors, ghosts, markers, readyIds, clipsReady, setActorsReady]);
@@ -117,6 +117,7 @@ export function Actors() {
           rig={rig}
           positionOf={positionOf}
           onReady={markReady}
+          readyId={`marker:${event.id}`}
           color={color}
           badge={false}
           shownAt={(t) => markerShown(playback, event, t)}

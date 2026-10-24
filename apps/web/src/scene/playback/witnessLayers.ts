@@ -1,6 +1,7 @@
 import type { ResolvedEvent, ResolvedGraph } from "@rashomon/engine";
 import type { EventGraph, Witness } from "@rashomon/schema";
-import { actorEvent, isDrawn, type ActorPlayback } from "./actorPose";
+import type { Material } from "three";
+import { isDrawn, positionEvent, type ActorPlayback } from "./actorPose";
 
 export const HIDDEN_WITNESS_OPACITY = 0.15;
 export const LAYER_COLORS: readonly string[] = ["#4f9dff", "#4cd6a0", "#ff9f43", "#c58bff"];
@@ -43,7 +44,7 @@ export function disagreementEvents(resolved: ResolvedGraph, statusOf: (event: Re
 }
 
 export function markerShown(playback: ActorPlayback, event: ResolvedEvent, t: number): boolean {
-  const chosen = actorEvent(playback, t);
+  const chosen = positionEvent(playback, t);
   return (
     chosen !== undefined &&
     chosen.id !== event.id &&
@@ -51,4 +52,23 @@ export function markerShown(playback: ActorPlayback, event: ResolvedEvent, t: nu
     covers(event, t) &&
     covers(chosen, t)
   );
+}
+
+export function rigOpacity(playback: ActorPlayback, t: number, base: number, hidden: ReadonlySet<string>): number {
+  const shown = positionEvent(playback, t);
+  return shown && hidden.has(shown.witnessId) ? Math.min(base, HIDDEN_WITNESS_OPACITY) : base;
+}
+
+export function dimForWitness(material: Material, hidden: boolean, full = 1): void {
+  material.opacity = hidden ? HIDDEN_WITNESS_OPACITY : full;
+  material.transparent = hidden || full < 1;
+}
+
+export function eventWitnessHidden(
+  resolved: { events: readonly Pick<ResolvedEvent, "id" | "witnessId">[] } | null,
+  hidden: ReadonlySet<string>,
+  eventId: string,
+): boolean {
+  const witnessId = resolved?.events.find((event) => event.id === eventId)?.witnessId;
+  return witnessId !== undefined && hidden.has(witnessId);
 }

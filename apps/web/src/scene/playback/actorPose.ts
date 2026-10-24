@@ -93,28 +93,40 @@ function pointAt(playback: ActorPlayback, event: ResolvedEvent, t: number): Vec3
   return getPose(event, t, playback.paths.get(event.id) ?? null)?.position ?? null;
 }
 
-function heldPoint(playback: ActorPlayback, t: number): Vec3 | null {
+type PositionSource = { readonly event: ResolvedEvent | null; readonly point: Vec3 };
+
+function held(playback: ActorPlayback, t: number): PositionSource | null {
   for (const event of playback.byStartDesc) {
     if (event.tStart > t || event.tEnd < t) continue;
     const point = pointAt(playback, event, t);
-    if (point) return point;
+    if (point) return { event, point };
   }
   for (const event of playback.byEndDesc) {
     if (event.tStart > t || event.tEnd >= t) continue;
     const point = pointAt(playback, event, t);
-    if (point) return point;
+    if (point) return { event, point };
   }
   return null;
 }
 
-export function actorPosition(playback: ActorPlayback, t: number): Vec3 | null {
+function positionSource(playback: ActorPlayback, t: number): PositionSource | null {
   const moving = activeMovement(playback, t);
   const movingPoint = moving ? pointAt(playback, moving, t) : null;
-  if (movingPoint) return movingPoint;
-  const held = heldPoint(playback, t);
-  if (held) return held;
+  if (moving && movingPoint) return { event: moving, point: movingPoint };
+  const kept = held(playback, t);
+  if (kept) return kept;
+  if (playback.restPosition) return { event: null, point: playback.restPosition };
   const first = playback.events[0];
-  return playback.restPosition ?? (first ? pointAt(playback, first, first.tStart) : null);
+  const point = first ? pointAt(playback, first, first.tStart) : null;
+  return first && point ? { event: first, point } : null;
+}
+
+export function actorPosition(playback: ActorPlayback, t: number): Vec3 | null {
+  return positionSource(playback, t)?.point ?? null;
+}
+
+export function positionEvent(playback: ActorPlayback, t: number): ResolvedEvent | undefined {
+  return positionSource(playback, t)?.event ?? undefined;
 }
 
 function yawToward(from: Vec3, to: Vec3): number | null {
@@ -169,10 +181,6 @@ export function actorYaw(playback: ActorPlayback, t: number, positionOf: Positio
     since = change <= TIMELINE_START_S ? Number.NEGATIVE_INFINITY : change;
   }
   return turnedToward(playback, yaw, since, t, positionOf);
-}
-
-export function actorEvent(playback: ActorPlayback, t: number): ResolvedEvent | undefined {
-  return latestStarted(playback, t) ?? playback.events[0];
 }
 
 export function actorStatus(playback: ActorPlayback, t: number): Status | null {
