@@ -57,3 +57,43 @@ describe("scene store", () => {
     expect(useSceneStore.getState().floorHit).toBeNull();
   });
 });
+
+describe("timeline state", () => {
+  test("starts at t = 0, paused, with no resolved graph", () => {
+    const state = useSceneStore.getState();
+
+    expect(state.t).toBe(0);
+    expect(state.playing).toBe(false);
+    expect(state.resolved).toBeNull();
+  });
+
+  test("setT moves the playhead both forward and backward", () => {
+    const { setT } = useSceneStore.getState();
+
+    setT(12);
+    expect(useSceneStore.getState().t).toBe(12);
+    setT(3.5);
+    expect(useSceneStore.getState().t).toBe(3.5);
+  });
+
+  test("setT clamps negative and non-finite values to 0", () => {
+    const { setT } = useSceneStore.getState();
+
+    setT(-2);
+    expect(useSceneStore.getState().t).toBe(0);
+    setT(Number.NaN);
+    expect(useSceneStore.getState().t).toBe(0);
+    setT(Number.POSITIVE_INFINITY);
+    expect(useSceneStore.getState().t).toBe(0);
+  });
+
+  test("setPlaying and setResolved store their values", () => {
+    const graph = { sceneId: "s", version: 1, durationS: 1, actors: [], events: [], props: [] };
+
+    useSceneStore.getState().setPlaying(true);
+    useSceneStore.getState().setResolved(graph);
+
+    expect(useSceneStore.getState().playing).toBe(true);
+    expect(useSceneStore.getState().resolved).toBe(graph);
+  });
+});
