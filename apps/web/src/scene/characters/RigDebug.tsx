@@ -1,15 +1,14 @@
 import { Line } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AnimationAction, AnimationClip } from "three";
 import { useSceneStore } from "../store";
-import { Character, type CharacterHandle } from "./Character";
+import { AnimatedCharacter } from "./AnimatedCharacter";
+import type { CharacterHandle } from "./Character";
 import { loadClips } from "./clips";
 import { measureRig } from "./measureRig";
+import { RIG_DEBUG_ACTORS, RIG_DEBUG_GRAPH } from "./rigDebugGraph";
 import { useRigReportStore } from "./rigReportStore";
-import type { Rig } from "./rigs";
 
-const DEBUG_CLIP = "clip_walk";
 const MEASURE_AFTER_FRAMES = 10;
 const FLOOR_SIZE = 10;
 const RULER_X = 4;
@@ -18,13 +17,6 @@ const RULER_HEIGHT = 1.75;
 const HIP_TICK = 1.0;
 const TICK_HALF = 0.1;
 const RULER_COLOR = "#ffd24a";
-
-const DEBUG_ACTORS: readonly { rig: Rig; position: readonly [number, number, number] }[] = [
-  { rig: "mixamo_ybot", position: [3, 0, 3] },
-  { rig: "mixamo_xbot", position: [5, 0, 3] },
-];
-
-type Playing = { handle: CharacterHandle; action: AnimationAction; clip: AnimationClip };
 
 function Ruler() {
   const tick = (y: number): [number, number, number][] => [
@@ -53,20 +45,23 @@ function DebugFloor() {
 }
 
 export function RigDebug() {
-  const [clip, setClip] = useState<AnimationClip | null>(null);
+  const [clipsLoaded, setClipsLoaded] = useState(false);
   const [handles, setHandles] = useState<readonly CharacterHandle[]>([]);
-  const playing = useRef<readonly Playing[]>([]);
   const frames = useRef(0);
   const addReport = useRigReportStore((state) => state.addReport);
   const setStatus = useSceneStore((state) => state.setStatus);
+  const setResolved = useSceneStore((state) => state.setResolved);
+
+  useEffect(() => {
+    setResolved(RIG_DEBUG_GRAPH);
+    return () => setResolved(null);
+  }, [setResolved]);
 
   useEffect(() => {
     let cancelled = false;
     loadClips()
-      .then((clips) => {
-        const idle = clips.get(DEBUG_CLIP);
-        if (!idle) throw new Error(`${DEBUG_CLIP} missing from clip cache`);
-        if (!cancelled) setClip(idle);
+      .then(() => {
+        if (!cancelled) setClipsLoaded(true);
       })
       .catch((error: unknown) => console.error("rig debug clip load failed", error));
     return () => {
@@ -78,41 +73,32 @@ export function RigDebug() {
     setHandles((current) => [...current.filter((existing) => existing.rig !== handle.rig), handle]);
   }, []);
 
-  useEffect(() => {
-    if (!clip) return;
-    playing.current = handles.map((handle) => {
-      const action = handle.mixer.clipAction(clip);
-      action.play();
-      return { handle, action, clip };
-    });
-    frames.current = 0;
-  }, [clip, handles]);
-
-  useFrame(({ clock }) => {
-    const current = playing.current;
-    if (current.length === 0) return;
-    for (const { handle, action, clip: playingClip } of current) {
-      action.time = clock.elapsedTime % playingClip.duration;
-      handle.mixer.update(0);
-    }
+  useFrame(() => {
+    if (!clipsLoaded || handles.length !== RIG_DEBUG_ACTORS.length) return;
     frames.current += 1;
     if (frames.current !== MEASURE_AFTER_FRAMES) return;
-    for (const { handle } of current) {
+    for (const handle of handles) {
       const report = measureRig(handle);
       addReport(report);
       console.info(
         `rig ${report.rig}: hip bone ${report.hipBone}, hip y ${report.hipY.toFixed(3)} m, height ${report.height.toFixed(3)} m`,
       );
     }
-    if (current.length === DEBUG_ACTORS.length) setStatus("ready");
+    setStatus("ready");
   });
 
   return (
     <>
       <DebugFloor />
       <Ruler />
-      {DEBUG_ACTORS.map((actor) => (
-        <Character key={actor.rig} rig={actor.rig} position={actor.position} onReady={onReady} />
+      {RIG_DEBUG_ACTORS.map((actor) => (
+        <AnimatedCharacter
+          key={actor.id}
+          actorId={actor.id}
+          rig={actor.rig}
+          position={actor.position}
+          onReady={onReady}
+        />
       ))}
     </>
   );

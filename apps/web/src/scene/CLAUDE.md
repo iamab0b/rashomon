@@ -50,7 +50,7 @@ The clip table is `docs/clip-action-map.md`; `characters/actionMap.ts` carries i
 
 ## Fixtures
 
-`storeScene` (11 landmarks) and `robberyGraph` (3 actors, 10 events, 2 props), both imported from `@rashomon/schema/fixtures`. The resolved version for render tests is `packages/schema/fixtures/robbery.resolved.json`, which the package does not export, produced by `pnpm -F engine resolve-fixture`. Expected after the gate: `e5` implausible with a `sightline` flag blocked by `shelf_a`; everything else plausible. If your render shows the witness seeing the counter from the chips aisle, something upstream is wrong, not your code.
+`storeScene` (11 landmarks) and `robberyGraph` (3 actors, 10 events, 2 props), both imported from `@rashomon/schema/fixtures`. The resolved version for render tests is `robberyResolved` from `@rashomon/schema/fixtures` (typed as its JSON; cast it to the engine's `ResolvedGraph` at the import site), regenerated from the resolver and pinned by the engine's drift test. Expected after the gate: `e5` implausible with a `sightline` flag blocked by `shelf_a`; everything else plausible. If your render shows the witness seeing the counter from the chips aisle, something upstream is wrong, not your code.
 
 ## Style
 

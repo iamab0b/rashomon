@@ -8,6 +8,8 @@ export function App() {
   const fixture = params.get("fixture") ?? "store";
   const debug = params.get("debug") ?? undefined;
   const cam = params.get("cam");
+  const tParam = params.get("t");
+  const t = tParam !== null && Number.isFinite(Number(tParam)) ? Number(tParam) : undefined;
   const { setPreset } = useCamera();
 
   useEffect(() => {
@@ -17,7 +19,7 @@ export function App() {
   return (
     <div style={{ display: "flex", width: "100%", height: "100%" }}>
       <div style={{ flex: 1 }}>
-        <Scene fixture={fixture} debug={debug} />
+        <Scene fixture={fixture} debug={debug} t={t} />
       </div>
       <div
         style={{

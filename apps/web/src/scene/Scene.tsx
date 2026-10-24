@@ -11,6 +11,7 @@ import { LabelLayer } from "./landmarks/LabelLayer";
 import { LabelProjector } from "./landmarks/LabelProjector";
 import { LandmarkMarkers } from "./landmarks/LandmarkMarkers";
 import { loadScene, type LoadedScene } from "./loaders/scene";
+import { Playhead } from "./playback/Playhead";
 import { useSceneStore } from "./store";
 import { useSceneKeys } from "./useSceneKeys";
 
@@ -26,6 +27,7 @@ const INITIAL_FOV = 50;
 export type SceneProps = {
   fixture?: string;
   debug?: string;
+  t?: number;
 };
 
 const RIG_DEBUG = "rig";
@@ -84,6 +86,19 @@ function ReadySignal() {
   return null;
 }
 
+function useInitialTime(t: number | undefined, debug: string | undefined): void {
+  const setT = useSceneStore((state) => state.setT);
+  const setPlaying = useSceneStore((state) => state.setPlaying);
+  useEffect(() => {
+    if (t !== undefined) {
+      setT(t);
+      setPlaying(false);
+      return;
+    }
+    setPlaying(debug === RIG_DEBUG);
+  }, [t, debug, setT, setPlaying]);
+}
+
 function useDebugPreset(debug: string | undefined): void {
   const setPreset = useSceneStore((state) => state.setPreset);
   useEffect(() => {
@@ -91,9 +106,10 @@ function useDebugPreset(debug: string | undefined): void {
   }, [debug, setPreset]);
 }
 
-export function Scene({ fixture, debug }: SceneProps) {
+export function Scene({ fixture, debug, t }: SceneProps) {
   useSceneKeys();
   useDebugPreset(debug);
+  useInitialTime(t, debug);
   const isRigDebug = debug === RIG_DEBUG;
   const loaded = useLoadedScene(isRigDebug ? undefined : fixture);
   const status = useSceneStore((state) => state.status);
@@ -113,6 +129,7 @@ export function Scene({ fixture, debug }: SceneProps) {
         <Lights />
         <CameraRig />
         <FpsProbe />
+        <Playhead />
         {isRigDebug ? <RigDebug /> : null}
         {loaded ? (
           <>
