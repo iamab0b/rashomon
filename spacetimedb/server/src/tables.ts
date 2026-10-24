@@ -244,6 +244,16 @@ export const HardFlagT = t.object("HardFlag", {
   suggestedQuestion: t.string(),
 });
 
+export const extractionQueue = table(
+  { name: "extraction_queue" },
+  {
+    scheduledId: t.u64().primaryKey().autoInc(),
+    scheduledAt: t.scheduleAt(),
+    sessionId: t.string(),
+    segmentId: t.string(),
+  },
+);
+
 export const ExtractionT = t.object("Extraction", {
   segmentId: t.string(),
   patchCount: t.u32(),
@@ -262,8 +272,9 @@ export const spacetimedb = schema({
   patches,
   flags,
   overrides,
+  extractionQueue,
 }, {
-  env: { ANTHROPIC_API_KEY: t.string(), CARTESIA_WEBHOOK_SECRET: t.string() },
+  env: { ANTHROPIC_API_KEY: t.string(), CARTESIA_WEBHOOK_SECRET: t.string(), EDITOR_IDENTITIES: t.string() },
 });
 
 export { t };

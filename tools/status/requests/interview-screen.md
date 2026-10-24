@@ -30,3 +30,7 @@ Done-check:
 - `pnpm -F web typecheck` and `pnpm -F web test` pass.
 - `git grep -n "submitStatement" apps/web/src/ui` shows the Statement section using it.
 - Greptile is not running; do not wait for it. The leader reviews and merges.
+
+## Sat 2:25 PM: the hooks are on main
+
+PR #30 merged as ff77d58. `useGraphActions().submitStatement`, `useStatementStatus` and `useLiveIdentity` are all exported from apps/web/src/scene/index.ts now, so drop any local stub and build against them. In fixture mode the robbery correction statement gives 4 patches and every event plausible. Once Sahil republishes Maincloud, submitting from a browser that is not an editor yet shows your identity flow. Send Sahil that identity (docs/demo-laptop.md, section 4).

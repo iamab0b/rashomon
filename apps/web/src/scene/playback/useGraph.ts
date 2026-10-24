@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import type { LiveGraphSource } from "../live/liveGraphSource";
 import { useSceneStore, type GraphErrors, type StatusMap } from "../store";
 import type { GraphSource } from "./graphSource";
+import { NO_STATEMENTS, type StatementStatuses } from "./statementStatus";
 
 export type GraphView = {
   readonly resolved: ResolvedGraph | null;
@@ -27,6 +28,9 @@ export function pushSource(source: GraphSource): void {
   const state = useSceneStore.getState();
   state.setGraph(source.getSnapshot());
   state.setGraphErrors(errorsOf(source));
+  const extra = source as Partial<{ identity: string | null; statementStatuses: () => StatementStatuses }>;
+  state.setLiveIdentity(source.kind === "live" ? (extra.identity ?? null) : null);
+  state.setStatements(extra.statementStatuses?.() ?? NO_STATEMENTS);
 }
 
 export function useGraphSource(source: GraphSource | null): void {
@@ -44,6 +48,8 @@ export function useGraphSource(source: GraphSource | null): void {
       setGraphSource(null);
       setGraph({ resolved: null, statuses: {} });
       setGraphErrors(NO_ERRORS);
+      useSceneStore.getState().setLiveIdentity(null);
+      useSceneStore.getState().setStatements(NO_STATEMENTS);
     };
   }, [source, setGraph, setGraphSource, setGraphErrors]);
 }

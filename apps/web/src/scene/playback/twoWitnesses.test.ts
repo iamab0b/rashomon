@@ -1,5 +1,5 @@
 import { robberyClerkPatches, robberyClerkWitness, robberyGraph, storeScene } from "@rashomon/schema/fixtures";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { callHook } from "../testing/hookHost";
 import { useSceneStore } from "../store";
 import { buildActorPlayback } from "./actorPose";
@@ -8,6 +8,8 @@ import { fixtureGraphSource, scenarioFromSearch } from "./graphSource";
 import { gatedSnapshot } from "./gatedSnapshot";
 import { statusOf } from "./useGraph";
 import { useWitnessLayers } from "./useWitnessLayers";
+import { useGraphActions } from "./useGraphActions";
+import { CORRECTION_TEXT } from "./recordedStatements";
 import { disagreementEvents, markerShown, witnessLayers } from "./witnessLayers";
 
 const initial = useSceneStore.getState();
@@ -164,5 +166,19 @@ describe("the other witness's claimed place", () => {
     expect(shownAt(1)).toEqual([]);
     expect(shownAt(20)).toEqual([]);
     expect(shownAt(11)).toEqual(at11);
+  });
+});
+
+describe("typed statements in fixture mode", () => {
+  it.each([[undefined], ["two-witnesses"]])("go to witness w1 in the %s scenario", async (scenario) => {
+    const source = fixtureGraphSource("store", scenario)!;
+    useSceneStore.getState().setGraphSource(source);
+    const { segmentId } = await useGraphActions().submitStatement(CORRECTION_TEXT, "Witness");
+    await vi.waitFor(() => expect(source.statementStatuses()[segmentId]?.state).toBe("done"));
+    const events = source.getSnapshot().graph!.events;
+    const added = events.filter((e) => e.sources.includes(segmentId));
+    expect(added.length).toBeGreaterThan(0);
+    expect(added.every((e) => e.witnessId === "w1")).toBe(true);
+    expect(events.find((e) => e.id === "e11" && scenario === "two-witnesses")?.witnessId ?? "w2").toBe("w2");
   });
 });

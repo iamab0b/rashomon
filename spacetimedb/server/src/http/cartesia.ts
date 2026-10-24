@@ -1,7 +1,7 @@
 import { Router, SyncResponse, type Request } from "spacetimedb/server";
 import { EXTRACTION_FAILED, runExtraction, type Extraction, type Io } from "../extract/run";
 import { MAX_BODY_BYTES, MAX_UTTERANCES } from "../limits";
-import { insertSegment, key } from "../reducers";
+import { insertSegmentRow, key } from "../reducers";
 import { spacetimedb } from "../tables";
 
 export type WebhookIo = Io & { nowMicros: () => bigint; webhookSecret: () => string | undefined };
@@ -84,7 +84,7 @@ export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
       // A resend of a segment that is already stored (same id, same text) goes straight to the stored result.
       const existing = ctx.db.segments.rowKey.find(key(sessionId, segmentId));
       if (existing && existing.sessionId === sessionId && existing.text === text) return;
-      insertSegment(ctx, {
+      insertSegmentRow(ctx, {
         id: segmentId,
         sessionId,
         witnessId,

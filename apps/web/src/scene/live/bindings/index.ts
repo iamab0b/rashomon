@@ -39,6 +39,7 @@ import CreateSessionReducer from "./create_session_reducer";
 import InsertSegmentReducer from "./insert_segment_reducer";
 import OverrideReducer from "./override_reducer";
 import SetStatusesReducer from "./set_statuses_reducer";
+import SubmitStatementReducer from "./submit_statement_reducer";
 
 // Import all procedure arg schemas
 import * as ExtractSegmentProcedure from "./extract_segment_procedure";
@@ -204,6 +205,7 @@ const reducersSchema = __reducers(
   __reducerSchema("insert_segment", InsertSegmentReducer),
   __reducerSchema("override", OverrideReducer),
   __reducerSchema("set_statuses", SetStatusesReducer),
+  __reducerSchema("submit_statement", SubmitStatementReducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */

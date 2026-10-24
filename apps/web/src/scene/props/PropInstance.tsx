@@ -1,14 +1,14 @@
 import type { ResolvedProp } from "@rashomon/engine";
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Box3, Vector3, type Group, type Object3D } from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import type { Group, Object3D } from "three";
 import type { Anchor, SceneManifest } from "@rashomon/schema";
+import { modelExists } from "../loaders/modelExists";
+import { loadGlb } from "../loaders/scene";
 import { useSceneStore } from "../store";
 import { holderDrawn } from "./holder";
 import { poseFromHand } from "./handAttach";
-import { modelScale } from "./library";
-import { checkPropModels } from "./preload";
+import { loadPropModel } from "./loadPropModel";
 import { propPose } from "./propPose";
 import { restBaseY } from "./restHeight";
 import type { PropType } from "./types";
@@ -24,29 +24,13 @@ type Props = {
   manifest: SceneManifest;
 };
 
-async function modelExists(url: string): Promise<boolean> {
-  try {
-    const response = await fetch(url, { method: "HEAD" });
-    const type = response.headers.get("content-type") ?? "";
-    return response.ok && !type.includes("text/html");
-  } catch {
-    return false;
-  }
-}
-
 function useGlbModel(entry: PropType): Object3D | null {
   const [model, setModel] = useState<Object3D | null>(null);
   useEffect(() => {
     let cancelled = false;
-    checkPropModels([entry], modelExists)
-      .then(async (report) => {
-        if (cancelled || report.existing.length === 0) return;
-        const gltf = await new GLTFLoader().loadAsync(entry.modelUrl);
-        if (cancelled) return;
-        const size = new Box3().setFromObject(gltf.scene).getSize(new Vector3());
-        const wrapper = gltf.scene;
-        wrapper.scale.setScalar(modelScale(entry, [size.x, size.y, size.z]));
-        setModel(wrapper);
+    loadPropModel(entry, modelExists, loadGlb)
+      .then((seated) => {
+        if (!cancelled) setModel(seated);
       })
       .catch((error: unknown) => console.error(`prop model ${entry.modelUrl} failed to load`, error));
     return () => {

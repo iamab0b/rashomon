@@ -7,6 +7,7 @@ import { CAMERA_PRESETS } from "./cameras/presets";
 import { RigDebug } from "./characters/RigDebug";
 import { RigReportPanel } from "./characters/RigReportPanel";
 import { DebugOverlay } from "./DebugOverlay";
+import { Dressing } from "./dressing/Dressing";
 import { AnchorGizmo } from "./editing/AnchorGizmo";
 import { FloorProbe } from "./FloorProbe";
 import { ShotButton } from "./export/ShotButton";
@@ -41,6 +42,7 @@ export type SceneProps = {
 };
 
 const RIG_DEBUG = "rig";
+const STORE_FIXTURE = "store";
 
 function useLoadedScene(fixture: string | undefined): LoadedScene | null {
   const [loaded, setLoaded] = useState<LoadedScene | null>(null);
@@ -166,6 +168,9 @@ export function Scene({ fixture, debug, t }: SceneProps) {
         {loaded ? (
           <>
             <primitive object={loaded.model} />
+            {loaded.isPlaceholder && fixture === STORE_FIXTURE ? (
+              <Dressing manifest={loaded.manifest} placeholder={loaded.model} />
+            ) : null}
             <LandmarkMarkers landmarks={loaded.manifest.landmarks} />
             <LabelProjector landmarks={loaded.manifest.landmarks} occluders={loaded.model} />
             <FloorProbe interior={loaded.manifest.interior} />
