@@ -222,6 +222,17 @@
       "paths": [
         "demo"
       ]
+    },
+    {
+      "id": "statement-section-fixes",
+      "from": "Sahil",
+      "due": "16-18",
+      "todo": "PR #35 before merge: freeze a finished statement's result, include facing/sources/override/props in the change signature, let Escape close the drawer while typing, one test on the real StatementSection",
+      "doc": "tools/status/requests/statement-section-fixes.md",
+      "grep": "key !== \"Escape\"",
+      "paths": [
+        "apps/web/src/ui"
+      ]
     }
   ],
   "runtime": [
