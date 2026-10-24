@@ -5,6 +5,7 @@ import { FlagsTab, openFlagCount } from "./FlagsTab";
 import { HistoryTab } from "./HistoryTab";
 import { OverrideDialog } from "./OverrideDialog";
 import type { Overrides, PanelContext } from "./shared";
+import { isStatusPreview, previewStatuses } from "./statusPreview";
 import { WitnessesTab } from "./WitnessesTab";
 import "./rashomon-ui.css";
 
@@ -49,8 +50,15 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
     );
   }
 
+  const gateStatus = (id: string, fallback: Status): Status => statuses[id] ?? fallback;
+  const preview = isStatusPreview(window.location.search)
+    ? previewStatuses(resolved.events, (id) =>
+        gateStatus(id, resolved.events.find((e) => e.id === id)?.status ?? "proposed"),
+      )
+    : {};
+
   const statusOf = (event: ResolvedEvent): Status =>
-    overrides[event.id] ? "overridden" : (statuses[event.id] ?? event.status);
+    overrides[event.id] ? "overridden" : (preview[event.id] ?? gateStatus(event.id, event.status));
 
   const jumpTo = (eventId: string) => {
     const event = resolved.events.find((e) => e.id === eventId);

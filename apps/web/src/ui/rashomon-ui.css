@@ -182,3 +182,4 @@
 .rui .segmented button + button { border-left: 1px solid #3b4243; }
 .rui .segmented button:hover { background: #24292a; }
 .rui .segmented button.active { color: #ecefef; background: #303638; }
+.rui .badge--preview { color: #c7b8f0; border-color: #4f4570; border-style: dashed; background: #1f1b2e; text-decoration: none; cursor: pointer; }

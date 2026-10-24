@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useGraph } from "../scene";
 import { GRAPH_MODES, parseMode, searchWithMode, type GraphMode } from "./graphMode";
+import { isStatusPreview, searchWithoutPreview } from "./statusPreview";
 import "./rashomon-ui.css";
 
 const SCENE_LABELS: Record<string, string> = { store_v1: "Corner Store" };
@@ -49,6 +50,15 @@ export function TopBar({ liveConnected = false }: { liveConnected?: boolean }) {
         <div className="divider" />
         <span>{sceneLabel}</span>
         <ModeBadge mode={mode} liveConnected={liveConnected} />
+        {isStatusPreview(window.location.search) && (
+          <a
+            className="badge badge--preview"
+            href={`${window.location.pathname}${searchWithoutPreview(window.location.search)}`}
+            title="Some statuses are filled in so every style is visible. Click to show real statuses only."
+          >
+            Status preview · exit
+          </a>
+        )}
       </div>
       <div className="top-actions">
         <span className="field-label" style={{ margin: 0 }}>
