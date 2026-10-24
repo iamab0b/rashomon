@@ -650,6 +650,17 @@ describe("identity", () => {
     ).toThrow(/creator/);
   });
 
+  test("the module's own identity can set statuses on a session it did not create", () => {
+    const creator = TestAuth.fromJwtPayload(JSON.stringify({ iss: "https://example.test", sub: "creator" }), ConnectionId.random());
+    h.withReducerTx(creator, ((ctx: never) => mod.createSession(ctx, { id: "s3", sceneId: "store_v1" })) as never);
+    const call3 = (who: TestAuth) =>
+      h.withReducerTx(who, ((ctx: never) =>
+        mod.setStatuses(ctx, { sessionId: "s3", baseVersion: 0, statuses: [], flags: [] })) as never);
+    expect(h.db.sessions.id.find("s3")?.creator).not.toBe(h.moduleIdentity.toHexString());
+    expect(() => call3(stranger)).toThrow(/creator/);
+    expect(() => call3(auth)).not.toThrow();
+  });
+
   test("an override records the sender's identity beside the display name", () => {
     apply(eventPatches(), 0);
     statusesFor(auth);
