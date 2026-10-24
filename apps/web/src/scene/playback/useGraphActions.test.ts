@@ -1,5 +1,7 @@
 import type { Patch } from "@rashomon/schema";
+import { robberyGraph, storeScene } from "@rashomon/schema/fixtures";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { anchorDropPatch } from "../editing/anchorDrop";
 import { useSceneStore } from "../store";
 import { ENGINE_OVERRIDE_PR, engineHonorsOverride } from "./engineOverrideProbe";
 import { fixtureGraphSource, robberyCorrectionPatches, type GraphSource } from "./graphSource";
@@ -64,6 +66,42 @@ describe("useGraphActions", () => {
     };
     useSceneStore.getState().setGraphSource(readOnly);
     expect(() => useGraphActions().applyPatches([OVERRIDE_E5])).toThrow(/live graph source cannot apply patches/);
+  });
+
+  it("the e5 drop at window_front, as one patch, makes every event plausible and leaves only the soft contradiction on e3 and e5", () => {
+    const source = mountStoreFixture();
+    const e5 = robberyGraph.events.find((event) => event.id === "e5");
+    const window = storeScene.landmarks.find((l) => l.id === "window_front")!;
+    const patch = anchorDropPatch(e5!, "at", [window.position[0], 0, window.position[2]], storeScene);
+    expect(patch).not.toBeNull();
+    expect(source.getSnapshot().statuses.e5).toBe("implausible");
+
+    useGraphActions().applyPatches([patch!]);
+
+    const { resolved, statuses } = source.getSnapshot();
+    expect(resolved?.events).toHaveLength(10);
+    for (const event of resolved?.events ?? []) {
+      expect(statuses[event.id], event.id).toBe("plausible");
+      const expected = event.id === "e3" || event.id === "e5" ? ["contradiction"] : [];
+      expect(event.flags.map((flag) => `${flag.check}:${flag.severity}`), event.id).toEqual(
+        expected.map((check) => `${check}:soft`),
+      );
+    }
+  });
+
+  it("the e1 drop on back_door puts the first point of e1's path within 0.5 m of back_door", () => {
+    const source = mountStoreFixture();
+    const e1 = robberyGraph.events.find((event) => event.id === "e1");
+    const door = storeScene.landmarks.find((l) => l.id === "back_door")!;
+    const patch = anchorDropPatch(e1!, "from", [door.bounds.min[0] + 0.5, 0, door.bounds.min[2] + 0.4], storeScene);
+    expect(patch).toMatchObject({ changes: { from: { kind: "at", landmark: "back_door" } } });
+
+    useGraphActions().applyPatches([patch!]);
+
+    const moved = source.getSnapshot().resolved?.events.find((event) => event.id === "e1");
+    const first = moved?.path[0];
+    expect(first).toBeDefined();
+    expect(Math.hypot(first![0] - door.position[0], first![2] - door.position[2])).toBeLessThan(0.5);
   });
 
   it("returns the same actions object every call", () => {
