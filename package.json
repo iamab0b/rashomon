@@ -1,0 +1,13 @@
+{
+  "name": "rashomon",
+  "private": true,
+  "version": "0.0.0",
+  "engines": { "node": ">=22" },
+  "packageManager": "pnpm@12.15.0",
+  "scripts": {
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "lint": "pnpm -r --if-present lint",
+    "dev": "pnpm -r --parallel --if-present dev"
+  }
+}

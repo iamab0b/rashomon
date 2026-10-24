@@ -1,0 +1,43 @@
+{
+  "sceneId": "store_v1",
+  "version": 1,
+  "actors": [
+    { "id": "witness", "label": "Witness (customer)", "role": "witness", "rig": "mixamo_ybot" },
+    { "id": "suspect", "label": "Suspect", "role": "suspect", "rig": "mixamo_ybot" },
+    { "id": "clerk", "label": "Clerk", "role": "victim", "rig": "mixamo_xbot" }
+  ],
+  "props": [
+    { "id": "p_register", "type": "register", "anchor": { "kind": "at", "landmark": "register" }, "notes": "", "sources": ["utt_2"] },
+    { "id": "p_knife", "type": "knife_chef", "anchor": { "kind": "near", "landmark": "counter", "radiusM": 0.5 }, "heldBy": "suspect", "notes": "witness: 'a kitchen knife, maybe eight inches'", "sources": ["utt_5"] }
+  ],
+  "events": [
+    { "id": "e1", "witnessId": "w1", "actor": "suspect", "action": "walk", "from": { "kind": "at", "landmark": "front_door" }, "to": { "kind": "near", "landmark": "counter", "radiusM": 0.6 }, "t": [0, 5], "tConfidence": "inferred", "confidence": 0.9, "sources": ["utt_2"], "status": "proposed", "flags": [] },
+    { "id": "e2", "witnessId": "w1", "actor": "clerk", "action": "stand", "at": { "kind": "at", "landmark": "behind_counter" }, "facing": "counter", "t": [0, 13], "tConfidence": "inferred", "confidence": 0.9, "sources": ["utt_2"], "status": "proposed", "flags": [] },
+    { "id": "e3", "witnessId": "w1", "actor": "witness", "action": "stand", "at": { "kind": "at", "landmark": "aisle_chips" }, "facing": "shelf_a", "t": [0, 11], "tConfidence": "stated", "confidence": 0.95, "sources": ["utt_1"], "status": "proposed", "flags": [] },
+    { "id": "e4", "witnessId": "w1", "actor": "suspect", "action": "speak", "at": { "kind": "near", "landmark": "counter", "radiusM": 0.6 }, "target": "clerk", "t": [5, 9], "tConfidence": "stated", "confidence": 0.9, "sources": ["utt_3", "utt_4"], "status": "proposed", "flags": [] },
+    { "id": "e5", "witnessId": "w1", "actor": "witness", "action": "look", "at": { "kind": "at", "landmark": "aisle_chips" }, "target": "suspect", "t": [10, 12], "tConfidence": "stated", "confidence": 0.8, "sources": ["utt_6", "utt_7"], "status": "proposed", "flags": [] },
+    { "id": "e6", "witnessId": "w1", "actor": "suspect", "action": "pick_up", "at": { "kind": "near", "landmark": "counter", "radiusM": 0.6 }, "prop": "p_knife", "t": [9, 11], "tConfidence": "stated", "confidence": 0.85, "sources": ["utt_5"], "status": "proposed", "flags": [] },
+    { "id": "e7", "witnessId": "w1", "actor": "suspect", "action": "shove", "at": { "kind": "near", "landmark": "counter", "radiusM": 0.6 }, "target": "clerk", "t": [12, 13], "tConfidence": "stated", "confidence": 0.7, "sources": ["utt_8"], "status": "proposed", "flags": [] },
+    { "id": "e8", "witnessId": "w1", "actor": "clerk", "action": "fall", "at": { "kind": "at", "landmark": "behind_counter" }, "t": [13, 15], "tConfidence": "inferred", "confidence": 0.7, "sources": ["utt_8"], "status": "proposed", "flags": [] },
+    { "id": "e9", "witnessId": "w1", "actor": "witness", "action": "crouch", "at": { "kind": "at", "landmark": "aisle_chips" }, "t": [13, 24], "tConfidence": "stated", "confidence": 0.8, "sources": ["utt_9"], "status": "proposed", "flags": [] },
+    { "id": "e10", "witnessId": "w1", "actor": "suspect", "action": "run", "from": { "kind": "near", "landmark": "counter", "radiusM": 0.6 }, "to": { "kind": "at", "landmark": "front_door" }, "t": [20, 23], "tConfidence": "stated", "confidence": 0.9, "sources": ["utt_10"], "status": "proposed", "flags": [] }
+  ],
+  "expectedAfterGate": {
+    "note": "What the gate must produce on this file. This block is for tests; the resolver ignores it.",
+    "hardFlags": [
+      { "eventId": "e5", "check": "sightline", "blockedBy": "shelf_a" }
+    ],
+    "softFlags": [],
+    "statuses": { "e1": "plausible", "e2": "plausible", "e3": "plausible", "e4": "plausible", "e5": "implausible", "e6": "plausible", "e7": "plausible", "e8": "plausible", "e9": "plausible", "e10": "plausible" },
+    "pathLengthsM": { "e1": [6.3, 7.5], "e10": [6.3, 7.5] }
+  },
+  "correctionPatch": {
+    "note": "The patch the live loop produces when the witness says she had stepped to the front by the window. After it, e5 must be plausible and a new e3b stand event at window_front should exist for t [9, 13].",
+    "patches": [
+      { "op": "update_event", "id": "e5", "changes": { "at": { "kind": "at", "landmark": "window_front" } }, "sources": ["utt_12"] },
+      { "op": "update_event", "id": "e3", "changes": { "t": [0, 9] }, "sources": ["utt_12"] },
+      { "op": "add_event", "event": { "witnessId": "w1", "actor": "witness", "action": "walk", "from": { "kind": "at", "landmark": "aisle_chips" }, "to": { "kind": "at", "landmark": "window_front" }, "t": [8, 11], "tConfidence": "inferred", "confidence": 0.8, "sources": ["utt_12"] } },
+      { "op": "update_event", "id": "e9", "changes": { "at": { "kind": "at", "landmark": "window_front" } }, "sources": ["utt_12"] }
+    ]
+  }
+}

@@ -1,0 +1,1 @@
+Owned by Seat A. Anchors reference landmarks by id, never coordinates. Sources never empty. Confidence low|medium|high. Times are intervals. Changing a type here is a contracts change: tell the team first.

@@ -1,0 +1,11 @@
+node_modules
+dist
+.env
+.env.*
+apps/web/public/characters/
+apps/web/public/clips/
+apps/web/public/props/
+apps/web/shots/
+prep/
+.claude/settings.local.json
+.coordination

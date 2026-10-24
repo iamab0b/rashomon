@@ -1,0 +1,15 @@
+{
+  "strictness": 2,
+  "effort": "plus",
+  "commentTypes": ["logic", "syntax"],
+  "autoReview": ["open", "push"],
+  "triggerOnDrafts": true,
+  "statusCheck": true,
+  "statusCommentsEnabled": false,
+  "shouldUpdateDescription": false,
+  "includeConfidenceScore": true,
+  "includeSequenceDiagram": false,
+  "ignorePatterns": "pnpm-lock.yaml\napps/web/public/**\n**/*.glb\n**/*.png\n**/fixtures/**.json\nprep/**",
+  "excludeBranches": ["main"],
+  "instructions": "This is a 36-hour hackathon codebase; review for correctness and for violations of the rules in rules.md, not for style or polish. Flag anything that would break at demo time. Keep each comment to two sentences. Approve PRs that only add tests or fixtures."
+}

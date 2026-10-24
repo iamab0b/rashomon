@@ -1,0 +1,306 @@
+[
+  {
+    "type": "knife_chef",
+    "label": "chef's knife",
+    "aliases": [
+      "knife",
+      "kitchen knife",
+      "blade",
+      "a big knife"
+    ],
+    "modelUrl": "/props/knife_chef.glb",
+    "dimensionsM": {
+      "l": 0.33,
+      "w": 0.051,
+      "h": 0.02
+    },
+    "massKg": 0.25,
+    "graspable": true,
+    "collider": "cuboid",
+    "gripOffset": [
+      0,
+      0,
+      0.08
+    ],
+    "defaultNotes": "Blade 203 mm (8 in). Dimensions are for a typical chef's knife; the witness's estimate is in the instance notes.",
+    "source": ""
+  },
+  {
+    "type": "knife_paring",
+    "label": "paring knife",
+    "aliases": [
+      "small knife",
+      "little knife",
+      "pocket knife"
+    ],
+    "modelUrl": "/props/knife_paring.glb",
+    "dimensionsM": {
+      "l": 0.19,
+      "w": 0.03,
+      "h": 0.015
+    },
+    "massKg": 0.08,
+    "graspable": true,
+    "collider": "cuboid",
+    "gripOffset": [
+      0,
+      0,
+      0.05
+    ],
+    "defaultNotes": "Typical paring knife, about 190 mm overall.",
+    "source": ""
+  },
+  {
+    "type": "handgun",
+    "label": "handgun",
+    "aliases": [
+      "gun",
+      "pistol",
+      "weapon"
+    ],
+    "modelUrl": "/props/handgun.glb",
+    "dimensionsM": {
+      "l": 0.187,
+      "w": 0.128,
+      "h": 0.032
+    },
+    "massKg": 0.65,
+    "graspable": true,
+    "collider": "cuboid",
+    "gripOffset": [
+      0,
+      0,
+      0.04
+    ],
+    "defaultNotes": "Generic pistol, 187 mm long. The witness's description is in the instance notes.",
+    "source": ""
+  },
+  {
+    "type": "bat",
+    "label": "baseball bat",
+    "aliases": [
+      "bat",
+      "club",
+      "a stick"
+    ],
+    "modelUrl": "/props/bat.glb",
+    "dimensionsM": {
+      "l": 0.85,
+      "w": 0.066,
+      "h": 0.066
+    },
+    "massKg": 0.9,
+    "graspable": true,
+    "collider": "cuboid",
+    "gripOffset": [
+      0,
+      0,
+      0.15
+    ],
+    "defaultNotes": "Typical baseball bat, 0.85 m long.",
+    "source": ""
+  },
+  {
+    "type": "phone",
+    "label": "phone",
+    "aliases": [
+      "cell phone",
+      "cellphone",
+      "smartphone",
+      "mobile"
+    ],
+    "modelUrl": "/props/phone.glb",
+    "dimensionsM": {
+      "l": 0.15,
+      "w": 0.072,
+      "h": 0.008
+    },
+    "massKg": 0.19,
+    "graspable": true,
+    "collider": "cuboid",
+    "gripOffset": [
+      0,
+      0,
+      0
+    ],
+    "defaultNotes": "Typical smartphone slab.",
+    "source": ""
+  },
+  {
+    "type": "bottle_beer",
+    "label": "beer bottle",
+    "aliases": [
+      "bottle",
+      "beer",
+      "longneck"
+    ],
+    "modelUrl": "/props/bottle_beer.glb",
+    "dimensionsM": {
+      "l": 0.231,
+      "w": 0.061,
+      "h": 0.061
+    },
+    "massKg": 0.6,
+    "graspable": true,
+    "collider": "cuboid",
+    "gripOffset": [
+      0,
+      0,
+      0.06
+    ],
+    "defaultNotes": "Longneck bottle, 231 mm tall.",
+    "source": ""
+  },
+  {
+    "type": "bottle_wine",
+    "label": "wine bottle",
+    "aliases": [
+      "wine",
+      "bottle of wine"
+    ],
+    "modelUrl": "/props/bottle_wine.glb",
+    "dimensionsM": {
+      "l": 0.3,
+      "w": 0.075,
+      "h": 0.075
+    },
+    "massKg": 1.2,
+    "graspable": true,
+    "collider": "cuboid",
+    "gripOffset": [
+      0,
+      0,
+      0.08
+    ],
+    "defaultNotes": "Standard wine bottle, 300 mm tall.",
+    "source": ""
+  },
+  {
+    "type": "backpack",
+    "label": "backpack",
+    "aliases": [
+      "bag",
+      "rucksack",
+      "pack"
+    ],
+    "modelUrl": "/props/backpack.glb",
+    "dimensionsM": {
+      "l": 0.42,
+      "w": 0.33,
+      "h": 0.22
+    },
+    "massKg": 1.0,
+    "graspable": true,
+    "collider": "cuboid",
+    "gripOffset": [
+      0,
+      0,
+      0
+    ],
+    "defaultNotes": "Typical daypack.",
+    "source": ""
+  },
+  {
+    "type": "register",
+    "label": "cash register",
+    "aliases": [
+      "till",
+      "register",
+      "pos",
+      "cash drawer"
+    ],
+    "modelUrl": "/props/register.glb",
+    "dimensionsM": {
+      "l": 0.4,
+      "w": 0.4,
+      "h": 0.3
+    },
+    "massKg": 6.0,
+    "graspable": false,
+    "collider": "cuboid",
+    "gripOffset": [
+      0,
+      0,
+      0
+    ],
+    "defaultNotes": "Countertop register, 400 x 400 x 300 mm.",
+    "source": ""
+  },
+  {
+    "type": "chair",
+    "label": "chair",
+    "aliases": [
+      "seat",
+      "dining chair",
+      "stool"
+    ],
+    "modelUrl": "/props/chair.glb",
+    "dimensionsM": {
+      "l": 0.84,
+      "w": 0.52,
+      "h": 0.51
+    },
+    "massKg": 4.5,
+    "graspable": false,
+    "collider": "cuboid",
+    "gripOffset": [
+      0,
+      0,
+      0
+    ],
+    "defaultNotes": "Typical dining chair, 840 mm tall.",
+    "source": ""
+  },
+  {
+    "type": "shelf_unit",
+    "label": "shelf",
+    "aliases": [
+      "shelving",
+      "gondola",
+      "aisle shelf",
+      "rack"
+    ],
+    "modelUrl": "/props/shelf_unit.glb",
+    "dimensionsM": {
+      "l": 1.8,
+      "w": 1.2,
+      "h": 1.0
+    },
+    "massKg": 60.0,
+    "graspable": false,
+    "collider": "cuboid",
+    "gripOffset": [
+      0,
+      0,
+      0
+    ],
+    "defaultNotes": "Double-sided gondola shelf, 1.8 x 1.2 x 1.0 m.",
+    "source": ""
+  },
+  {
+    "type": "cooler_door",
+    "label": "cooler",
+    "aliases": [
+      "fridge",
+      "refrigerator",
+      "drinks cooler",
+      "glass door fridge"
+    ],
+    "modelUrl": "/props/cooler_door.glb",
+    "dimensionsM": {
+      "l": 2.0,
+      "w": 0.7,
+      "h": 0.7
+    },
+    "massKg": 120.0,
+    "graspable": false,
+    "collider": "cuboid",
+    "gripOffset": [
+      0,
+      0,
+      0
+    ],
+    "defaultNotes": "Glass-door cooler, 2.0 x 0.7 x 0.7 m.",
+    "source": ""
+  }
+]
