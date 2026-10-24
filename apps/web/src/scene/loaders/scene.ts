@@ -10,6 +10,7 @@ import {
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { SceneManifest } from "@rashomon/schema";
 import { storeScene } from "@rashomon/schema/fixtures";
+import { ownMaterials } from "../characters/materials";
 
 export type LoadedScene = {
   manifest: SceneManifest;
@@ -91,6 +92,7 @@ export async function loadScene(fixture: string): Promise<LoadedScene> {
     const model = await loadGlb(manifest.meshUrl);
     tagCollision(model);
     enableShadows(model);
+    ownMaterials(model);
     return { manifest, model, isPlaceholder: false };
   } catch (error) {
     console.warn(
@@ -100,6 +102,7 @@ export async function loadScene(fixture: string): Promise<LoadedScene> {
     const model = buildPlaceholder(manifest);
     tagCollision(model);
     enableShadows(model);
+    ownMaterials(model);
     return { manifest, model, isPlaceholder: true };
   }
 }

@@ -1,7 +1,7 @@
 import { useFrame } from "@react-three/fiber";
 import type { Landmark } from "@rashomon/schema";
 import { Raycaster, Vector3, type Object3D } from "three";
-import { CAMERA_PRESETS } from "../cameras/presets";
+import { isPovActive } from "../cameras/useCamera";
 import { useSceneStore } from "../store";
 import { labelAnchor } from "./anchors";
 import { labelElements } from "./labelRegistry";
@@ -21,7 +21,7 @@ type Props = {
 export function LabelProjector({ landmarks, occluders }: Props) {
   useFrame(({ camera, size }) => {
     const elements = labelElements();
-    const checkOcclusion = CAMERA_PRESETS[useSceneStore.getState().preset].isPov;
+    const checkOcclusion = isPovActive(useSceneStore.getState());
     for (const landmark of landmarks) {
       const element = elements.get(landmark.id);
       if (!element) continue;

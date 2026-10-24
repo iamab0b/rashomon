@@ -1,7 +1,9 @@
 export { Scene } from "./Scene";
 export type { SceneProps } from "./Scene";
 export { useCamera } from "./cameras/useCamera";
-export { isCameraPreset } from "./cameras/presets";
+export { isCameraPreset, POV_CAM } from "./cameras/presets";
+export { getPovSightline } from "./cameras/povSightline";
+export type { PovSightline } from "./cameras/povSightline";
 export type { CameraPreset } from "./cameras/presets";
 export { useGraph } from "./playback/useGraph";
 export type { GraphView } from "./playback/useGraph";

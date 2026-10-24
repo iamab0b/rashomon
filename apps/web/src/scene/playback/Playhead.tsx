@@ -3,7 +3,7 @@ import { useRef } from "react";
 import { useSceneStore } from "../store";
 import { stepPlayhead, type PlayheadMemo } from "./playhead";
 
-const PLAYHEAD_PRIORITY = -1;
+const PLAYHEAD_PRIORITY = -2;
 
 export function Playhead() {
   const memo = useRef<PlayheadMemo | null>(null);

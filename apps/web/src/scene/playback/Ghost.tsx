@@ -7,6 +7,7 @@ import { useCharacter } from "../characters/Character";
 import { getClip, loadClips } from "../characters/clips";
 import { replaceMaterials } from "../characters/materials";
 import type { Rig } from "../characters/rigs";
+import { followedActorId } from "../cameras/povSightline";
 import { useSceneStore } from "../store";
 import { ghostAnchor, ghostVisible, ghostYaw, type PositionLookup } from "./actorPose";
 
@@ -59,8 +60,9 @@ export function Ghost({ event, rig, positionOf, onReady }: Props) {
     const node = group.current;
     const anchor = ghostAnchor(event);
     if (!node || !anchor) return;
-    const { t } = useSceneStore.getState();
-    node.visible = ghostVisible(event, t);
+    const state = useSceneStore.getState();
+    const { t } = state;
+    node.visible = ghostVisible(event, t) && followedActorId(state) !== event.actor;
     if (!node.visible) return;
     node.position.set(anchor[0], anchor[1], anchor[2]);
     node.rotation.set(0, ghostYaw(event, t, positionOf), 0);

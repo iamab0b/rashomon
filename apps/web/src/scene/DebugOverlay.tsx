@@ -18,17 +18,26 @@ function formatHit(hit: readonly [number, number, number] | null): string {
   return `${hit[0].toFixed(2)}, ${hit[2].toFixed(2)}`;
 }
 
+function formatNames(names: ReadonlySet<string>): string {
+  return names.size === 0 ? "-" : [...names].sort().join(", ");
+}
+
 export function DebugOverlay() {
   const visible = useSceneStore((state) => state.debugVisible);
   const fps = useSceneStore((state) => state.fps);
   const preset = useSceneStore((state) => state.preset);
   const floorHit = useSceneStore((state) => state.floorHit);
+  const following = useSceneStore((state) => state.povFollow);
+  const dimmedMeshes = useSceneStore((state) => state.dimmedMeshes);
+  const dimmedActors = useSceneStore((state) => state.dimmedActors);
   if (!visible) return null;
   return (
     <div style={overlayStyle}>
       <div>fps {fps}</div>
-      <div>cam {preset}</div>
+      <div>cam {following ? "pov (following)" : preset}</div>
       <div>floor x,z {formatHit(floorHit)}</div>
+      <div>dimmed meshes {formatNames(dimmedMeshes)}</div>
+      <div>dimmed actors {formatNames(dimmedActors)}</div>
     </div>
   );
 }
