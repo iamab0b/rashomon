@@ -8,6 +8,16 @@ export type Landmark = {
   occludes: boolean;
 };
 
+export type Portals = {
+  waypoints: { id: string; x: number; z: number }[];
+  edges: [string, string][];
+};
+
+export type Interior = {
+  min: [number, number, number];
+  max: [number, number, number];
+};
+
 export type SceneManifest = {
   sceneId: string;
   meshUrl: string;
@@ -16,6 +26,8 @@ export type SceneManifest = {
   unitsPerMeter: 1;
   eyeHeight: 1.6;
   landmarks: Landmark[];
+  interior?: Interior;
+  portals?: Portals;
 };
 
 export type Segment = {
@@ -39,6 +51,7 @@ export type Actor = {
 export type Anchor =
   | { kind: "at"; landmark: string }
   | { kind: "near"; landmark: string; radiusM?: number }
+  | { kind: "behind"; landmark: string }
   | { kind: "between"; a: string; b: string }
   | { kind: "xyz"; position: [number, number, number] };
 

@@ -1,13 +1,14 @@
 import type { EventGraph, SceneManifest } from "@rashomon/schema";
+import { resolve as resolveGraph } from "./resolve/resolve";
 import type { GateResult, ResolvedGraph, SceneGeometry } from "./types";
 
 export type * from "./types";
 
 export function resolve(
-  _graph: EventGraph,
-  _manifest: SceneManifest,
+  graph: EventGraph,
+  manifest: SceneManifest,
 ): ResolvedGraph {
-  throw new Error("not implemented");
+  return resolveGraph(graph, manifest);
 }
 
 export function gate(
