@@ -29,7 +29,7 @@ export type TimelineProps = { onOpen?: (id: string) => void };
 const SPEEDS = [0.5, 1, 2];
 const AMBER = "#ffb020";
 const PLAYHEAD_HIT_W = 14;
-const BOTTOM_PAD_PX = 10;
+const BOTTOM_PAD_PX = 14;
 
 const CSS = `
 .rtl-root, .rtl-root * { -webkit-user-select: none; user-select: none; }

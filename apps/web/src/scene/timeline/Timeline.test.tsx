@@ -215,6 +215,25 @@ describe("event state styling (regression)", () => {
     expect(fill(e5)).toMatch(new RegExp(`fill="${WITNESS}" fill-opacity="0.24"`));
   });
 
+  test("non-overlapping events from one actor share a lane", () => {
+    const { blocks, lanes } = assignLanes([
+      { key: "a", id: "a", tStart: 0, tEnd: 3, color: WITNESS, label: "a" },
+      { key: "b", id: "b", tStart: 3, tEnd: 5, color: WITNESS, label: "b" },
+      { key: "c", id: "c", tStart: 6, tEnd: 8, color: WITNESS, label: "c" },
+    ]);
+    expect(blocks.map((b) => b.lane)).toEqual([0, 0, 0]);
+    expect(lanes).toBe(1);
+  });
+
+  test("the timeline keeps 14px below the last row and its text is not selectable", () => {
+    const html = render();
+    expect(html).toMatch(/class="rtl-root"[^>]*style="[^"]*padding-bottom:14px/);
+    expect(html).toContain("user-select: none");
+    expect(html).toMatch(/\.rtl-root \{ cursor: default; \}/);
+    expect(html).toMatch(/data-playhead="true"[^>]*style="cursor:ew-resize"/);
+    expect(block(html, "e3")).toContain('style="cursor:pointer"');
+  });
+
   test("overridden keeps its amber corner while playing, with only a restrained tint", () => {
     const e2 = block(render(), "e2");
     expect(e2).toContain('data-status="overridden"');
