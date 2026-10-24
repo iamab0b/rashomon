@@ -352,6 +352,27 @@ describe("resolve edge cases", () => {
     ).toBeUndefined();
   });
 
+  test("after an unreachable walk the actor stays where they started", () => {
+    const r = resolve(
+      graphOf([
+        ev({ id: "a", actor: "suspect", action: "walk", from: { kind: "xyz", position: [6.5, 0, 8] }, to: { kind: "xyz", position: [9, 0, 8] }, t: [0, 3] }),
+        ev({ id: "b", actor: "suspect", action: "stand", t: [3, 5] }),
+      ]),
+      walled,
+    );
+    expect(r.events[1]!.at).toEqual([6.5, 0, 8]);
+  });
+
+  test("a drop by someone who is not holding the prop changes nothing", () => {
+    expect(
+      hold([
+        ev({ id: "p1", actor: "suspect", action: "pick_up", prop: "k", at: { kind: "xyz", position: [3, 0, 8] }, t: [1, 2] }),
+        ev({ id: "d", actor: "clerk", action: "drop", prop: "k", at: { kind: "xyz", position: [3, 0, 8] }, t: [4, 5] }),
+        ev({ id: "s", actor: "witness", action: "stand", at: { kind: "xyz", position: [8, 0, 8] }, t: [0, 10] }),
+      ]),
+    ).toEqual([{ actor: "suspect", tStart: 2, tEnd: 10 }]);
+  });
+
   test("every robbery event is reachable", () => {
     expect(resolve(robbery, store).events.every((e) => e.reachable)).toBe(true);
   });

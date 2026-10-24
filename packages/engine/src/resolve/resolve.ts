@@ -111,6 +111,7 @@ function heldIntervals(
         : acc.closed;
       return { closed: closedNow, open: { actor: e.actor, tStart: e.tEnd } };
     }
+    if (acc.open && acc.open.actor !== e.actor) return acc;
     if (acc.open)
       return { closed: [...acc.closed, { ...acc.open, tEnd: e.tStart }] };
     if (acc.closed.length) return acc;
@@ -148,8 +149,9 @@ export function resolve(
 
     const t = resolveInterval(e.t, e.action, route.travelM, previousEnd);
     previousEnd = t.tEnd;
+    const arrivedAt = isMove ? (route.reachable ? to : from) : at;
     tracker.note(e.actor, t.tStart, isMove ? from : at);
-    tracker.note(e.actor, t.tEnd, isMove ? to : at);
+    tracker.note(e.actor, t.tEnd, arrivedAt);
 
     const facing = facingPoint(e.facing, manifest);
     return {
