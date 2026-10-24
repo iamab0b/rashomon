@@ -1,1 +1,1 @@
-Owned by Seat A. Anchors reference landmarks by id, never coordinates. Sources never empty. Confidence low|medium|high. Times are intervals. Changing a type here is a contracts change: tell the team first.
+Owned by Sahil. Anchors reference landmarks by id, never coordinates. Sources never empty. Confidence is numeric: 0.3/0.6/0.9, mapped in code from the extractor tool's low|medium|high enum. Times are intervals. Changing a type here is a contracts change: tell the team first.

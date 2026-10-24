@@ -10,7 +10,7 @@
 - Dependencies are pinned in apps/web/src/scene/CLAUDE.md. Flag any new dependency or version change in apps/web/package.json.
 
 ## Contracts (packages/schema, packages/engine)
-- Anchors reference landmarks by id, never coordinates. Sources arrays are never empty. Confidence is low|medium|high. Times are intervals. Flag any change to these types in a PR that is not labeled contracts.
+- Anchors reference landmarks by id, never coordinates. Sources arrays are never empty. Confidence is numeric: 0.3/0.6/0.9, mapped in code from the extractor tool's low|medium|high enum. Times are intervals. Flag any change to these types in a PR that is not labeled contracts.
 - The plausibility gate is deterministic TypeScript. Flag any call to an LLM or any randomness inside packages/engine.
 - Overrides require a reason of at least 10 characters. Flag any path that writes status overridden without one.
 
