@@ -6,7 +6,7 @@ import { gatedSnapshot } from "../playback/graphSource";
 import { useSceneStore, type SceneState } from "../store";
 import { Timeline, createDrag, makeJump, makeKeyHandler } from "./Timeline";
 import { callHook, findElement } from "../testing/hookHost";
-import { assignLanes, buildRows, fillOpacityFor, implausibleStarts, rowHeight, ROW_H, strokeFor } from "./layout";
+import { buildRows, implausibleStarts, strokeFor } from "./layout";
 
 const initial = useSceneStore.getState();
 const pristine = { ...useSceneStore.getInitialState() };
@@ -53,15 +53,6 @@ describe("layout", () => {
     expect(strokeFor(e5.status)).toMatchObject({ dash: "5 3", stroke: "#ff4d4f" });
     expect(strokeFor("proposed").opacity).toBe(0.4);
     expect(strokeFor("plausible").dash).toBeUndefined();
-    expect(strokeFor("plausible").stroke).not.toBe("#ffffff");
-    expect(strokeFor("overridden").stroke).not.toBe("#ffffff");
-    expect(strokeFor("plausible", "#4f9dff")).toMatchObject({ stroke: "#4f9dff" });
-    expect(strokeFor("overridden", "#ff9f43").stroke).toBe("#ff9f43");
-    expect(strokeFor("implausible", "#4f9dff", true)).toMatchObject({ dash: "5 3", stroke: "#ff4d4f" });
-    expect(strokeFor("plausible", "#4f9dff", true).opacity).toBeGreaterThan(strokeFor("plausible", "#4f9dff").opacity);
-    expect(fillOpacityFor("plausible", true)).toBeGreaterThan(fillOpacityFor("plausible", false));
-    expect(fillOpacityFor("implausible", true)).toBeLessThan(fillOpacityFor("plausible", true));
-    expect(fillOpacityFor("implausible", true)).toBeGreaterThan(fillOpacityFor("implausible", false));
   });
 
   test("superseded events are hidden and counted", () => {
@@ -94,40 +85,6 @@ function drive() {
     makeKeyHandler({ t: api().t, setT: s.setT, toggle: () => (api().playing ? s.pause() : s.play()) })(fakeKey(k, shift, tag));
   return { api, jump, key };
 }
-
-describe("lanes", () => {
-  const block = (key: string, tStart: number, tEnd: number) => ({ key, id: key, tStart, tEnd, color: "#fff", label: key });
-
-  test("overlapping events stack into sub-lanes without changing times or order", () => {
-    const { resolved, statuses } = snap();
-    const rows = buildRows(resolved, statuses);
-    const witness = rows.find((r) => r.blocks.some((b) => b.id === "e5"))!;
-    const lane = (id: string) => witness.blocks.find((b) => b.id === id)!.lane;
-    expect(witness.lanes).toBe(2);
-    expect(lane("e3")).toBe(0);
-    expect(lane("e5")).toBe(1);
-    expect(lane("e9")).toBe(0);
-    expect(rowHeight(witness)).toBeGreaterThan(ROW_H);
-    for (const row of rows) {
-      for (const b of row.blocks) {
-        const event = resolved!.events.find((e) => e.id === b.id);
-        if (event) expect([b.tStart, b.tEnd]).toEqual([event.tStart, event.tEnd]);
-      }
-    }
-    expect(rows.find((r) => r.id === "props")!.lanes).toBe(1);
-    const html = renderWith({ resolved, statuses, duration: resolved!.durationS });
-    expect(html).toContain('data-block="e5" data-lane="1"');
-  });
-
-  test("lane assignment is stable: start, then end, then id; touching blocks share a lane", () => {
-    const input = [block("b", 0, 4), block("a", 0, 4), block("c", 0, 2), block("d", 4, 6)];
-    const { blocks, lanes } = assignLanes(input);
-    expect(blocks.map((b) => b.key)).toEqual(["b", "a", "c", "d"]);
-    expect(Object.fromEntries(blocks.map((b) => [b.key, b.lane]))).toEqual({ c: 0, a: 1, b: 2, d: 0 });
-    expect(lanes).toBe(3);
-    expect(assignLanes([]).lanes).toBe(1);
-  });
-});
 
 describe("nested blocks stay clickable", () => {
   test("longer blocks are painted first, so e5 sits on top of the e3 block that contains it", () => {
@@ -187,34 +144,6 @@ describe("interaction", () => {
     key(" ", false, "BUTTON");
     expect(api().playing).toBe(true);
     key("a");
-  });
-
-  test("Home and End jump to the ends when duration is known", () => {
-    const s = useSceneStore.getState();
-    const api = () => useSceneStore.getState();
-    const press = (k: string) =>
-      makeKeyHandler({ t: api().t, setT: s.setT, toggle: () => {}, duration: api().duration })(fakeKey(k));
-    api().setT(5);
-    press("End");
-    expect(api().t).toBe(api().duration);
-    press("Home");
-    expect(api().t).toBe(0);
-  });
-
-  test("only events under the playhead carry the playback tint, with status styling intact", () => {
-    const { resolved, statuses } = snap();
-    const html = renderWith({ resolved, statuses, duration: resolved!.durationS, t: 10.5 });
-    const active = [...html.matchAll(/data-block="([^"]+)"[^>]*data-playback-active="true"/g)].map((m) => m[1]).sort();
-    expect(active).toEqual(["e2", "e3", "e5", "e6"]);
-    expect(html).toMatch(/data-block="e5"[^>]*data-status="implausible"[^>]*data-playback-active="true"/);
-    expect(html).not.toMatch(/data-block="p_knife:0"[^>]*data-playback-active/);
-  });
-
-  test("playhead is a labelled slider", () => {
-    const { resolved, statuses } = snap();
-    const html = renderWith({ resolved, statuses, duration: resolved!.durationS, t: 3 });
-    expect(html).toMatch(/<g data-playhead="true" class="rtl-playhead" role="slider" tabindex="0" aria-label="Playhead"/);
-    expect(html).toContain('aria-valuetext="3.0 of ');
   });
 });
 

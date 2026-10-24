@@ -1,36 +1,27 @@
 import { useEffect } from "react";
-import { POV_KEY, PRESET_KEYS } from "./cameras/presets";
+import { PRESET_KEYS } from "./cameras/presets";
 import { useSceneStore } from "./store";
 
 const DEBUG_KEY = "`";
-
-export function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName);
-}
-
-export function applyViewKey(key: string): boolean {
-  const state = useSceneStore.getState();
-  if (key === POV_KEY) {
-    state.togglePov();
-    return true;
-  }
-  const preset = PRESET_KEYS[key];
-  if (!preset) return false;
-  state.setPreset(preset);
-  return true;
-}
+const POV_KEY = "5";
 
 export function useSceneKeys(): void {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
-      if (isTypingTarget(event.target)) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      const state = useSceneStore.getState();
       if (event.key === DEBUG_KEY) {
-        useSceneStore.getState().toggleDebug();
+        state.toggleDebug();
         return;
       }
-      applyViewKey(event.key);
+      if (event.key === POV_KEY) {
+        state.togglePov();
+        return;
+      }
+      const preset = PRESET_KEYS[event.key];
+      if (preset) state.setPreset(preset);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);

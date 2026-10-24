@@ -1,8 +1,7 @@
 export { Scene } from "./Scene";
 export type { SceneProps } from "./Scene";
 export { useCamera } from "./cameras/useCamera";
-export { isCameraPreset, POV_CAM, POV_KEY, PRESET_KEYS } from "./cameras/presets";
-export { applyViewKey } from "./useSceneKeys";
+export { isCameraPreset, POV_CAM } from "./cameras/presets";
 export { getPovSightline } from "./cameras/povSightline";
 export type { PovSightline } from "./cameras/povSightline";
 export type { CameraPreset } from "./cameras/presets";

@@ -23,11 +23,10 @@ export const CAMERA_PRESETS: Readonly<Record<CameraPreset, CameraPose>> = {
 
 export const POV_CAM = "pov";
 
-export const POV_KEY = "2";
-
 export const PRESET_KEYS: Readonly<Record<string, CameraPreset>> = {
   "1": "overview",
-  "3": "counter_close",
+  "2": "counter_close",
+  "3": "witness_claimed",
   "4": "witness_corrected",
 };
 

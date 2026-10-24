@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { CAMERA_PRESETS, isCameraPreset, POV_KEY, PRESET_KEYS } from "./presets";
+import { CAMERA_PRESETS, isCameraPreset, PRESET_KEYS } from "./presets";
 
 describe("isCameraPreset", () => {
   test("accepts every defined preset", () => {
@@ -20,14 +20,13 @@ describe("isCameraPreset", () => {
 });
 
 describe("PRESET_KEYS", () => {
-  test("1 is overview, 2 is POV, 3 and 4 are the counter close-up and corrected witness view", () => {
+  test("maps keys 1 to 4 to the four spec presets in order", () => {
     expect(PRESET_KEYS).toEqual({
       "1": "overview",
-      "3": "counter_close",
+      "2": "counter_close",
+      "3": "witness_claimed",
       "4": "witness_corrected",
     });
-    expect(POV_KEY).toBe("2");
-    expect(PRESET_KEYS[POV_KEY]).toBeUndefined();
   });
 
   test("every mapped preset exists", () => {
