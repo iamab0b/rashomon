@@ -35,14 +35,15 @@ export function unanchoredFlags(resolved: ResolvedGraph, manifest: SceneManifest
 
 export function missingTimeFlags(resolved: ResolvedGraph): FlagDraft[] {
   const flags: FlagDraft[] = [];
-  resolved.events.forEach((e, i) => {
-    if (!e.tInferred || e.status === "superseded") return;
-    const sameActor = resolved.events.filter((o) => o !== e && o.actor === e.actor);
+  const live = resolved.events.filter((o) => o.status !== "superseded");
+  live.forEach((e, i) => {
+    if (!e.tInferred) return;
+    const sameActor = live.filter((o) => o !== e && o.actor === e.actor);
     const neighbor =
-      sameActor.filter((o) => resolved.events.indexOf(o) < i).pop() ??
+      sameActor.filter((o) => live.indexOf(o) < i).pop() ??
       sameActor[0] ??
-      resolved.events[i - 1] ??
-      resolved.events[i + 1];
+      live[i - 1] ??
+      live[i + 1];
     flags.push({
       eventId: e.id,
       check: "missing_time",

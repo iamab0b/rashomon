@@ -21,7 +21,7 @@ export const ev = (over: Partial<ResolvedEvent> & { id: string }): ResolvedEvent
   path: [],
   pathLengthM: 0,
   reachable: true,
-  sources: [],
+  sources: [`utt_${over.id}`],
   tInferred: false,
   ...over,
 });

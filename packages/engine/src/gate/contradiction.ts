@@ -5,8 +5,10 @@ import { dist, eventPositionAt } from "./positions";
 
 export const CONTRADICTION_DISTANCE_M = 2;
 
+const EDITOR_SOURCE_PREFIX = "investigator:";
+
 const sharesSource = (a: ResolvedEvent, b: ResolvedEvent): boolean =>
-  a.sources.some((s) => b.sources.includes(s));
+  a.sources.some((s) => !s.startsWith(EDITOR_SOURCE_PREFIX) && b.sources.includes(s));
 
 export function contradictionFlags(resolved: ResolvedGraph, manifest: SceneManifest): FlagDraft[] {
   const flags: FlagDraft[] = [];

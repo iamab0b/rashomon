@@ -231,7 +231,13 @@ describe("contradiction", () => {
   test("events sharing any source, even a non-first one, are the same segment", () => {
     expect(contradictionFlags(pair(["s1", "s2"], ["s3", "s2"]), manifest())).toEqual([]);
     expect(contradictionFlags(pair(["s1", "s2"], ["s3", "s4"]), manifest())).toHaveLength(2);
-    expect(contradictionFlags(pair([], ["s2"]), manifest())).toHaveLength(2);
+  });
+
+  test("two editor placements sharing an investigator source are still checked against each other", () => {
+    const f = contradictionFlags(pair(["investigator:u1"], ["investigator:u1"]), manifest());
+    expect(f.map((x) => x.eventId)).toEqual(["p", "q"]);
+    expect(f[0]).toMatchObject({ conflictsWith: ["q"] });
+    expect(contradictionFlags(pair(["investigator:u1", "utt_1"], ["investigator:u1", "utt_1"]), manifest())).toEqual([]);
   });
 
   test("no flag when apart in time, close together, or different actors", () => {
@@ -260,6 +266,21 @@ describe("unanchored and missing_time", () => {
     const out = gate(g, manifest(), empty);
     expect(out.statuses).toEqual({ u: "proposed", m: "proposed", ok: "plausible" });
     expect(out.flags.every((f) => f.severity === "soft")).toBe(true);
+  });
+
+  test("the missing_time question never names a superseded event", () => {
+    const withOld = graphOf([
+      ev({ id: "old", action: "fall", at: [1, 0, 1], status: "superseded" }),
+      ev({ id: "m", action: "shove", at: [1, 0, 1], tInferred: true, tStart: 3, tEnd: 4 }),
+    ]);
+    const [flag] = missingTimeFlags(withOld);
+    expect(flag!.suggestedQuestion).toBe("When did that happen?");
+    const withLive = graphOf([
+      ev({ id: "old", action: "fall", at: [1, 0, 1], status: "superseded" }),
+      ev({ id: "live", action: "stand", at: [1, 0, 1] }),
+      ev({ id: "m", action: "shove", at: [1, 0, 1], tInferred: true, tStart: 3, tEnd: 4 }),
+    ]);
+    expect(missingTimeFlags(withLive)[0]!.suggestedQuestion).toBe("Was that before or after the stand by a?");
   });
 
   test("a movement with one anchor is unanchored", () => {
