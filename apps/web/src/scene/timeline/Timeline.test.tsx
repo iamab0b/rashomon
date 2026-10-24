@@ -6,7 +6,7 @@ import { gatedSnapshot } from "../playback/graphSource";
 import { useSceneStore, type SceneState } from "../store";
 import { Timeline, createDrag, makeJump, makeKeyHandler } from "./Timeline";
 import { callHook, findElement } from "../testing/hookHost";
-import { buildRows, implausibleStarts, strokeFor } from "./layout";
+import { assignLanes, buildRows, fillOpacityFor, implausibleStarts, rowHeight, ROW_H, strokeFor } from "./layout";
 
 const initial = useSceneStore.getState();
 const pristine = { ...useSceneStore.getInitialState() };
@@ -53,6 +53,15 @@ describe("layout", () => {
     expect(strokeFor(e5.status)).toMatchObject({ dash: "5 3", stroke: "#ff4d4f" });
     expect(strokeFor("proposed").opacity).toBe(0.4);
     expect(strokeFor("plausible").dash).toBeUndefined();
+    expect(strokeFor("plausible").stroke).not.toBe("#ffffff");
+    expect(strokeFor("overridden").stroke).not.toBe("#ffffff");
+    expect(strokeFor("plausible", "#4f9dff")).toMatchObject({ stroke: "#4f9dff" });
+    expect(strokeFor("overridden", "#ff9f43").stroke).toBe("#ff9f43");
+    expect(strokeFor("implausible", "#4f9dff", true)).toMatchObject({ dash: "5 3", stroke: "#ff4d4f" });
+    expect(strokeFor("plausible", "#4f9dff", true).opacity).toBeGreaterThan(strokeFor("plausible", "#4f9dff").opacity);
+    expect(fillOpacityFor("plausible", true)).toBeGreaterThan(fillOpacityFor("plausible", false));
+    expect(fillOpacityFor("implausible", true)).toBeLessThan(fillOpacityFor("plausible", true));
+    expect(fillOpacityFor("implausible", true)).toBeGreaterThan(fillOpacityFor("implausible", false));
   });
 
   test("superseded events are hidden and counted", () => {
@@ -86,6 +95,40 @@ function drive() {
   return { api, jump, key };
 }
 
+describe("lanes", () => {
+  const block = (key: string, tStart: number, tEnd: number) => ({ key, id: key, tStart, tEnd, color: "#fff", label: key });
+
+  test("overlapping events stack into sub-lanes without changing times or order", () => {
+    const { resolved, statuses } = snap();
+    const rows = buildRows(resolved, statuses);
+    const witness = rows.find((r) => r.blocks.some((b) => b.id === "e5"))!;
+    const lane = (id: string) => witness.blocks.find((b) => b.id === id)!.lane;
+    expect(witness.lanes).toBe(2);
+    expect(lane("e3")).toBe(0);
+    expect(lane("e5")).toBe(1);
+    expect(lane("e9")).toBe(0);
+    expect(rowHeight(witness)).toBeGreaterThan(ROW_H);
+    for (const row of rows) {
+      for (const b of row.blocks) {
+        const event = resolved!.events.find((e) => e.id === b.id);
+        if (event) expect([b.tStart, b.tEnd]).toEqual([event.tStart, event.tEnd]);
+      }
+    }
+    expect(rows.find((r) => r.id === "props")!.lanes).toBe(1);
+    const html = renderWith({ resolved, statuses, duration: resolved!.durationS });
+    expect(html).toContain('data-block="e5" data-lane="1"');
+  });
+
+  test("lane assignment is stable: start, then end, then id; touching blocks share a lane", () => {
+    const input = [block("b", 0, 4), block("a", 0, 4), block("c", 0, 2), block("d", 4, 6)];
+    const { blocks, lanes } = assignLanes(input);
+    expect(blocks.map((b) => b.key)).toEqual(["b", "a", "c", "d"]);
+    expect(Object.fromEntries(blocks.map((b) => [b.key, b.lane]))).toEqual({ c: 0, a: 1, b: 2, d: 0 });
+    expect(lanes).toBe(3);
+    expect(assignLanes([]).lanes).toBe(1);
+  });
+});
+
 describe("nested blocks stay clickable", () => {
   test("longer blocks are painted first, so e5 sits on top of the e3 block that contains it", () => {
     const { resolved, statuses } = snap();
@@ -112,6 +155,72 @@ describe("nested blocks stay clickable", () => {
     expect(blockOf("p_knife:0")).not.toBeNull();
     (blockOf("p_knife:0")!.props as { onClick: () => void }).onClick();
     expect(useSceneStore.getState().selectedEventId).toBeNull();
+  });
+});
+
+describe("event state styling (regression)", () => {
+  const WITNESS = "#4f9dff";
+  const SUSPECT = "#ff9f43";
+  const CLERK = "#4cd6a0";
+  const render = () => {
+    const { resolved, statuses } = snap();
+    return renderWith({
+      resolved,
+      statuses: { ...statuses, e2: "overridden" },
+      duration: resolved!.durationS,
+      t: 10.5,
+      selectedEventId: "e5",
+    });
+  };
+  const block = (html: string, id: string) => html.match(new RegExp(`<g data-block="${id}"[^>]*>(.*?)</g>`))![0];
+  const fill = (markup: string) => markup.match(/<rect [^>]*class="rtl-fill"[^>]*>/)![0];
+  const border = (markup: string) => markup.match(/<rect [^>]*fill="none" stroke="[^"]*" stroke-opacity[^>]*>/)![0];
+
+  test("overlapping events from one actor sit on separate lanes; later events reuse lane 0", () => {
+    const html = render();
+    expect(block(html, "e3")).toContain('data-lane="0"');
+    expect(block(html, "e5")).toContain('data-lane="1"');
+    expect(block(html, "e9")).toContain('data-lane="0"');
+  });
+
+  test("a default event has a faint fill and a muted border in its actor's color", () => {
+    const e9 = block(render(), "e9");
+    expect(e9).not.toContain("data-playback-active");
+    expect(fill(e9)).toMatch(new RegExp(`fill="${WITNESS}" fill-opacity="0.14"`));
+    expect(border(e9)).toMatch(new RegExp(`stroke="${WITNESS}" stroke-opacity="0.55"`));
+    expect(border(e9)).not.toContain("stroke-dasharray");
+    expect(e9).not.toContain('stroke="#fff"');
+  });
+
+  test("a playing event gets a stronger tint of its own actor color, never a shared blue", () => {
+    const html = render();
+    const e3 = block(html, "e3");
+    expect(e3).toContain('data-playback-active="true"');
+    expect(fill(e3)).toMatch(new RegExp(`fill="${WITNESS}" fill-opacity="0.34"`));
+    expect(border(e3)).toMatch(new RegExp(`stroke="${WITNESS}" stroke-opacity="0.9"`));
+    expect(fill(block(html, "e6"))).toMatch(new RegExp(`fill="${SUSPECT}" fill-opacity="0.34"`));
+    expect(html).not.toContain("#4f8cff");
+  });
+
+  test("the selected event has a white outline", () => {
+    const html = render();
+    expect(block(html, "e5")).toMatch(/<rect [^>]*fill="none" stroke="#fff"/);
+    expect(block(html, "e3")).not.toContain('stroke="#fff"');
+  });
+
+  test("implausible keeps its red dashed border while playing, with only a restrained tint", () => {
+    const e5 = block(render(), "e5");
+    expect(e5).toContain('data-status="implausible"');
+    expect(border(e5)).toMatch(/stroke="#ff4d4f" stroke-opacity="1" stroke-dasharray="5 3"/);
+    expect(fill(e5)).toMatch(new RegExp(`fill="${WITNESS}" fill-opacity="0.24"`));
+  });
+
+  test("overridden keeps its amber corner while playing, with only a restrained tint", () => {
+    const e2 = block(render(), "e2");
+    expect(e2).toContain('data-status="overridden"');
+    expect(e2).toMatch(/<polygon [^>]*fill="#ffb020"/);
+    expect(fill(e2)).toMatch(new RegExp(`fill="${CLERK}" fill-opacity="0.24"`));
+    expect(border(e2)).toMatch(new RegExp(`stroke="${CLERK}"`));
   });
 });
 
@@ -144,6 +253,34 @@ describe("interaction", () => {
     key(" ", false, "BUTTON");
     expect(api().playing).toBe(true);
     key("a");
+  });
+
+  test("Home and End jump to the ends when duration is known", () => {
+    const s = useSceneStore.getState();
+    const api = () => useSceneStore.getState();
+    const press = (k: string) =>
+      makeKeyHandler({ t: api().t, setT: s.setT, toggle: () => {}, duration: api().duration })(fakeKey(k));
+    api().setT(5);
+    press("End");
+    expect(api().t).toBe(api().duration);
+    press("Home");
+    expect(api().t).toBe(0);
+  });
+
+  test("only events under the playhead carry the playback tint, with status styling intact", () => {
+    const { resolved, statuses } = snap();
+    const html = renderWith({ resolved, statuses, duration: resolved!.durationS, t: 10.5 });
+    const active = [...html.matchAll(/data-block="([^"]+)"[^>]*data-playback-active="true"/g)].map((m) => m[1]).sort();
+    expect(active).toEqual(["e2", "e3", "e5", "e6"]);
+    expect(html).toMatch(/data-block="e5"[^>]*data-status="implausible"[^>]*data-playback-active="true"/);
+    expect(html).not.toMatch(/data-block="p_knife:0"[^>]*data-playback-active/);
+  });
+
+  test("playhead is a labelled slider", () => {
+    const { resolved, statuses } = snap();
+    const html = renderWith({ resolved, statuses, duration: resolved!.durationS, t: 3 });
+    expect(html).toMatch(/<g data-playhead="true" class="rtl-playhead" role="slider" tabindex="0" aria-label="Playhead"/);
+    expect(html).toContain('aria-valuetext="3.0 of ');
   });
 });
 
