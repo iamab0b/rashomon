@@ -14,6 +14,8 @@ import { hasInterval, resolveInterval } from "./time";
 const MOVEMENT = new Set(["walk", "run"]);
 const TIME_EPS = 1e-9;
 
+const handoffRank = (action: string): number => (action === "drop" ? 0 : 1);
+
 const round = (n: number): number => Math.round(n * 1e6) / 1e6;
 const roundVec = (v: Vec3): Vec3 => [round(v[0]), round(v[1]), round(v[2])];
 const floorDistance = (a: Vec3, b: Vec3): number =>
@@ -100,7 +102,7 @@ function heldIntervals(
         e.status !== "superseded" &&
         (e.action === "pick_up" || e.action === "drop"),
     )
-    .sort((a, b) => a.tStart - b.tStart);
+    .sort((a, b) => a.tStart - b.tStart || handoffRank(a.action) - handoffRank(b.action));
   type Open = Omit<HeldInterval, "tEnd">;
   const closeAt = (o: Open, t: number): HeldInterval[] =>
     t > o.tStart + TIME_EPS ? [{ ...o, tEnd: t }] : [];
@@ -123,7 +125,7 @@ function heldIntervals(
   const { closed, open } = handoffs.reduce(step, initial);
   const all = open ? [...closed, ...closeAt(open, durationS)] : closed;
   if (!handoffs.length && prop.heldBy)
-    return [{ actor: prop.heldBy, tStart: 0, tEnd: durationS }];
+    return durationS > 0 ? [{ actor: prop.heldBy, tStart: 0, tEnd: durationS }] : [];
   return all;
 }
 
@@ -139,9 +141,10 @@ export function resolve(
     a ? roundVec(anchorToPoint(a, manifest)) : undefined;
   const tracker = createTracker();
 
-  let previousEnd = 0;
+  const previousEndByActor = new Map<string, number>();
   const events: ResolvedEvent[] = graph.events.map((e) => {
     const isMove = MOVEMENT.has(e.action);
+    const previousEnd = previousEndByActor.get(e.actor) ?? 0;
     const tStartGuess = hasInterval(e.t) ? e.t[0] : previousEnd;
     const known = tracker.positionAt(e.actor, tStartGuess);
     const from = isMove ? (point(e.from) ?? known) : undefined;
@@ -152,7 +155,7 @@ export function resolve(
       : { path: [], reachable: true, travelM: 0 };
 
     const t = resolveInterval(e.t, e.action, route.travelM, previousEnd);
-    previousEnd = t.tEnd;
+    previousEndByActor.set(e.actor, t.tEnd);
     const arrivedAt = isMove ? (route.reachable ? to : from) : at;
     tracker.note(e.actor, t.tStart, isMove ? from : at);
     tracker.note(e.actor, t.tEnd, arrivedAt);

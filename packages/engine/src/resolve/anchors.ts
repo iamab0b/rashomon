@@ -12,7 +12,7 @@ function landmarkOf(id: string, manifest: SceneManifest): Landmark {
 }
 
 function interiorOf(manifest: SceneManifest): Bounds {
-  const declared = (manifest as { interior?: Bounds }).interior;
+  const declared = manifest.interior;
   if (declared) return declared;
   const min: Vec3 = [Infinity, 0, Infinity];
   const max: Vec3 = [-Infinity, 0, -Infinity];

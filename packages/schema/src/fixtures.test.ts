@@ -3,7 +3,7 @@ import storeJson from "../fixtures/store.scene.json";
 import robberyJson from "../fixtures/robbery.graph.json";
 import { ACTIONS } from "./index";
 import type { Anchor, Event, EventGraph, SceneManifest } from "./index";
-import { robberyGraph, storeScene } from "./fixtures";
+import { robberyGraph, robberyResolved, storeScene } from "./fixtures";
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
@@ -139,5 +139,7 @@ describe("fixtures", () => {
     expect(storeScene.sceneId).toBe("store_v1");
     expect(storeScene.interior).toEqual({ min: [0, 0, 0], max: [9, 3, 7] });
     expect(robberyGraph.events).toHaveLength(10);
+    expect(robberyResolved.sceneId).toBe("store_v1");
+    expect(robberyResolved.events.map((e) => e.id)).toEqual(robberyGraph.events.map((e) => e.id));
   });
 });
