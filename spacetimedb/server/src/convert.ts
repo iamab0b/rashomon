@@ -21,6 +21,7 @@ export const CHECKS = [
   "unanchored",
   "missing_time",
 ] as const;
+export const CONFIDENCES: readonly number[] = [0.3, 0.6, 0.9];
 export const MIN_OVERRIDE_REASON_CHARS = 10;
 
 export type AnchorRow = {
@@ -47,6 +48,22 @@ export function oneOf<T extends string>(value: unknown, allowed: readonly T[], w
 
 export function nonEmptyString(value: unknown, what: string): string {
   if (typeof value !== "string" || value.trim() === "") return fail(`${what} must be a non-empty string`);
+  return value;
+}
+
+export function idOf(value: unknown, what: string): string {
+  const id = nonEmptyString(value, what);
+  if (id.includes("/")) return fail(`${what} must not contain "/"`);
+  return id;
+}
+
+export function optionalId(value: unknown, what: string): string | undefined {
+  if (value === undefined) return undefined;
+  return idOf(value, what);
+}
+
+export function confidenceOf(value: unknown, what: string): number {
+  if (typeof value !== "number" || !CONFIDENCES.includes(value)) return fail(`${what} must be one of ${CONFIDENCES.join(", ")}`);
   return value;
 }
 
@@ -159,9 +176,6 @@ const optionalAnchorRow = (value: unknown, what: string): AnchorRow | undefined 
 export function eventFieldsFrom(value: unknown): EventFields {
   if (!isRecord(value)) return fail("event must be an object");
   const [tStart, tEnd] = intervalOf(value.t, "event.t");
-  const confidence = value.confidence;
-  if (typeof confidence !== "number" || !(confidence >= 0 && confidence <= 1))
-    return fail("event.confidence must be a number between 0 and 1");
   return {
     witnessId: nonEmptyString(value.witnessId, "event.witnessId"),
     actor: nonEmptyString(value.actor, "event.actor"),
@@ -175,7 +189,7 @@ export function eventFieldsFrom(value: unknown): EventFields {
     tStart,
     tEnd,
     tConfidence: oneOf(value.tConfidence, ["stated", "inferred"] as const, "event.tConfidence"),
-    confidence,
+    confidence: confidenceOf(value.confidence, "event.confidence"),
     sources: sourcesOf(value.sources, "event"),
     supersededBy: optionalString(value.supersededBy, "event.supersededBy"),
   };
@@ -206,22 +220,18 @@ export function eventChangesFrom(changes: unknown): { keys: string[]; fields: Pa
   if ("witnessId" in changes) fields.witnessId = nonEmptyString(changes.witnessId, "changes.witnessId");
   if ("actor" in changes) fields.actor = nonEmptyString(changes.actor, "changes.actor");
   if ("action" in changes) fields.action = oneOf(changes.action, ACTIONS, "changes.action");
-  if ("from" in changes) fields.fromAnchor = optionalAnchorRow(changes.from, "changes.from");
-  if ("to" in changes) fields.toAnchor = optionalAnchorRow(changes.to, "changes.to");
-  if ("at" in changes) fields.atAnchor = optionalAnchorRow(changes.at, "changes.at");
-  if ("facing" in changes) fields.facing = optionalString(changes.facing, "changes.facing");
-  if ("target" in changes) fields.target = optionalString(changes.target, "changes.target");
-  if ("prop" in changes) fields.prop = optionalString(changes.prop, "changes.prop");
+  if ("from" in changes) fields.fromAnchor = changes.from === null ? undefined : optionalAnchorRow(changes.from, "changes.from");
+  if ("to" in changes) fields.toAnchor = changes.to === null ? undefined : optionalAnchorRow(changes.to, "changes.to");
+  if ("at" in changes) fields.atAnchor = changes.at === null ? undefined : optionalAnchorRow(changes.at, "changes.at");
+  if ("facing" in changes) fields.facing = changes.facing === null ? undefined : optionalString(changes.facing, "changes.facing");
+  if ("target" in changes) fields.target = changes.target === null ? undefined : optionalString(changes.target, "changes.target");
+  if ("prop" in changes) fields.prop = changes.prop === null ? undefined : optionalString(changes.prop, "changes.prop");
   if ("t" in changes) [fields.tStart, fields.tEnd] = intervalOf(changes.t, "changes.t");
   if ("tConfidence" in changes)
     fields.tConfidence = oneOf(changes.tConfidence, ["stated", "inferred"] as const, "changes.tConfidence");
-  if ("confidence" in changes) {
-    const c = changes.confidence;
-    if (typeof c !== "number" || !(c >= 0 && c <= 1))
-      return fail("changes.confidence must be a number between 0 and 1");
-    fields.confidence = c;
-  }
-  if ("supersededBy" in changes) fields.supersededBy = optionalString(changes.supersededBy, "changes.supersededBy");
+  if ("confidence" in changes) fields.confidence = confidenceOf(changes.confidence, "changes.confidence");
+  if ("supersededBy" in changes)
+    fields.supersededBy = changes.supersededBy === null ? undefined : optionalString(changes.supersededBy, "changes.supersededBy");
   return { keys, fields };
 }
 
@@ -253,7 +263,7 @@ export function propChangesFrom(changes: unknown): Partial<Omit<PropFields, "sou
   for (const k of keys) {
     if (k === "type") out.type = nonEmptyString(changes.type, "changes.type");
     else if (k === "anchor") out.anchor = toAnchorRow(anchorFrom(changes.anchor, "changes.anchor"));
-    else if (k === "heldBy") out.heldBy = optionalString(changes.heldBy, "changes.heldBy");
+    else if (k === "heldBy") out.heldBy = changes.heldBy === null ? undefined : optionalString(changes.heldBy, "changes.heldBy");
     else if (k === "notes") {
       if (typeof changes.notes !== "string") return fail("changes.notes must be a string");
       out.notes = changes.notes;

@@ -10,10 +10,12 @@ import {
   eventChangesFrom,
   eventFieldsFrom,
   fail,
+  idOf,
   intervalOf,
   isRecord,
   nonEmptyString,
   oneOf,
+  optionalId,
   propChangesFrom,
   propFieldsFrom,
   sourcesOf,
@@ -31,19 +33,43 @@ function requireSession(ctx: Ctx, sessionId: string) {
 }
 
 function requireEvent(ctx: Ctx, sessionId: string, eventId: string) {
-  return ctx.db.events.rowKey.find(key(sessionId, eventId)) ?? fail(`unknown event ${eventId}`);
+  const row = ctx.db.events.rowKey.find(key(sessionId, eventId));
+  if (!row || row.sessionId !== sessionId) return fail(`unknown event ${eventId}`);
+  return row;
 }
 
-function nextId(prefix: string, existing: Iterable<{ id: string }>): string {
+function requireProp(ctx: Ctx, sessionId: string, propId: string) {
+  const row = ctx.db.props.rowKey.find(key(sessionId, propId));
+  if (!row || row.sessionId !== sessionId) return fail(`unknown prop ${propId}`);
+  return row;
+}
+
+function idFor(prefix: string, given: string | undefined, existing: Iterable<{ id: string }>, what: string): string {
   const taken = new Set<string>();
   let count = 0;
   for (const row of existing) {
     taken.add(row.id);
     count += 1;
   }
+  if (given !== undefined) {
+    if (taken.has(given)) return fail(`${what} ${given} already exists`);
+    return given;
+  }
   let n = count + 1;
   while (taken.has(`${prefix}${n}`)) n += 1;
   return `${prefix}${n}`;
+}
+
+function checkReferences(ctx: Ctx, sessionId: string): void {
+  const actors = new Set<string>();
+  for (const a of ctx.db.actors.sessionId.filter(sessionId)) actors.add(a.id);
+  const props = new Set<string>();
+  for (const p of ctx.db.props.sessionId.filter(sessionId)) props.add(p.id);
+  for (const e of ctx.db.events.sessionId.filter(sessionId)) {
+    if (!actors.has(e.actor)) fail(`event ${e.id} names unknown actor ${e.actor}`);
+    if (e.target !== undefined && !actors.has(e.target)) fail(`event ${e.id} names unknown target ${e.target}`);
+    if (e.prop !== undefined && !props.has(e.prop)) fail(`event ${e.id} names unknown prop ${e.prop}`);
+  }
 }
 
 const nextSeq = (rows: Iterable<{ seq: number }>): number => {
@@ -71,6 +97,7 @@ function applyOverride(ctx: Ctx, sessionId: string, eventId: string, reason: unk
     sessionId,
     eventId,
     by: who,
+    sender: ctx.sender.toHexString(),
     reason: why,
     at: Number(ctx.timestamp.microsSinceUnixEpoch / 1000n),
     flagIds,
@@ -83,7 +110,7 @@ function applyPatch(ctx: Ctx, sessionId: string, patch: unknown): string[] {
     case "add_event": {
       const f = eventFieldsFrom(patch.event);
       const existing = [...ctx.db.events.sessionId.filter(sessionId)];
-      const id = nextId("e", existing);
+      const id = idFor("e", optionalId((patch.event as Record<string, unknown>).id, "event.id"), existing, "event");
       ctx.db.events.insert({
         rowKey: key(sessionId, id),
         sessionId,
@@ -95,7 +122,7 @@ function applyPatch(ctx: Ctx, sessionId: string, patch: unknown): string[] {
       return f.sources;
     }
     case "update_event": {
-      const id = nonEmptyString(patch.id, "update_event.id");
+      const id = idOf(patch.id, "update_event.id");
       const sources = sourcesOf(patch.sources, "update_event");
       const event = requireEvent(ctx, sessionId, id);
       if (event.status === "superseded") return fail(`event ${id} was retracted and cannot be updated`);
@@ -112,7 +139,7 @@ function applyPatch(ctx: Ctx, sessionId: string, patch: unknown): string[] {
       return sources;
     }
     case "retract_event": {
-      const id = nonEmptyString(patch.id, "retract_event.id");
+      const id = idOf(patch.id, "retract_event.id");
       const sources = sourcesOf(patch.sources, "retract_event");
       const event = requireEvent(ctx, sessionId, id);
       ctx.db.events.rowKey.update({ ...event, sources: union(event.sources, sources), status: "superseded" });
@@ -121,20 +148,20 @@ function applyPatch(ctx: Ctx, sessionId: string, patch: unknown): string[] {
     case "add_prop": {
       const f = propFieldsFrom(patch.prop);
       const existing = [...ctx.db.props.sessionId.filter(sessionId)];
-      const id = nextId("p", existing);
+      const id = idFor("p", optionalId((patch.prop as Record<string, unknown>).id, "prop.id"), existing, "prop");
       ctx.db.props.insert({ rowKey: key(sessionId, id), sessionId, seq: nextSeq(existing), id, ...f });
       return f.sources;
     }
     case "update_prop": {
-      const id = nonEmptyString(patch.id, "update_prop.id");
+      const id = idOf(patch.id, "update_prop.id");
       const sources = sourcesOf(patch.sources, "update_prop");
-      const prop = ctx.db.props.rowKey.find(key(sessionId, id)) ?? fail(`unknown prop ${id}`);
+      const prop = requireProp(ctx, sessionId, id);
       ctx.db.props.rowKey.update({ ...prop, ...propChangesFrom(patch.changes), sources: union(prop.sources, sources) });
       return sources;
     }
     case "add_actor": {
       const a = isRecord(patch.actor) ? patch.actor : fail("add_actor.actor must be an object");
-      const id = nonEmptyString(a.id, "actor.id");
+      const id = idOf(a.id, "actor.id");
       const rowKey = key(sessionId, id);
       if (ctx.db.actors.rowKey.find(rowKey)) fail(`actor ${id} already exists`);
       ctx.db.actors.insert({
@@ -149,7 +176,7 @@ function applyPatch(ctx: Ctx, sessionId: string, patch: unknown): string[] {
       return [];
     }
     case "override":
-      applyOverride(ctx, sessionId, nonEmptyString(patch.id, "override.id"), patch.reason, patch.by);
+      applyOverride(ctx, sessionId, idOf(patch.id, "override.id"), patch.reason, patch.by);
       return [];
     default:
       return fail("patch.op must be add_event, update_event, retract_event, add_prop, update_prop, add_actor or override");
@@ -159,10 +186,10 @@ function applyPatch(ctx: Ctx, sessionId: string, patch: unknown): string[] {
 export const createSession = spacetimedb.reducer(
   { id: t.string(), sceneId: t.string() },
   (ctx, { id, sceneId }) => {
-    nonEmptyString(id, "session id");
+    idOf(id, "session id");
     nonEmptyString(sceneId, "sceneId");
     if (ctx.db.sessions.id.find(id)) fail(`session ${id} already exists`);
-    ctx.db.sessions.insert({ id, sceneId, version: 0, createdAt: ctx.timestamp });
+    ctx.db.sessions.insert({ id, sceneId, version: 0, creator: ctx.sender.toHexString(), createdAt: ctx.timestamp });
   },
 );
 
@@ -181,7 +208,7 @@ export const insertSegment = spacetimedb.reducer(
   },
   (ctx, a) => {
     requireSession(ctx, a.sessionId);
-    nonEmptyString(a.id, "segment id");
+    idOf(a.id, "segment id");
     nonEmptyString(a.witnessId, "segment witnessId");
     nonEmptyString(a.text, "segment text");
     oneOf(a.speaker, SPEAKERS, "segment speaker");
@@ -194,7 +221,7 @@ export const insertSegment = spacetimedb.reducer(
     }
     const seen = new Set<string>();
     for (const u of a.utterances) {
-      nonEmptyString(u.id, "utterance id");
+      idOf(u.id, "utterance id");
       intervalOf([u.tStart, u.tEnd], `utterance ${u.id} t`);
       if (seen.has(u.id) || ctx.db.utterances.rowKey.find(key(a.sessionId, u.id)))
         fail(`utterance ${u.id} already exists`);
@@ -251,6 +278,7 @@ export const applyPatches = spacetimedb.reducer(
         appliedAt: ctx.timestamp,
       });
     }
+    checkReferences(ctx, sessionId);
     ctx.db.sessions.id.update({ ...session, version: appliedVersion });
   },
 );
@@ -264,9 +292,14 @@ export const override = spacetimedb.reducer(
 );
 
 export const setStatuses = spacetimedb.reducer(
-  { sessionId: t.string(), statuses: t.array(StatusEntryT), flags: t.array(FlagT) },
-  (ctx, { sessionId, statuses, flags }) => {
-    requireSession(ctx, sessionId);
+  { sessionId: t.string(), baseVersion: t.u32(), statuses: t.array(StatusEntryT), flags: t.array(FlagT) },
+  (ctx, { sessionId, baseVersion, statuses, flags }) => {
+    const session = requireSession(ctx, sessionId);
+    const sender = ctx.sender.toHexString();
+    if (sender !== ctx.identity.toHexString() && sender !== session.creator)
+      fail("only the module or the session's creator can set statuses");
+    if (baseVersion !== session.version)
+      fail(`stale baseVersion ${baseVersion}; the graph is at version ${session.version}`);
     const resulting = new Map<string, string>();
     for (const e of ctx.db.events.sessionId.filter(sessionId)) resulting.set(e.id, e.status);
 

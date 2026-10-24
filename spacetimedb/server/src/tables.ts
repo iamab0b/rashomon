@@ -90,6 +90,7 @@ const sessions = table(
     id: t.string().primaryKey(),
     sceneId: t.string(),
     version: t.u32(),
+    creator: t.string(),
     createdAt: t.timestamp(),
   },
 );
@@ -214,6 +215,7 @@ const overrides = table(
     sessionId: t.string().index(),
     eventId: t.string(),
     by: t.string(),
+    sender: t.string(),
     reason: t.string(),
     at: t.f64(),
     flagIds: t.array(t.string()),

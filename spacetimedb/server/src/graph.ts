@@ -55,7 +55,7 @@ export function buildGraph(db: ReadDb, sessionId: string): GraphRow | undefined 
           conflictsWith: f.conflictsWith,
           suggestedQuestion: f.suggestedQuestion,
         })),
-        override: o ? { by: o.by, reason: o.reason, at: o.at, flagIds: o.flagIds } : undefined,
+        override: o && e.status === "overridden" ? { by: o.by, reason: o.reason, at: o.at, flagIds: o.flagIds } : undefined,
         supersededBy: e.supersededBy,
       };
     }),
