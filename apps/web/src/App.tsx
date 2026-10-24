@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { isCameraPreset, POV_CAM, Scene, useCamera } from "./scene";
+import { RightPanel } from "./ui/RightPanel";
 
 const PANEL_WIDTH_PX = 360;
 
@@ -29,8 +30,11 @@ export function App() {
           color: "#c9d1d9",
           padding: 16,
           boxSizing: "border-box",
+          overflowY: "auto",
         }}
-      />
+      >
+        <RightPanel />
+      </div>
     </div>
   );
 }
