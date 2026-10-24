@@ -8,7 +8,16 @@ import { robberyGraph } from "@rashomon/schema/fixtures";
 import robberyTranscript from "../../../packages/extractor/fixtures/robbery.transcript.json";
 import robberyToolUses from "./fixtures/robbery.tool-uses.json";
 import { EXTRACTION_MODEL } from "@rashomon/extractor";
-import { MAX_BODY_BYTES, MAX_UTTERANCES, SECRET_HEADER, handleCartesia, secretsMatch } from "./http/cartesia";
+import {
+  MAX_BODY_BYTES,
+  MAX_UTTERANCES,
+  SECRET_HEADER,
+  handleCartesia,
+  handleEndInterview,
+  handleSceneContext,
+  secretsMatch,
+} from "./http/cartesia";
+import { fnv1a64 } from "./extract/hash";
 import { EXTRACTION_FAILED, MAX_SEGMENT_TEXT_CHARS, PROMPT_HASH, runExtraction, type Io } from "./extract/run";
 import { NOT_THE_MODULE, extractAs } from "./procedures/extractSegment";
 import * as mod from "./index";
@@ -494,6 +503,114 @@ describe("the Cartesia webhook", () => {
     expect(harness.db.segments.rowKey.find(`${SESSION}/seg_1234`)?.extractError).toBe("partly_rejected");
     expect(lastLog()).toMatch(/partly_rejected: partly rejected: add_event: .*moon_base/);
   });
+  const STATEMENT = "A guy came in the front door.";
+  const plainId = `seg_${fnv1a64(`${SESSION}\n${STATEMENT}`)}`;
+  const plain = (over: Record<string, unknown> = {}) => JSON.stringify({ sessionId: SESSION, text: STATEMENT, ...over });
+
+  test("a plain text body is stored as one utterance after the session's last segment and extracted", () => {
+    const io = webhookIo(ok([toolUse("tu_1", "add_event", { ...walkInput, sources: [plainId] })]));
+    const out = handleCartesia(io, post(plain()));
+    expect(out.status).toBe(200);
+    expect(out.body).toMatchObject({ segmentId: plainId, patchCount: 1 });
+    const row = harness.db.segments.rowKey.find(`${SESSION}/${plainId}`)!;
+    expect(row).toMatchObject({ text: STATEMENT, speaker: "witness", witnessId: "witness", source: "live", tStart: 16.7, tEnd: 19.5 });
+    expect(row.extractUtteranceIds).toEqual([`${plainId}_u1`]);
+    expect(graph().events).toHaveLength(1);
+  });
+
+  test("a resent plain text body without a segmentId does not extract twice", () => {
+    const io = webhookIo(ok([toolUse("tu_1", "add_event", { ...walkInput, sources: [plainId] })]));
+    const first = handleCartesia(io, post(plain()));
+    const again = handleCartesia(io, post(plain({ text: `  ${STATEMENT} ` })));
+    expect(first.status).toBe(200);
+    expect(again).toEqual(first);
+    expect(requests).toHaveLength(1);
+    expect([...harness.db.segments.sessionId.filter(SESSION)]).toHaveLength(2);
+    expect(graph().events).toHaveLength(1);
+  });
+
+  test("a plain text body without text is a 400, and a wrong secret is a 401, before anything is stored", () => {
+    const io = webhookIo(ok([]));
+    expect(handleCartesia(io, post(plain({ text: "   " })))).toEqual({ status: 400, body: { error: "text or utterances is required" } });
+    expect(handleCartesia(io, post(JSON.stringify({ sessionId: SESSION })))).toEqual({
+      status: 400,
+      body: { error: "text or utterances is required" },
+    });
+    expect(handleCartesia(io, post(plain(), "nope")).status).toBe(401);
+    expect(requests).toHaveLength(0);
+    expect([...harness.db.segments.sessionId.filter(SESSION)]).toHaveLength(1);
+  });
+
+  const applyRobberyEvents = () =>
+    call((ctx) =>
+      mod.applyPatches(ctx, {
+        sessionId: SESSION,
+        baseVersion: 1,
+        patchesJson: JSON.stringify([
+          ...robberyGraph.props.map((prop) => ({ op: "add_prop", prop })),
+          ...robberyGraph.events.map(({ status: _s, flags: _f, ...event }) => ({ op: "add_event", event })),
+        ]),
+      }),
+    );
+  const ask = (text: string, secret: string | null = HOOK) =>
+    new Request("http://localhost/webhook/cartesia/scene_context", {
+      method: "POST",
+      body: text,
+      headers: secret === null ? {} : { [SECRET_HEADER]: secret },
+    });
+
+  test("scene context lists the landmarks and has no question before anything is flagged", () => {
+    const out = handleSceneContext(webhookIo(ok([])), ask(JSON.stringify({ sessionId: SESSION })));
+    expect(out.status).toBe(200);
+    expect(out.body).toMatchObject({ recentEvents: [], openQuestions: [], nextQuestion: null });
+    const landmarks = (out.body as { landmarks: { id: string; label: string }[] }).landmarks;
+    expect(landmarks).toHaveLength(11);
+    expect(landmarks[0]).toEqual({ id: "front_door", label: "front door" });
+  });
+
+  test("scene context returns the last five events and the hard flag's question as the next question", () => {
+    applyRobberyEvents();
+    const flag = [...harness.db.flags.sessionId.filter(SESSION)].find((f) => f.severity === "hard")!;
+    expect(flag.eventId).toBe("e5");
+    const out = handleSceneContext(webhookIo(ok([])), ask(JSON.stringify({ session_id: SESSION })));
+    expect(out.status).toBe(200);
+    const body = out.body as { recentEvents: { id: string; actor: string; where: string | null }[]; nextQuestion: string };
+    expect(body.recentEvents.map((e) => e.id)).toEqual(robberyGraph.events.slice(-5).map((e) => e.id));
+    const labels = new Map(robberyGraph.actors.map((a) => [a.id, a.label]));
+    expect(body.recentEvents.map((e) => e.actor)).toEqual(robberyGraph.events.slice(-5).map((e) => labels.get(e.actor)));
+    expect(body.nextQuestion).toBe(flag.suggestedQuestion);
+    expect(out.body).toMatchObject({ openQuestions: [{ eventId: "e5", question: flag.suggestedQuestion }] });
+    expect(requests).toHaveLength(0);
+  });
+
+  test("scene context and end interview refuse a wrong secret and an unknown session", () => {
+    const io = webhookIo(ok([]));
+    for (const handle of [handleSceneContext, handleEndInterview]) {
+      expect(handle(io, ask(JSON.stringify({ sessionId: SESSION }), null)).status).toBe(401);
+      expect(handle(io, ask(JSON.stringify({ sessionId: SESSION }), "nope")).body).toEqual({ error: "unauthorized" });
+      expect(handle(io, ask(JSON.stringify({ sessionId: "nope" })))).toEqual({ status: 400, body: { error: "unknown session" } });
+      expect(handle(io, ask("{}")).status).toBe(400);
+    }
+    expect(requests).toHaveLength(0);
+  });
+
+  test("end interview returns the session's counts and changes nothing", () => {
+    applyRobberyEvents();
+    const out = handleEndInterview(webhookIo(ok([])), ask(JSON.stringify({ sessionId: SESSION })));
+    expect(out).toEqual({ status: 200, body: { ended: true, statements: 1, events: robberyGraph.events.length, openQuestions: 1 } });
+    expect([...harness.db.segments.sessionId.filter(SESSION)]).toHaveLength(1);
+  });
+
+  test("the exported scene context and end interview handlers check the module secret first", () => {
+    const ctx = { env: { CARTESIA_WEBHOOK_SECRET: HOOK } } as never;
+    for (const handler of [mod.sceneContextWebhook, mod.endInterviewWebhook]) {
+      const exportedHandler = handler as unknown as (ctx: never, req: Request) => { status: number };
+      expect(exportedHandler(ctx, ask("{}", null)).status).toBe(401);
+      expect(exportedHandler(ctx, ask("{}", "nope")).status).toBe(401);
+      expect(exportedHandler(ctx, ask("{}")).status).toBe(400);
+      expect(exportedHandler({} as never, ask("{}")).status).toBe(401);
+    }
+  });
 });
 
 describe("the robbery demo path", () => {
@@ -656,5 +773,5 @@ describe("who can run extraction", () => {
     );
     runExtraction(ioFor(ok([toolUse("tu_1", "add_event", walkInput)])), SESSION, "edge");
     expect(requests).toHaveLength(1);
-  });
+   });
 });
