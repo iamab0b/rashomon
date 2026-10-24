@@ -5,8 +5,8 @@ Hazel presents, Sahil drives, A takes technical questions, Eric stands by on voi
 Demo URLs (Sahil's laptop, `localhost:5173`):
 - Fixture, the default: `/`
 - The catch, ready to show: `/?t=11`
-- The corrected statement: `/?scenario=corrected&t=11`
-- Live fallback, no local server needed: `/?mode=live&stdb=wss://maincloud.spacetimedb.com&db=rashomon&session=demo`
+- The corrected statement, as a backup only: `/?scenario=corrected&t=11`
+- Live fallback, no local server needed: `/?mode=live&stdb=wss://maincloud.spacetimedb.com&db=rashomon&session=demo`. If we demo live, open this tab before the pitch starts (about 7 s to load).
 
 ## 3-minute version
 
@@ -23,7 +23,7 @@ Demo URLs (Sahil's laptop, `localhost:5173`):
 Witness: "I saw his face clearly from the chips aisle when he pulled the knife."
 "Watch the sightline." *Flags tab:* "Under the current scene geometry, the sightline is blocked by the chips shelf."
 **[20-second voice slot, Eric's path]** The agent asks the flag's question aloud: "From the chips aisle, the chips shelf would be between you and the suspect. Where exactly were you standing when you saw that?" Witness: "Oh. I'd stepped out to the front, by the window."
-*Correction: the corrected statement, or Sahil drags e5's gizmo to the front window. The ghost and badge go, the ray turns green.*
+*Correction, done as a drag (this is the catch moment): Sahil drags e5's gizmo to the front window. The ghost and badge go, the ray turns green, and the gate's follow-up question appears right after; pause on it.*
 "The event moves. The ray is clear. Nothing was faked and nobody was judged: the room asked the question."
 
 **1:50 · Investigator control (25 s)** *Back on `/`. Override on e5, type a reason, "Apply this override?", Confirm override; the amber badge stays. Open History.*
