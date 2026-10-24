@@ -23,16 +23,16 @@ export function liveStatementStatus(
   baseVersion: number,
   graphVersion: number,
 ): StatementStatus {
-  if (row && row.extractedAt !== undefined) {
-    return {
-      state: "done",
-      patchCount: row.extractPatchCount ?? 0,
-      ...(row.extractError !== undefined ? { error: row.extractError } : {}),
-    };
+  if (row) {
+    if (row.extractedAt !== undefined) {
+      return {
+        state: "done",
+        patchCount: row.extractPatchCount ?? 0,
+        ...(row.extractError !== undefined ? { error: row.extractError } : {}),
+      };
+    }
+    if (row.extractError !== undefined) return { state: "failed", error: row.extractError };
+    return { state: "extracting" };
   }
-  if (row && row.extractError !== undefined) return { state: "failed", error: row.extractError };
-  if (graphVersion > baseVersion) {
-    return { state: "done", ...(row?.extractPatchCount !== undefined ? { patchCount: row.extractPatchCount } : {}) };
-  }
-  return { state: "extracting" };
+  return graphVersion > baseVersion ? { state: "done" } : { state: "extracting" };
 }

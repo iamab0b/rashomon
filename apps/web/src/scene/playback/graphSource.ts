@@ -69,11 +69,12 @@ const recordedModelFor =
   (statement: string): CallModel =>
   async () => ({ content: [...recordedToolCalls(statement)] });
 
-function statementSegment(text: string): Segment {
+function statementSegment(text: string, witnessName: string): Segment {
   const body = text.trim();
+  const name = witnessName.trim();
   const words = body.split(/\s+/).length;
   return {
-    id: statementSegmentId(FIXTURE_SESSION, FIXTURE_WITNESS, body),
+    id: statementSegmentId(FIXTURE_SESSION, name, body),
     sessionId: FIXTURE_SESSION,
     witnessId: FIXTURE_WITNESS,
     speaker: "witness",
@@ -129,7 +130,7 @@ function patchableSource(initial: () => FixtureState, manifest: SceneManifest): 
     submitStatement(text, witnessName) {
       const invalid = checkStatement(text, witnessName);
       if (invalid) return Promise.reject(new Error(invalid));
-      const segment = statementSegment(text);
+      const segment = statementSegment(text, witnessName);
       const baseVersion = state().graph.version;
       if (!statements[segment.id]) {
         setStatement(segment.id, { state: "extracting" });
