@@ -1,0 +1,324 @@
+{
+  "_note": "The tool_use blocks a correct extraction of the first witness's statement (utt_1 to utt_11) returns: robbery.graph.json from @rashomon/schema written as extractor tool calls, props first. Built from the fixture, not captured from a live Claude call.",
+  "segmentId": "seg_w1",
+  "content": [
+    {
+      "type": "tool_use",
+      "id": "toolu_robbery_01",
+      "name": "add_prop",
+      "input": {
+        "type": "register",
+        "anchor": {
+          "kind": "at",
+          "landmark": "register",
+          "second_landmark": null,
+          "radius_m": null
+        },
+        "held_by": null,
+        "notes": "",
+        "sources": [
+          "seg_w1"
+        ]
+      }
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_robbery_02",
+      "name": "add_prop",
+      "input": {
+        "type": "knife_chef",
+        "anchor": {
+          "kind": "near",
+          "landmark": "counter",
+          "second_landmark": null,
+          "radius_m": 0.5
+        },
+        "held_by": "suspect",
+        "notes": "witness: 'a kitchen knife, maybe eight inches'",
+        "sources": [
+          "seg_w1"
+        ]
+      }
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_robbery_03",
+      "name": "add_event",
+      "input": {
+        "actor": "suspect",
+        "action": "walk",
+        "from": {
+          "kind": "at",
+          "landmark": "front_door",
+          "second_landmark": null,
+          "radius_m": null
+        },
+        "to": {
+          "kind": "near",
+          "landmark": "counter",
+          "second_landmark": null,
+          "radius_m": 0.6
+        },
+        "at": null,
+        "facing": null,
+        "target": null,
+        "prop": null,
+        "t_start": 0,
+        "t_end": 5,
+        "t_confidence": "inferred",
+        "confidence": "high",
+        "sources": [
+          "seg_w1"
+        ]
+      }
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_robbery_04",
+      "name": "add_event",
+      "input": {
+        "actor": "clerk",
+        "action": "stand",
+        "from": null,
+        "to": null,
+        "at": {
+          "kind": "at",
+          "landmark": "behind_counter",
+          "second_landmark": null,
+          "radius_m": null
+        },
+        "facing": "counter",
+        "target": null,
+        "prop": null,
+        "t_start": 0,
+        "t_end": 13,
+        "t_confidence": "inferred",
+        "confidence": "high",
+        "sources": [
+          "seg_w1"
+        ]
+      }
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_robbery_05",
+      "name": "add_event",
+      "input": {
+        "actor": "witness",
+        "action": "stand",
+        "from": null,
+        "to": null,
+        "at": {
+          "kind": "at",
+          "landmark": "aisle_chips",
+          "second_landmark": null,
+          "radius_m": null
+        },
+        "facing": "shelf_a",
+        "target": null,
+        "prop": null,
+        "t_start": 0,
+        "t_end": 11,
+        "t_confidence": "stated",
+        "confidence": "high",
+        "sources": [
+          "seg_w1"
+        ]
+      }
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_robbery_06",
+      "name": "add_event",
+      "input": {
+        "actor": "suspect",
+        "action": "speak",
+        "from": null,
+        "to": null,
+        "at": {
+          "kind": "near",
+          "landmark": "counter",
+          "second_landmark": null,
+          "radius_m": 0.6
+        },
+        "facing": null,
+        "target": "clerk",
+        "prop": null,
+        "t_start": 5,
+        "t_end": 9,
+        "t_confidence": "stated",
+        "confidence": "high",
+        "sources": [
+          "seg_w1"
+        ]
+      }
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_robbery_07",
+      "name": "add_event",
+      "input": {
+        "actor": "witness",
+        "action": "look",
+        "from": null,
+        "to": null,
+        "at": {
+          "kind": "at",
+          "landmark": "aisle_chips",
+          "second_landmark": null,
+          "radius_m": null
+        },
+        "facing": null,
+        "target": "suspect",
+        "prop": null,
+        "t_start": 10,
+        "t_end": 12,
+        "t_confidence": "stated",
+        "confidence": "high",
+        "sources": [
+          "seg_w1"
+        ]
+      }
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_robbery_08",
+      "name": "add_event",
+      "input": {
+        "actor": "suspect",
+        "action": "pick_up",
+        "from": null,
+        "to": null,
+        "at": {
+          "kind": "near",
+          "landmark": "counter",
+          "second_landmark": null,
+          "radius_m": 0.6
+        },
+        "facing": null,
+        "target": null,
+        "prop": "knife_chef",
+        "t_start": 9,
+        "t_end": 11,
+        "t_confidence": "stated",
+        "confidence": "high",
+        "sources": [
+          "seg_w1"
+        ]
+      }
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_robbery_09",
+      "name": "add_event",
+      "input": {
+        "actor": "suspect",
+        "action": "shove",
+        "from": null,
+        "to": null,
+        "at": {
+          "kind": "near",
+          "landmark": "counter",
+          "second_landmark": null,
+          "radius_m": 0.6
+        },
+        "facing": null,
+        "target": "clerk",
+        "prop": null,
+        "t_start": 12,
+        "t_end": 13,
+        "t_confidence": "stated",
+        "confidence": "medium",
+        "sources": [
+          "seg_w1"
+        ]
+      }
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_robbery_10",
+      "name": "add_event",
+      "input": {
+        "actor": "clerk",
+        "action": "fall",
+        "from": null,
+        "to": null,
+        "at": {
+          "kind": "at",
+          "landmark": "behind_counter",
+          "second_landmark": null,
+          "radius_m": null
+        },
+        "facing": null,
+        "target": null,
+        "prop": null,
+        "t_start": 13,
+        "t_end": 15,
+        "t_confidence": "inferred",
+        "confidence": "medium",
+        "sources": [
+          "seg_w1"
+        ]
+      }
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_robbery_11",
+      "name": "add_event",
+      "input": {
+        "actor": "witness",
+        "action": "crouch",
+        "from": null,
+        "to": null,
+        "at": {
+          "kind": "at",
+          "landmark": "aisle_chips",
+          "second_landmark": null,
+          "radius_m": null
+        },
+        "facing": null,
+        "target": null,
+        "prop": null,
+        "t_start": 13,
+        "t_end": 24,
+        "t_confidence": "stated",
+        "confidence": "high",
+        "sources": [
+          "seg_w1"
+        ]
+      }
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_robbery_12",
+      "name": "add_event",
+      "input": {
+        "actor": "suspect",
+        "action": "run",
+        "from": {
+          "kind": "near",
+          "landmark": "counter",
+          "second_landmark": null,
+          "radius_m": 0.6
+        },
+        "to": {
+          "kind": "at",
+          "landmark": "front_door",
+          "second_landmark": null,
+          "radius_m": null
+        },
+        "at": null,
+        "facing": null,
+        "target": null,
+        "prop": null,
+        "t_start": 20,
+        "t_end": 23,
+        "t_confidence": "stated",
+        "confidence": "high",
+        "sources": [
+          "seg_w1"
+        ]
+      }
+    }
+  ]
+}

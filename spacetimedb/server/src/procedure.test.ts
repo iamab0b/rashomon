@@ -4,6 +4,8 @@ import { Request } from "spacetimedb/server";
 import { TestAuth, createModuleTestHarness } from "spacetimedb/server/test-utils";
 import type { TestHttpResponder } from "spacetimedb/server/test-utils";
 import { robberyGraph } from "@rashomon/schema/fixtures";
+import robberyTranscript from "../../../packages/extractor/fixtures/robbery.transcript.json";
+import robberyToolUses from "./fixtures/robbery.tool-uses.json";
 import { EXTRACTION_MODEL } from "@rashomon/extractor";
 import { MAX_BODY_BYTES, MAX_UTTERANCES, SECRET_HEADER, handleCartesia, secretsMatch } from "./http/cartesia";
 import { EXTRACTION_FAILED, PROMPT_HASH, runExtraction, type Io } from "./extract/run";
@@ -409,5 +411,58 @@ describe("the Cartesia webhook", () => {
     expect(out.body).toMatchObject({ patchCount: 1, error: "extraction partly failed" });
     expect(JSON.stringify(out.body)).not.toContain("moon_base");
     expect(harness.db.segments.rowKey.find(`${SESSION}/seg_1234`)?.extractError).toMatch(/^partly rejected: add_event: .*moon_base/);
+  });
+});
+
+describe("the robbery demo path", () => {
+  const witness = robberyTranscript.filter((u) => u.witnessId === "w1" && u.speaker === "witness");
+  const utterances = witness.map((u) => ({ id: u.id, text: u.text, tStart: u.t[0]!, tEnd: u.t[1]! }));
+
+  test("the fixture covers the first witness's whole statement", () => {
+    expect(utterances.map((u) => u.id)).toEqual(Array.from({ length: 11 }, (_, i) => `utt_${i + 1}`));
+    expect(robberyToolUses.content).toHaveLength(robberyGraph.props.length + robberyGraph.events.length);
+  });
+
+  test("the first witness's statement through runExtraction flags e5 as a sightline the shelf blocks", () => {
+    call((ctx) =>
+      mod.insertSegment(ctx, {
+        id: robberyToolUses.segmentId,
+        sessionId: SESSION,
+        witnessId: "w1",
+        speaker: "witness",
+        text: utterances.map((u) => u.text).join(" "),
+        tStart: utterances[0]!.tStart,
+        tEnd: utterances[utterances.length - 1]!.tEnd,
+        source: "upload_text",
+        supersedes: undefined,
+        utterances,
+      }),
+    );
+    const result = runExtraction(ioFor(ok(robberyToolUses.content)), SESSION, robberyToolUses.segmentId);
+    expect(result.error).toBeUndefined();
+    expect(result.patchCount).toBe(12);
+    expect(result.statuses).toContainEqual({ eventId: "e5", status: "implausible" });
+    const g = graph();
+    expect(g.events.map((e) => [e.id, e.actor, e.action])).toEqual(robberyGraph.events.map((e) => [e.id, e.actor, e.action]));
+    const e5 = g.events.find((e) => e.id === "e5")!;
+    expect(e5.status).toBe("implausible");
+    const flag = e5.flags.find((f) => f.id === "sightline:e5");
+    expect(flag).toMatchObject({ check: "sightline", severity: "hard" });
+    expect(flag?.suggestedQuestion).toMatch(/Where exactly were you standing/);
+    expect(g.events.filter((e) => e.status === "implausible").map((e) => e.id)).toEqual(["e5"]);
+  });
+
+  test("the same statement through the Cartesia webhook comes back with e5 implausible", () => {
+    const req = new Request("http://localhost/webhook/cartesia", {
+      method: "POST",
+      headers: { [SECRET_HEADER]: HOOK },
+      body: JSON.stringify({ sessionId: SESSION, segmentId: robberyToolUses.segmentId, witness: "w1", utterances }),
+    });
+    const io = { ...ioFor(ok(robberyToolUses.content)), nowMicros: () => 1n, webhookSecret: () => HOOK };
+    const out = handleCartesia(io, req);
+    expect(out.status).toBe(200);
+    expect(out.body).toMatchObject({ segmentId: "seg_w1", patchCount: 12, error: undefined });
+    expect((out.body as { statuses: unknown[] }).statuses).toContainEqual({ eventId: "e5", status: "implausible" });
+    expect(harness.db.flags.rowKey.find(`${SESSION}/sightline:e5`)?.suggestedQuestion).toMatch(/Where exactly were you standing/);
   });
 });
