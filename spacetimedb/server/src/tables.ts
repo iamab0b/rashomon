@@ -53,6 +53,9 @@ export const EventT = t.object("Event", {
   flags: t.array(FlagT),
   override: t.option(OverrideT),
   supersededBy: t.option(t.string()),
+  style: t.option(t.string()),
+  actionApproximated: t.option(t.bool()),
+  verb: t.option(t.string()),
 });
 
 export const PropT = t.object("PropInstance", {
@@ -173,6 +176,9 @@ const events = table(
     sources: t.array(t.string()),
     status: t.string(),
     supersededBy: t.option(t.string()),
+    style: t.option(t.string()).default(undefined),
+    actionApproximated: t.option(t.bool()).default(undefined),
+    verb: t.option(t.string()).default(undefined),
   },
 );
 
