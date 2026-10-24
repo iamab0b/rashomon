@@ -10,7 +10,7 @@ Clips are the Mixamo FBX downloads in `apps/web/public/clips/` (`clip_<name>.fbx
 | `walk` | `clip_walk` | yes | path from resolver, speed = path length / duration | event `t` (resolver infers from 1.4 m/s if unstated) | 0.25 / 0.25 | path tangent | clip plays in place; root follows the path curve |
 | `run` | `clip_run` | yes | path, speed = length / duration | event `t` (3.5 m/s default) | 0.15 / 0.15 | path tangent | if speed > 6 m/s the gate already flagged it |
 | `crouch` | `clip_crouch_idle` | yes | none | event `t` | 0.3 / 0.3 | keep | witness hiding |
-| `fall` | `clip_fall_back` | no, hold last frame | none | clip length (about 2 s), clamp to `t` | 0.1 / hold | away from `target` or shover | stays down until a `stand` or `pick_up` event follows |
+| `fall` | `clip_fall_back` | no, hold last frame | none | clip length (about 2 s), clamp to `t` | 0.1 / hold | away from `target` or shover | stays down until the actor's next event of any kind |
 | `shove` | actor: `clip_push`; target: `clip_shoved` | no | none | clip length, clamp to `t` | 0.1 / 0.2 | actor faces `target`; target faces actor | the target clip starts 0.3 s after the actor clip |
 | `punch` | actor: `clip_punch`; target: `clip_shoved` | no | none | clip length | 0.1 / 0.2 | face each other | same pairing as shove |
 | `pick_up` | `clip_pick_up` | no | none | clip length (about 2.5 s) | 0.2 / 0.2 | toward `prop` anchor | at 60% of the clip, attach the prop to `mixamorigRightHand` |
