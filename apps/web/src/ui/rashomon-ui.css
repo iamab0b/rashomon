@@ -163,6 +163,25 @@
 .rui .witness-counts { display: flex; gap: 10px; margin-top: 7px; color: var(--text-secondary); font-size: 11px; }
 .rui .witness-counts b { color: var(--status-plausible); font-weight: 500; }
 .rui .witness-row > .button { height: 27px; padding: 0 8px; font-size: 11px; }
+
+.rui.topbar { height: 54px; flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px 0 14px; background: var(--surface-raised); border-bottom: 1px solid var(--border); }
+.rui .brand,
+.rui .top-actions { display: flex; align-items: center; min-width: 0; }
+.rui .brand { gap: 10px; white-space: nowrap; }
+.rui .brand-mark { width: 26px; height: 26px; display: grid; place-items: center; border: 1px solid #bc853d; color: #e7b15b; font: 600 14px var(--mono); background: #2a2117; }
+.rui .brand strong { color: #f2f4f3; font-size: 15px; letter-spacing: -.02em; }
+.rui .brand > span:not(.badge) { color: #949c9d; overflow: hidden; text-overflow: ellipsis; }
+.rui .divider { width: 1px; height: 20px; margin: 0 3px; background: #353b3c; }
+.rui .top-actions { gap: 8px; }
+.rui .badge { display: inline-flex; align-items: center; min-height: 20px; padding: 0 7px; border: 1px solid #454c4d; border-radius: 10px; color: #aeb5b6; background: #202425; font: 500 10px var(--mono); text-transform: uppercase; letter-spacing: .04em; }
+.rui .badge--green { color: #8ac8a6; border-color: #335c46; background: #15291f; }
+.rui .badge--amber { color: #e2b267; border-color: #66502d; background: #2a2115; }
+.rui .badge--red { color: #e88179; border-color: #663b37; background: #2e1917; }
+.rui .segmented { display: flex; border: 1px solid #3b4243; border-radius: 4px; overflow: hidden; }
+.rui .segmented button { height: 30px; padding: 0 12px; color: #868f91; border: 0; background: #191d1e; font: 500 12px/1 inherit; font-family: inherit; cursor: pointer; }
+.rui .segmented button + button { border-left: 1px solid #3b4243; }
+.rui .segmented button:hover { background: #24292a; }
+.rui .segmented button.active { color: #ecefef; background: #303638; }
 .rui .waived-question { display: block; margin-top: 4px; color: var(--status-plausible); }
 .rui .dialog-error { margin: 14px 0 0; padding: 8px 10px; color: var(--status-implausible); border: 1px dashed var(--status-implausible); border-radius: 3px; background: color-mix(in srgb, var(--status-implausible) 6%, var(--surface)); font-size: 12px; line-height: 1.45; }
 .rui .pending-note { display: flex; align-items: center; gap: 7px; margin-top: 7px; padding: 6px 7px; color: var(--status-overridden); border: 1px dashed color-mix(in srgb, var(--status-overridden) 60%, transparent); border-radius: 3px; font-size: 11px; }
