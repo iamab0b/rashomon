@@ -82,6 +82,9 @@ export const EventGraph = __t.object("EventGraph", {
   get props() {
     return __t.array(PropInstance);
   },
+  get witnesses() {
+    return __t.option(__t.array(Witness));
+  },
   version: __t.u32(),
 });
 export type EventGraph = __Infer<typeof EventGraph>;
@@ -282,4 +285,11 @@ export const Utterances = __t.object("Utterances", {
   tEnd: __t.f64(),
 });
 export type Utterances = __Infer<typeof Utterances>;
+
+export const Witness = __t.object("Witness", {
+  id: __t.string(),
+  label: __t.string(),
+  actorId: __t.option(__t.string()),
+});
+export type Witness = __Infer<typeof Witness>;
 
