@@ -35,3 +35,19 @@ Done-check:
 ## Sat 3:40 PM: merge #27 into this branch after it merges
 
 You pushed the witness-id fix to spacetime-procedure (b4b9c76) as well as here (75e053e). The two now conflict in http/cartesia.ts and procedure.test.ts. The leader merges #27 first, once its reviews and Greptile are clean. Then run `git fetch origin && git merge origin/main` on cartesia-agent, keep one witness-aware hash (b4b9c76's), and push it together with the fixes above. No rebase, no force-push.
+
+## Sat 6:30 PM: review of f8239cc (Opus and Sonnet clean; Greptile 4/5 holds)
+
+The ask-back rule and interview order are in INSTRUCTIONS with tests. asked_flags is private and additive (-c=never is enough). Overridden flags are filtered, and the timeout is 120 s. Nothing of main was reverted. Greptile holds the merge on one finding, and the reviews add one MEDIUM. Push to cartesia-agent; no force-push.
+
+1. **Greptile: a retried record_statement loses its question** (http/cartesia.ts line 194, takeNextQuestion).
+   - The flag is marked asked when it is chosen, before the agent receives the response. If that response is lost and Cartesia retries the same segment, the retry gets a different askNext, or null, and the original question is never asked.
+   - Store the chosen askNext with the segment (a column or the asked_flags row keyed to the segment). A retry of the same segment returns the same askNext. Test it.
+2. **Greptile: the smoke script consumes follow-ups** (tools/smoke/cartesia-webhook.sh line 37). Its scene_context call marks a question as asked. Make scene_context only peek, never mark (this also fixes the reviews' LOW that get_scene_context right after record_statement silently consumes a second flag), and point the script at a scratch session.
+3. **MEDIUM (both reviews, confirmed by a probe): a repeated "Yes." is dropped** (cartesia.ts lines 84 to 91). Dedupe only on a client-sent segmentId, or the same witness's identical text stored less than 15 s ago (segments needs a stored-at time). Add the faked-clock test: two identical statements 20 s apart both extract.
+4. **LOW:**
+   - guard withTx in handleSceneContext and handleEndInterview with the generic error;
+   - regenerate the bindings (the committed types.ts lacks AskedFlags);
+   - the resend test's exact name.
+
+The leader re-runs Greptile, Opus and Sonnet on the push.
