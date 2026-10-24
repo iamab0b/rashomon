@@ -228,10 +228,19 @@ const overrides = table(
   },
 );
 
+export const HardFlagT = t.object("HardFlag", {
+  id: t.string(),
+  eventId: t.string(),
+  check: t.string(),
+  detail: t.string(),
+  suggestedQuestion: t.string(),
+});
+
 export const ExtractionT = t.object("Extraction", {
   segmentId: t.string(),
   patchCount: t.u32(),
   statuses: t.array(StatusEntryT),
+  hardFlags: t.array(HardFlagT),
   error: t.option(t.string()),
 });
 

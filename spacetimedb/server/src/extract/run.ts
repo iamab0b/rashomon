@@ -34,19 +34,30 @@ export type Io = {
   withTx<T>(body: (ctx: ReducerCtx<ModuleSchema>) => T): T;
 };
 
+export type HardFlag = { id: string; eventId: string; check: string; detail: string; suggestedQuestion: string };
+
 export type Extraction = {
   segmentId: string;
   patchCount: number;
   statuses: { eventId: string; status: string }[];
+  hardFlags: HardFlag[];
   error: string | undefined;
 };
 
-const done = (segmentId: string, patchCount: number, statuses: Extraction["statuses"], error?: string): Extraction => ({
-  segmentId,
-  patchCount,
-  statuses,
-  error,
-});
+const done = (
+  segmentId: string,
+  patchCount: number,
+  statuses: Extraction["statuses"],
+  hardFlags: HardFlag[],
+  error?: string,
+): Extraction => ({ segmentId, patchCount, statuses, hardFlags, error });
+
+// The session's hard flags after the gate, in the gate's order, so the agent can ask the suggested question next turn.
+const hardFlagsOf = (ctx: ReducerCtx<ModuleSchema>, sessionId: string): HardFlag[] =>
+  [...ctx.db.flags.sessionId.filter(sessionId)]
+    .filter((f) => f.severity === "hard")
+    .sort((a, b) => a.seq - b.seq)
+    .map(({ id, eventId, check, detail, suggestedQuestion }) => ({ id, eventId, check, detail, suggestedQuestion }));
 
 const messageOf = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
@@ -98,7 +109,7 @@ function recordError(io: Io, sessionId: string, segmentId: string, error: string
     const row = ctx.db.segments.rowKey.find(key(sessionId, segmentId));
     if (row) ctx.db.segments.rowKey.update({ ...row, extractError: error });
   });
-  return done(segmentId, 0, [], EXTRACTION_FAILED);
+  return done(segmentId, 0, [], [], EXTRACTION_FAILED);
 }
 
 type Gathered = { patches: Patch[]; unparsed: string[] } | { error: string };
@@ -175,8 +186,8 @@ function gather(io: Io, apiKey: string, segment: Segment, base: ExtractContext):
 
 export function runExtraction(io: Io, sessionId: string, segmentId: string): Extraction {
   const snap = snapshot(io, sessionId, segmentId);
-  if ("error" in snap) return done(segmentId, 0, [], snap.error);
-  if ("skipped" in snap) return done(segmentId, 0, []);
+  if ("error" in snap) return done(segmentId, 0, [], [], snap.error);
+  if ("skipped" in snap) return done(segmentId, 0, [], []);
 
   const apiKey = io.apiKey();
   if (!apiKey) return recordError(io, sessionId, segmentId, "ANTHROPIC_API_KEY is not set on this module");
@@ -205,7 +216,8 @@ export function runExtraction(io: Io, sessionId: string, segmentId: string): Ext
         extractError: partial,
       });
       const statuses = [...ctx.db.events.sessionId.filter(sessionId)].map((e) => ({ eventId: e.id, status: e.status }));
-      return done(segmentId, patches.length, statuses, partial === undefined ? undefined : EXTRACTION_PARTLY_FAILED);
+      const hardFlags = hardFlagsOf(ctx, sessionId);
+      return done(segmentId, patches.length, statuses, hardFlags, partial === undefined ? undefined : EXTRACTION_PARTLY_FAILED);
     });
   } catch (e) {
     return recordError(io, sessionId, segmentId, `applying the patches failed: ${messageOf(e)}`);

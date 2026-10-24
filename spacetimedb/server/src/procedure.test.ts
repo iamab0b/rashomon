@@ -108,6 +108,7 @@ describe("extractSegment", () => {
     expect(result.error).toBeUndefined();
     expect(result.patchCount).toBe(1);
     expect(result.statuses).toEqual([{ eventId: "e1", status: "plausible" }]);
+    expect(result.hardFlags).toEqual([]);
     const g = graph();
     expect(g.version).toBe(2);
     expect(g.events).toHaveLength(1);
@@ -146,7 +147,7 @@ describe("extractSegment", () => {
   test("a 500 writes the error on the segment and changes nothing", () => {
     const before = graph();
     const result = runExtraction(ioFor(status(500, JSON.stringify({ error: { message: "overloaded" } }))), SESSION, "utt_2");
-    expect(result).toEqual({ segmentId: "utt_2", patchCount: 0, statuses: [], error: EXTRACTION_FAILED });
+    expect(result).toEqual({ segmentId: "utt_2", patchCount: 0, statuses: [], hardFlags: [], error: EXTRACTION_FAILED });
     expect(segmentRow().extractError).toBe("Anthropic API 500: overloaded");
     expect(segmentRow().extractModel).toBeUndefined();
     expect(graph()).toEqual(before);
@@ -233,7 +234,7 @@ describe("extractSegment", () => {
     const result = runExtraction(ioFor(seen), SESSION, "utt_2");
 
     expect(requests).toHaveLength(1);
-    expect(result).toEqual({ segmentId: "utt_2", patchCount: 0, statuses: [], error: EXTRACTION_FAILED });
+    expect(result).toEqual({ segmentId: "utt_2", patchCount: 0, statuses: [], hardFlags: [], error: EXTRACTION_FAILED });
     expect(segmentRow().extractError).toMatch(/e7 was retracted and cannot be updated/);
     const after = graph();
     expect(before.graph?.version).toBe(3);
@@ -450,6 +451,33 @@ describe("the robbery demo path", () => {
     expect(flag).toMatchObject({ check: "sightline", severity: "hard" });
     expect(flag?.suggestedQuestion).toMatch(/Where exactly were you standing/);
     expect(g.events.filter((e) => e.status === "implausible").map((e) => e.id)).toEqual(["e5"]);
+  });
+
+  test("the result carries the session's hard flags after the gate, five fields each", () => {
+    call((ctx) =>
+      mod.insertSegment(ctx, {
+        id: robberyToolUses.segmentId,
+        sessionId: SESSION,
+        witnessId: "w1",
+        speaker: "witness",
+        text: utterances.map((u) => u.text).join(" "),
+        tStart: utterances[0]!.tStart,
+        tEnd: utterances[utterances.length - 1]!.tEnd,
+        source: "upload_text",
+        supersedes: undefined,
+        utterances,
+      }),
+    );
+    const result = runExtraction(ioFor(ok(robberyToolUses.content)), SESSION, robberyToolUses.segmentId);
+    const stored = [...harness.db.flags.sessionId.filter(SESSION)].filter((f) => f.severity === "hard");
+    expect(stored.length).toBeGreaterThan(0);
+    expect(result.hardFlags.map((f) => f.id)).toEqual(stored.sort((a, b) => a.seq - b.seq).map((f) => f.id));
+    const e5 = result.hardFlags.find((f) => f.id === "sightline:e5")!;
+    expect(Object.keys(e5).sort()).toEqual(["check", "detail", "eventId", "id", "suggestedQuestion"]);
+    expect(e5).toMatchObject({ eventId: "e5", check: "sightline" });
+    expect(e5.detail).toMatch(/cannot see suspect/);
+    expect(e5.suggestedQuestion).toMatch(/Where exactly were you standing/);
+    expect([...harness.db.flags.sessionId.filter(SESSION)].some((f) => f.severity !== "hard" && result.hardFlags.some((h) => h.id === f.id))).toBe(false);
   });
 
   test("the same statement through the Cartesia webhook comes back with e5 implausible", () => {
