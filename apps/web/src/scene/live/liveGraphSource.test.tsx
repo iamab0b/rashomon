@@ -78,16 +78,17 @@ function fakeConnector() {
   const handlers: LiveHandlers[] = [];
   const disconnect = vi.fn();
   const applyPatches = vi.fn((_baseVersion: number, _patchesJson: string): Promise<void> => Promise.resolve());
+  const submitStatement = vi.fn((_text: string, _witnessName: string): Promise<void> => Promise.resolve());
   const connect: LiveConnector = vi.fn((_options, given) => {
     handlers.push(given);
-    return { disconnect, applyPatches };
+    return { disconnect, applyPatches, submitStatement };
   });
   const current = () => {
     const latest = handlers.at(-1);
     if (!latest) throw new Error("not connected");
     return latest;
   };
-  return { connect, disconnect, applyPatches, handlers, current };
+  return { connect, disconnect, applyPatches, submitStatement, handlers, current };
 }
 
 function eventIn(source: ReturnType<typeof liveGraphSource>, id: string) {

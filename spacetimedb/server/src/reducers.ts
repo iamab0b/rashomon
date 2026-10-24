@@ -1,7 +1,7 @@
 import { gate, resolve } from "@rashomon/engine";
 import { storeScene } from "@rashomon/schema/fixtures";
 import type { SceneManifest } from "@rashomon/schema";
-import { t } from "spacetimedb/server";
+import { ScheduleAt, t } from "spacetimedb/server";
 import type { ReducerCtx } from "spacetimedb/server";
 import {
   MIN_OVERRIDE_REASON_CHARS,
@@ -26,7 +26,9 @@ import {
   validateFlag,
 } from "./convert";
 import { buildGraph, type ModuleSchema } from "./graph";
-import { MAX_BODY_BYTES, MAX_UTTERANCES, byteLength } from "./limits";
+import { NOT_AN_EDITOR, isEditor } from "./editors";
+import { fnv1a64 } from "./extract/hash";
+import { MAX_BODY_BYTES, MAX_SEGMENT_TEXT_CHARS, MAX_UTTERANCES, MAX_WITNESS_NAME_CHARS, utf8Bytes } from "./limits";
 import { EventGraphT, FlagT, StatusEntryT, UtteranceInputT, spacetimedb } from "./tables";
 
 type Ctx = ReducerCtx<ModuleSchema>;
@@ -244,6 +246,76 @@ export const createSession = spacetimedb.reducer(
   },
 );
 
+export type SegmentInput = {
+  id: string;
+  sessionId: string;
+  witnessId: string;
+  speaker: string;
+  text: string;
+  tStart: number;
+  tEnd: number;
+  source: string;
+  supersedes?: string | undefined;
+  utterances: { id: string; text: string; tStart: number; tEnd: number }[];
+};
+
+export function insertSegmentRow(ctx: Ctx, a: SegmentInput): void {
+  if (a.utterances.length > MAX_UTTERANCES) fail(`at most ${MAX_UTTERANCES} utterances per segment`);
+  if (a.text.length > MAX_SEGMENT_TEXT_CHARS) fail(`segment text must be at most ${MAX_SEGMENT_TEXT_CHARS} characters`);
+  if (a.utterances.reduce((sum, u) => sum + utf8Bytes(u.text), 0) > MAX_BODY_BYTES)
+    fail(`utterance text must be at most ${MAX_BODY_BYTES} bytes in total`);
+  requireSession(ctx, a.sessionId);
+  idOf(a.id, "segment id");
+  nonEmptyString(a.witnessId, "segment witnessId");
+  nonEmptyString(a.text, "segment text");
+  oneOf(a.speaker, SPEAKERS, "segment speaker");
+  oneOf(a.source, SEGMENT_SOURCES, "segment source");
+  intervalOf([a.tStart, a.tEnd], "segment t");
+  const segmentKey = key(a.sessionId, a.id);
+  if (ctx.db.segments.rowKey.find(segmentKey)) fail(`segment ${a.id} already exists`);
+  if (a.supersedes !== undefined) {
+    idOf(a.supersedes, "segment supersedes");
+    const earlier = ctx.db.segments.rowKey.find(key(a.sessionId, a.supersedes));
+    if (!earlier || earlier.sessionId !== a.sessionId) fail(`unknown segment ${a.supersedes}`);
+  }
+  const seen = new Set<string>();
+  for (const u of a.utterances) {
+    idOf(u.id, "utterance id");
+    intervalOf([u.tStart, u.tEnd], `utterance ${u.id} t`);
+    if (seen.has(u.id) || ctx.db.utterances.rowKey.find(key(a.sessionId, u.id)))
+      fail(`utterance ${u.id} already exists`);
+    seen.add(u.id);
+  }
+  ctx.db.segments.insert({
+    rowKey: segmentKey,
+    id: a.id,
+    sessionId: a.sessionId,
+    witnessId: a.witnessId,
+    speaker: a.speaker,
+    text: a.text,
+    tStart: a.tStart,
+    tEnd: a.tEnd,
+    source: a.source,
+    supersedes: a.supersedes,
+    extractModel: undefined,
+    extractPromptHash: undefined,
+    extractUtteranceIds: undefined,
+    extractedAt: undefined,
+    extractPatchCount: undefined,
+    extractError: undefined,
+  });
+  for (const u of a.utterances)
+    ctx.db.utterances.insert({
+      rowKey: key(a.sessionId, u.id),
+      sessionId: a.sessionId,
+      id: u.id,
+      segmentKey,
+      text: u.text,
+      tStart: u.tStart,
+      tEnd: u.tEnd,
+    });
+}
+
 export const insertSegment = spacetimedb.reducer(
   {
     id: t.string(),
@@ -258,58 +330,48 @@ export const insertSegment = spacetimedb.reducer(
     utterances: t.array(UtteranceInputT),
   },
   (ctx, a) => {
-    if (a.utterances.length > MAX_UTTERANCES) fail(`at most ${MAX_UTTERANCES} utterances per segment`);
-    if (byteLength(a) > MAX_BODY_BYTES) fail(`a segment must be at most ${MAX_BODY_BYTES} bytes`);
-    requireSession(ctx, a.sessionId);
-    idOf(a.id, "segment id");
-    nonEmptyString(a.witnessId, "segment witnessId");
-    nonEmptyString(a.text, "segment text");
-    oneOf(a.speaker, SPEAKERS, "segment speaker");
-    oneOf(a.source, SEGMENT_SOURCES, "segment source");
-    intervalOf([a.tStart, a.tEnd], "segment t");
-    const segmentKey = key(a.sessionId, a.id);
-    if (ctx.db.segments.rowKey.find(segmentKey)) fail(`segment ${a.id} already exists`);
-    if (a.supersedes !== undefined) {
-      idOf(a.supersedes, "segment supersedes");
-      const earlier = ctx.db.segments.rowKey.find(key(a.sessionId, a.supersedes));
-      if (!earlier || earlier.sessionId !== a.sessionId) fail(`unknown segment ${a.supersedes}`);
-    }
-    const seen = new Set<string>();
-    for (const u of a.utterances) {
-      idOf(u.id, "utterance id");
-      intervalOf([u.tStart, u.tEnd], `utterance ${u.id} t`);
-      if (seen.has(u.id) || ctx.db.utterances.rowKey.find(key(a.sessionId, u.id)))
-        fail(`utterance ${u.id} already exists`);
-      seen.add(u.id);
-    }
-    ctx.db.segments.insert({
-      rowKey: segmentKey,
-      id: a.id,
-      sessionId: a.sessionId,
-      witnessId: a.witnessId,
-      speaker: a.speaker,
-      text: a.text,
-      tStart: a.tStart,
-      tEnd: a.tEnd,
-      source: a.source,
-      supersedes: a.supersedes,
-      extractModel: undefined,
-      extractPromptHash: undefined,
-      extractUtteranceIds: undefined,
-      extractedAt: undefined,
-      extractPatchCount: undefined,
-      extractError: undefined,
+    if (!isEditor(ctx)) fail(NOT_AN_EDITOR);
+    insertSegmentRow(ctx, a);
+  },
+);
+
+const WORDS_PER_SECOND = 1 / 15;
+
+export const submitStatement = spacetimedb.reducer(
+  { sessionId: t.string(), text: t.string(), witnessName: t.string() },
+  (ctx, { sessionId, text, witnessName }) => {
+    if (!isEditor(ctx)) fail(NOT_AN_EDITOR);
+    requireSession(ctx, sessionId);
+    const body = text.trim();
+    if (body === "") fail("statement text must not be empty");
+    if (body.length > MAX_SEGMENT_TEXT_CHARS) fail(`statement text must be at most ${MAX_SEGMENT_TEXT_CHARS} characters`);
+    const name = witnessName.trim();
+    if (name.length < 1 || name.length > MAX_WITNESS_NAME_CHARS)
+      fail(`witness name must be 1 to ${MAX_WITNESS_NAME_CHARS} characters`);
+    const segmentId = `seg_${fnv1a64(`${sessionId}\n${name}\n${body}`)}`;
+    if (ctx.db.segments.rowKey.find(key(sessionId, segmentId))) return;
+    let tStart = 0;
+    for (const u of ctx.db.utterances.sessionId.filter(sessionId)) tStart = Math.max(tStart, u.tEnd);
+    const words = body.split(/\s+/).length;
+    const tEnd = tStart + Math.max(1, words * WORDS_PER_SECOND);
+    insertSegmentRow(ctx, {
+      id: segmentId,
+      sessionId,
+      witnessId: name,
+      speaker: "witness",
+      text: body,
+      tStart,
+      tEnd,
+      source: "upload_text",
+      supersedes: undefined,
+      utterances: [{ id: `${segmentId}_u1`, text: body, tStart, tEnd }],
     });
-    for (const u of a.utterances)
-      ctx.db.utterances.insert({
-        rowKey: key(a.sessionId, u.id),
-        sessionId: a.sessionId,
-        id: u.id,
-        segmentKey,
-        text: u.text,
-        tStart: u.tStart,
-        tEnd: u.tEnd,
-      });
+    ctx.db.extractionQueue.insert({
+      scheduledId: 0n,
+      scheduledAt: ScheduleAt.time(ctx.timestamp.microsSinceUnixEpoch),
+      sessionId,
+      segmentId,
+    });
   },
 );
 

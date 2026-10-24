@@ -9,8 +9,8 @@ import robberyTranscript from "../../../packages/extractor/fixtures/robbery.tran
 import robberyToolUses from "./fixtures/robbery.tool-uses.json";
 import { EXTRACTION_MODEL } from "@rashomon/extractor";
 import { SECRET_HEADER, handleCartesia, secretsMatch } from "./http/cartesia";
-import { MAX_BODY_BYTES, MAX_UTTERANCES } from "./limits";
-import { EXTRACTION_FAILED, MAX_SEGMENT_TEXT_CHARS, PROMPT_HASH, runExtraction, type Io } from "./extract/run";
+import { MAX_BODY_BYTES, MAX_SEGMENT_TEXT_CHARS, MAX_UTTERANCES } from "./limits";
+import { EXTRACTION_FAILED, PROMPT_HASH, runExtraction, type Io } from "./extract/run";
 import { NOT_THE_MODULE, extractAs } from "./procedures/extractSegment";
 import * as mod from "./index";
 import { eventGraphFromRow } from "./convert";
@@ -618,20 +618,9 @@ describe("who can run extraction", () => {
 
   test("a segment over the text cap never reaches the model", () => {
     const long = "a".repeat(MAX_SEGMENT_TEXT_CHARS + 1);
-    call((ctx) =>
-      mod.insertSegment(ctx, {
-        id: "big",
-        sessionId: SESSION,
-        witnessId: "w1",
-        speaker: "witness",
-        text: long,
-        tStart: 0,
-        tEnd: 1,
-        source: "upload_text",
-        supersedes: undefined,
-        utterances: [{ id: "big_a", text: long, tStart: 0, tEnd: 1 }],
-      }),
-    );
+    insertWitnessSegment("big");
+    const stored = harness.db.segments.rowKey.find(`${SESSION}/big`)!;
+    harness.withReducerTx(auth, (ctx) => ctx.db.segments.rowKey.update({ ...stored, text: long }));
     const result = runExtraction(ioFor(ok([toolUse("tu_1", "add_event", walkInput)])), SESSION, "big");
     expect(result).toEqual({ segmentId: "big", patchCount: 0, statuses: [], hardFlags: [], error: EXTRACTION_FAILED });
     expect(requests).toHaveLength(0);
