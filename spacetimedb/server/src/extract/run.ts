@@ -228,7 +228,12 @@ export function runExtraction(io: Io, sessionId: string, segmentId: string): Ext
   if ("tooLong" in snap)
     return recordError(io, sessionId, segmentId, "segment_too_long", `${snap.tooLong} characters, over ${MAX_SEGMENT_TEXT_CHARS}`);
 
-  const apiKey = io.apiKey();
+  let apiKey: string | undefined;
+  try {
+    apiKey = io.apiKey();
+  } catch (e) {
+    return recordError(io, sessionId, segmentId, "no_api_key", `reading ANTHROPIC_API_KEY failed: ${messageOf(e)}`);
+  }
   if (!apiKey) return recordError(io, sessionId, segmentId, "no_api_key", "ANTHROPIC_API_KEY is not set on this module");
 
   const gathered = gather(io, apiKey, snap.segment, snap.context);

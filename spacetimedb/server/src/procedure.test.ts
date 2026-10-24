@@ -479,6 +479,16 @@ describe("the Cartesia webhook", () => {
     expect(defaultSegmentId(SESSION, [{ ...u, tEnd: 12.5 }])).not.toBe(SEG);
   });
 
+  test("a key read that throws is a generic 502 and never reaches the model", () => {
+    const hostError = "Unsupported SpacetimeDB host syscall: env_get";
+    const io = { ...webhookIo(ok([toolUse("tu_1", "add_event", walkInput)])), apiKey: () => { throw new Error(hostError); } };
+    const out = handleCartesia(io, post(body()));
+    expect(out).toEqual({ status: 502, body: { error: EXTRACTION_FAILED } });
+    expect(requests).toHaveLength(0);
+    expect(harness.db.segments.rowKey.find(`${SESSION}/${SEG}`)?.extractError).toBe("no_api_key");
+    expect(lastLog()).toBe(`extract_segment s1/${SEG} no_api_key: reading ANTHROPIC_API_KEY failed: ${hostError}`);
+  });
+
   test("an extraction error is a 502 with a generic message, and the detail stays on the segment", () => {
     const out = handleCartesia(webhookIo(status(500, JSON.stringify({ error: { message: "overloaded" } }))), post(body()));
     expect(out).toEqual({ status: 502, body: { error: EXTRACTION_FAILED } });
