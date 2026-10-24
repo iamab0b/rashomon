@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { isCameraPreset, POV_CAM, Scene, useCamera } from "./scene";
-import { OverridePanel } from "./ui/OverrideDialog";
+import { RightPanel } from "./ui/RightPanel";
 
 const PANEL_WIDTH_PX = 360;
 
@@ -33,7 +33,7 @@ export function App() {
           overflowY: "auto",
         }}
       >
-        <OverridePanel />
+        <RightPanel />
       </div>
     </div>
   );
