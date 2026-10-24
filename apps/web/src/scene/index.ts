@@ -9,12 +9,11 @@ export { useGraph } from "./playback/useGraph";
 export type { GraphView } from "./playback/useGraph";
 export type { ResolvedEvent, ResolvedGraph } from "@rashomon/engine";
 export type { Flag, Status } from "@rashomon/schema";
-export type {
-  FixtureGraphSource,
-  GraphSource,
-  LiveGraphSourceFactory,
-  LiveGraphSourceOptions,
-} from "./playback/graphSource";
+export type { FixtureGraphSource, GraphSource } from "./playback/graphSource";
+export type { LiveGraphSource } from "./live/liveGraphSource";
+export type { LiveOptions as LiveGraphSourceOptions } from "./live/liveConnection";
+export { modeFromSearch, selectSource } from "./playback/selectSource";
+export type { GraphMode } from "./playback/selectSource";
 export { applyPatches } from "./playback/applyPatches";
 export { useGraphActions } from "./playback/useGraphActions";
 export type { GraphActions } from "./playback/useGraphActions";

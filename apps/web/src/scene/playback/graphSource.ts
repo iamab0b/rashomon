@@ -17,12 +17,6 @@ export interface FixtureGraphSource extends GraphSource {
   apply(patches: readonly Patch[]): void;
 }
 
-export type LiveGraphSourceOptions = {
-  readonly sceneId: string;
-};
-
-export type LiveGraphSourceFactory = (options: LiveGraphSourceOptions) => GraphSource;
-
 type FixtureState = {
   readonly graph: EventGraph;
   readonly snapshot: GraphSnapshot;
