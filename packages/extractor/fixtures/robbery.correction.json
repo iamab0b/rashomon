@@ -1,0 +1,26 @@
+[
+  {
+    "id": "agent_1",
+    "sessionId": "s1",
+    "witnessId": "w1",
+    "speaker": "agent",
+    "text": "From the chips aisle, the chips shelf would be between you and the counter. Where were you standing when you saw his face?",
+    "t": [
+      74.10000000000001,
+      80.10000000000001
+    ],
+    "source": "live"
+  },
+  {
+    "id": "utt_12",
+    "sessionId": "s1",
+    "witnessId": "w1",
+    "speaker": "witness",
+    "text": "Oh. No, you're right, I'd stepped out. I came to the front by the window to see what was going on. I saw him from there.",
+    "t": [
+      81.10000000000001,
+      87.10000000000001
+    ],
+    "source": "live"
+  }
+]

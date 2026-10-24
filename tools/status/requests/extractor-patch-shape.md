@@ -8,7 +8,8 @@ The scene, the gate and the SpacetimeDB reducers all consume `Patch` from `packa
 - Every event's `sources` array is non-empty (utterance ids from the segment).
 - `confidence` is one of `0.3`, `0.6`, `0.9` (the enum low|medium|high mapped to those numbers; the fixture test on main enforces it).
 - Anchors reference landmarks by id from `packages/schema/fixtures/store.scene.json`, never coordinates. Kinds: `at`, `near`, `behind`, `between`.
-- Times are `t: [number, number]`, a two-number tuple in seconds, exactly as the schema types it. Never `{start, end}`. Set `tConfidence` to `stated` or `inferred`.
+- Times are `t: [number, number]`, a two-number tuple in seconds from the incident start (not from the segment), exactly as the schema types it. Never `{start, end}`.
+- `t` is always required on `add_event`. When the witness gave a time, set `tConfidence: "stated"`. When the witness gave none, still emit your best interval from the narrative order and set `tConfidence: "inferred"`; never omit `t`.
 - Same-batch references use extractor-minted ids, never prop types. When one batch adds a prop and an event that refers to it, mint the prop's id as `p_<type>` (for example `p_knife_chef`), then `p_<type>_2`, `p_<type>_3` for further props of the same type in the session, and put that id on `add_prop` and in the event's `prop`. The SpacetimeDB module keeps client-supplied ids; the schema type for an id on `add_prop`/`add_event` lands with the spacetime-followups PR.
 
 ## Prove it
