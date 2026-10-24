@@ -13,6 +13,11 @@ export type Portals = {
   edges: [string, string][];
 };
 
+export type Interior = {
+  min: [number, number, number];
+  max: [number, number, number];
+};
+
 export type SceneManifest = {
   sceneId: string;
   meshUrl: string;
@@ -21,6 +26,7 @@ export type SceneManifest = {
   unitsPerMeter: 1;
   eyeHeight: 1.6;
   landmarks: Landmark[];
+  interior?: Interior;
   portals?: Portals;
 };
 
