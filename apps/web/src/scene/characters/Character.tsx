@@ -5,6 +5,7 @@ import { disposeMaterials, ownMaterials } from "./materials";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import {
   findHipBone,
+  findRightHand,
   findPrimarySkinnedMesh,
   findSkinnedMeshes,
   loadRig,
@@ -18,6 +19,7 @@ export type CharacterHandle = {
   skinnedMeshes: readonly SkinnedMesh[];
   mixer: AnimationMixer;
   hips: Bone | undefined;
+  rightHand: Bone | undefined;
   ownedMaterials: readonly Material[];
 };
 
@@ -44,6 +46,7 @@ function instantiate(rig: Rig, source: Object3D): CharacterHandle {
     skinnedMeshes,
     mixer: new AnimationMixer(mixerRoot),
     hips: findHipBone(mixerRoot),
+    rightHand: findRightHand(mixerRoot),
     ownedMaterials,
   };
 }
