@@ -2,7 +2,7 @@ import type { SceneManifest } from "@rashomon/schema";
 import type { FlagDraft, ResolvedGraph, SceneGeom, Vec3 } from "../types";
 import { actorLabel, landmarkLabel, nearestLabel } from "./labels";
 import { blockersFor } from "./occluders";
-import { actorPositionAt } from "./positions";
+import { actorPositionAt, movementCover } from "./positions";
 import { segmentBlocked } from "./raycast";
 
 export const EYE_HEIGHT_M = 1.6;
@@ -19,7 +19,8 @@ export function sightlineFlags(
     if (e.action !== "look" || !e.target || e.status === "superseded") continue;
     if (e.target === e.actor || !resolved.actors.some((a) => a.id === e.target)) continue;
     const t = (e.tStart + e.tEnd) / 2;
-    const observer = e.at ?? actorPositionAt(resolved.events, e.actor, t);
+    const moving = movementCover(resolved.events, e.actor, t);
+    const observer = moving ? moving.position : (e.at ?? actorPositionAt(resolved.events, e.actor, t));
     const target = actorPositionAt(resolved.events, e.target, t);
     if (!observer || !target) continue;
     const eye: Vec3 = [observer[0], observer[1] + EYE_HEIGHT_M, observer[2]];
