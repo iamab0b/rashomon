@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { ResolvedEvent } from "../scene";
 import { versionChain, versionChanges } from "./history";
 import {
@@ -12,8 +13,30 @@ import {
   type PanelContext,
 } from "./shared";
 
-export function HistoryTab({ graph, statusOf, pendingNoteOf, placeOf, selectedEventId, openSource }: PanelContext) {
+export function beforeOverride(version: Pick<ResolvedEvent, "flags" | "override">): string | null {
+  if (!version.override) return null;
+  const waived = version.flags.filter((flag) => version.override!.flagIds.includes(flag.id));
+  if (waived.length === 0) return null;
+  const status = waived.some((flag) => flag.severity === "hard") ? "Implausible" : "Flagged";
+  return `${status} · ${waived.map((flag) => words(flag.check)).join(", ")} waived`;
+}
+
+export function HistoryTab({
+  graph,
+  statusOf,
+  pendingNoteOf,
+  placeOf,
+  selectedEventId,
+  openSource,
+  overrideFocusId = null,
+}: PanelContext & { overrideFocusId?: string | null }) {
   const event = graph.events.find((e) => e.id === selectedEventId) ?? null;
+  const focusRef = useRef<HTMLLIElement>(null);
+  const focusOverride = event !== null && overrideFocusId === event.id;
+
+  useEffect(() => {
+    if (focusOverride) focusRef.current?.scrollIntoView({ block: "nearest" });
+  }, [focusOverride]);
 
   if (!event) {
     return (
@@ -56,9 +79,13 @@ export function HistoryTab({ graph, statusOf, pendingNoteOf, placeOf, selectedEv
           const older = chain[i + 1];
           const changes = older ? versionChanges(older, version, describe) : [];
           const superseded = i > 0 || statusOf(version) === "superseded";
+          const focused = focusOverride && Boolean(version.override);
+          const before = beforeOverride(version);
           return (
             <li
               key={version.id}
+              ref={focused ? focusRef : undefined}
+              data-override-focus={focused || undefined}
               className={`version-card status-${statusOf(version)}${superseded ? " version-card--superseded" : ""}${
                 version.id === event.id ? " version-card--viewing" : ""
               }`}
@@ -93,6 +120,11 @@ export function HistoryTab({ graph, statusOf, pendingNoteOf, placeOf, selectedEv
                 {version.supersededBy && <span>Replaced by {version.supersededBy}</span>}
               </div>
               {version.override && <OverrideLog override={version.override} />}
+              {before && (
+                <p className="version-note override-before">
+                  <span>Before override</span> {before}
+                </p>
+              )}
             </li>
           );
         })}

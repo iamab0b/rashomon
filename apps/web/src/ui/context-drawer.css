@@ -60,3 +60,9 @@
   .rui .context-rail,
   .rui .context-inner { transition: none; }
 }
+.rui .context-rail__button.has-override { color: var(--status-overridden); }
+.rui .context-rail__button .status-diamond,
+.rui .context-tabs .status-diamond { width: 6px; height: 6px; flex: none; }
+.rui .context-tabs button.has-override { display: inline-flex; align-items: center; gap: 6px; }
+.rui .version-card[data-override-focus] .override-log { box-shadow: 0 0 0 1px var(--status-overridden); }
+.rui .override-before span { display: inline-block; min-width: 92px; color: var(--text-secondary); }

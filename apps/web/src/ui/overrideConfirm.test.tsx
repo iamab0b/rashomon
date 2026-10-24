@@ -1,10 +1,9 @@
-import { robberyGraph, storeScene } from "@rashomon/schema/fixtures";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
-import { gatedSnapshot } from "../scene/playback/graphSource";
+import { gatedRobbery } from "./testGraph";
 import { CONFIRM_BODY, CONFIRM_TITLE, createSubmitGuard, OverrideConfirm } from "./OverrideConfirm";
 
-const e5 = gatedSnapshot(robberyGraph, storeScene).resolved!.events.find((e) => e.id === "e5")!;
+const e5 = gatedRobbery().events.find((e) => e.id === "e5")!;
 const render = (submitting = false) =>
   renderToStaticMarkup(
     <OverrideConfirm

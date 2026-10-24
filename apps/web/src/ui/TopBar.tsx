@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useGraph } from "../scene";
+import { useGraph, useGraphErrors, useSceneStatus } from "../scene";
 import { GRAPH_MODES, modeBadge, type GraphMode } from "./graphMode";
 import { Icon } from "./Icon";
 import { useGraphMode } from "./useGraphMode";
@@ -14,8 +14,8 @@ const TOAST_MS = 3200;
 export const IMPORT_NOT_CONNECTED =
   "Transcript import is not connected in this demo. Use Fixture mode to explore the workspace.";
 
-function ModeBadge({ mode, hasGraph }: { mode: GraphMode; hasGraph: boolean }) {
-  const badge = modeBadge(mode, hasGraph);
+function ModeBadge({ mode, hasGraph, disconnected }: { mode: GraphMode; hasGraph: boolean; disconnected: boolean }) {
+  const badge = modeBadge(mode, hasGraph, disconnected);
   return <span className={`badge badge--${badge.tone}`}>{badge.label}</span>;
 }
 
@@ -80,7 +80,9 @@ export function TopBar() {
   const [mode, setMode] = useGraphMode();
   const [toast, setToast] = useState("");
   const sceneId = resolved?.sceneId;
-  const sceneLabel = sceneId ? (SCENE_LABELS[sceneId] ?? sceneId) : "Loading…";
+  const { connectionError } = useGraphErrors();
+  const { status } = useSceneStatus();
+  const sceneLabel = sceneId ? (SCENE_LABELS[sceneId] ?? sceneId) : status === "error" ? "Scene not loaded" : "Loading…";
 
   useEffect(() => {
     if (!toast) return;
@@ -95,7 +97,7 @@ export function TopBar() {
         <strong>Rashomon</strong>
         <div className="divider" />
         <span>{sceneLabel}</span>
-        <ModeBadge mode={mode} hasGraph={resolved !== null} />
+        <ModeBadge mode={mode} hasGraph={resolved !== null} disconnected={connectionError !== null} />
       </div>
       <div className="top-actions">
         <AddSourceMenu

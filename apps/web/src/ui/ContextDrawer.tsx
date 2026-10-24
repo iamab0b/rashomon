@@ -20,12 +20,16 @@ export function ContextDrawer({
   onClose,
   context,
   focusSourceId,
+  overrideFocusId = null,
+  historyAccent = false,
 }: {
   view: ContextView | null;
   onOpen: (view: ContextView) => void;
   onClose: () => void;
   context: PanelContext;
   focusSourceId: string | null;
+  overrideFocusId?: string | null;
+  historyAccent?: boolean;
 }) {
   const open = view !== null;
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -51,15 +55,17 @@ export function ContextDrawer({
             ref={(el) => {
               railRefs.current[v.id] = el;
             }}
-            className="context-rail__button"
+            className={`context-rail__button${v.id === "history" && historyAccent ? " has-override" : ""}`}
             aria-expanded={view === v.id}
             aria-controls={CONTEXT_DRAWER_ID}
-            title={`Show ${v.label.toLowerCase()}`}
+            aria-description={v.id === "history" && historyAccent ? "Selected event has override history" : undefined}
+            title={v.id === "history" && historyAccent ? "Show history · selected event was overridden" : `Show ${v.label.toLowerCase()}`}
             tabIndex={open ? -1 : 0}
             onClick={() => onOpen(v.id)}
           >
             <Icon name={v.icon} size={16} />
             <span>{v.label}</span>
+            {v.id === "history" && historyAccent && <span className="status-diamond" aria-hidden />}
           </button>
         ))}
       </div>
@@ -72,10 +78,11 @@ export function ContextDrawer({
                 role="tab"
                 key={v.id}
                 aria-selected={view === v.id}
-                className={view === v.id ? "active" : undefined}
+                className={[view === v.id && "active", v.id === "history" && historyAccent && "has-override"].filter(Boolean).join(" ") || undefined}
                 onClick={() => onOpen(v.id)}
               >
                 {v.label}
+                {v.id === "history" && historyAccent && <span className="status-diamond" aria-hidden />}
               </button>
             ))}
           </div>
@@ -85,7 +92,7 @@ export function ContextDrawer({
         </header>
         <div role="tabpanel" aria-label={view === "history" ? "History" : "Transcript"}>
           {view === "history" ? (
-            <HistoryTab {...context} />
+            <HistoryTab {...context} overrideFocusId={overrideFocusId} />
           ) : view === "transcript" ? (
             <TranscriptView {...context} focusId={focusSourceId} />
           ) : null}

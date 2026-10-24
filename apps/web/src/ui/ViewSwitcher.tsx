@@ -1,16 +1,20 @@
-import { applyViewKey, POV_KEY, PRESET_KEYS, useCamera, useGraph, type CameraPreset, type ResolvedGraph } from "../scene";
+import { useCamera, useGraph, type CameraPreset, type ResolvedGraph } from "../scene";
 import "./view-switcher.css";
 
-const OVERVIEW: CameraPreset = "overview";
+const VISIBLE_PRESETS: { id: CameraPreset; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "witness_claimed", label: "Claimed sightline" },
+];
 
 export const POV_UNAVAILABLE = "POV position unavailable";
 
-export type ViewOption = { key: string; label: string; active: boolean };
+export type ViewOption = { id: CameraPreset | "pov"; label: string; active: boolean };
 
 export function viewOptions(preset: CameraPreset, following: boolean): ViewOption[] {
-  const overviewKey = Object.keys(PRESET_KEYS).find((key) => PRESET_KEYS[key] === OVERVIEW);
-  const overview = overviewKey ? [{ key: overviewKey, label: "Overview", active: !following && preset === OVERVIEW }] : [];
-  return [...overview, { key: POV_KEY, label: "POV", active: following }];
+  return [
+    ...VISIBLE_PRESETS.map((p) => ({ id: p.id, label: p.label, active: !following && preset === p.id })),
+    { id: "pov" as const, label: "POV", active: following },
+  ];
 }
 
 export type PovWitness = { id: string; label: string; hasPosition: boolean };
@@ -31,26 +35,29 @@ export function povWitnessId(witnesses: readonly PovWitness[], explicit: string 
   return witnesses[0]?.id ?? null;
 }
 
-export function ViewSwitcher() {
-  const { preset, following, povActor, setPovActor, setFollowing } = useCamera();
-  const { resolved } = useGraph();
-  const witnesses = povWitnesses(resolved);
-  const witnessId = povWitnessId(witnesses, povActor);
+export type ViewSwitcherViewProps = {
+  preset: CameraPreset;
+  following: boolean;
+  witnesses: readonly PovWitness[];
+  witnessId: string | null;
+  onPreset: (preset: CameraPreset) => void;
+  onTogglePov: () => void;
+  onWitness: (witnessId: string) => void;
+};
+
+export function ViewSwitcherView({ preset, following, witnesses, witnessId, onPreset, onTogglePov, onWitness }: ViewSwitcherViewProps) {
   const witness = witnesses.find((w) => w.id === witnessId) ?? null;
   const unavailable = following && witness !== null && !witness.hasPosition;
-
   return (
     <div className="rui view-switcher">
       <div className="segmented" role="group" aria-label="Scene view">
         {viewOptions(preset, following).map((option) => (
           <button
             type="button"
-            key={option.key}
+            key={option.id}
             className={option.active ? "active" : undefined}
             aria-pressed={option.active}
-            aria-keyshortcuts={option.key}
-            aria-label={`${option.label} view`}
-            onClick={() => applyViewKey(option.key)}
+            onClick={() => (option.id === "pov" ? onTogglePov() : onPreset(option.id))}
           >
             {option.label}
           </button>
@@ -61,10 +68,7 @@ export function ViewSwitcher() {
             title="Select POV witness"
             className={following ? "active" : undefined}
             value={witnessId ?? ""}
-            onChange={(e) => {
-              setPovActor(e.currentTarget.value);
-              if (!following) setFollowing(true);
-            }}
+            onChange={(e) => onWitness(e.currentTarget.value)}
           >
             {witnesses.map((w) => (
               <option key={w.id} value={w.id}>
@@ -80,5 +84,25 @@ export function ViewSwitcher() {
         </p>
       )}
     </div>
+  );
+}
+
+export function ViewSwitcher() {
+  const { preset, setPreset, following, togglePov, povActor, setPovActor, setFollowing } = useCamera();
+  const { resolved } = useGraph();
+  const witnesses = povWitnesses(resolved);
+  return (
+    <ViewSwitcherView
+      preset={preset}
+      following={following}
+      witnesses={witnesses}
+      witnessId={povWitnessId(witnesses, povActor)}
+      onPreset={setPreset}
+      onTogglePov={togglePov}
+      onWitness={(id) => {
+        setPovActor(id);
+        if (!following) setFollowing(true);
+      }}
+    />
   );
 }

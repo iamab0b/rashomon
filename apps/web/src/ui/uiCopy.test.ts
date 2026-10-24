@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Flag } from "../scene";
 import { BASIS_LABELS, checkBasis, flagHeadline } from "./flagCopy";
+import { robberyGraph } from "@rashomon/schema/fixtures";
 import { anchorsFor, eventCoordinates, eventPlace, placeName } from "./places";
 import { sourceLabel, speakerLabel, transcriptFor } from "./transcript";
 
@@ -47,13 +48,15 @@ describe("places", () => {
     expect(eventPlace("store_v1", "stand", null)).toBeNull();
   });
 
-  test("anchors come from the fixture graph only in fixture mode and only for the same event", () => {
-    expect(anchorsFor("fixture", "store_v1", { id: "e2", actor: "clerk", action: "stand" })?.at).toEqual({
+  test("anchors come from the current graph and only for the same event", () => {
+    expect(anchorsFor(robberyGraph, { id: "e2", actor: "clerk", action: "stand" })?.at).toEqual({
       kind: "at",
       landmark: "behind_counter",
     });
-    expect(anchorsFor("fixture", "store_v1", { id: "e2", actor: "suspect", action: "stand" })).toBeNull();
-    expect(anchorsFor("live", "store_v1", { id: "e2", actor: "clerk", action: "stand" })).toBeNull();
+    expect(anchorsFor(robberyGraph, { id: "e2", actor: "suspect", action: "stand" })).toBeNull();
+    expect(anchorsFor(null, { id: "e2", actor: "clerk", action: "stand" })).toBeNull();
+    const dragged = { events: robberyGraph.events.map((e) => (e.id === "e5" ? { ...e, at: { kind: "at" as const, landmark: "front_window" } } : e)) };
+    expect(eventPlace("store_v1", "look", anchorsFor(dragged, { id: "e5", actor: "witness", action: "look" }))).toBe("From front window");
   });
 
   test("coordinates are kept as text for tooltips", () => {

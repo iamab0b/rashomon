@@ -26,6 +26,7 @@ export type PanelContext = {
   jumpTo: (eventId: string) => void;
   openOverride: (eventId: string) => void;
   openSource: (sourceId: string) => void;
+  openHistory: (eventId: string) => void;
   notify: (message: string) => void;
   transcript: readonly Utterance[] | null;
 };
@@ -102,8 +103,7 @@ export function StatusToken({ status, pending = false }: { status: Status; pendi
     <span className={`status-token status-${status}`}>
       {status === "implausible" && <Icon name="warning" size={12} />}
       {status === "overridden" && <span className="status-diamond" />}
-      {status === "proposed" && pending && <span className="spinner" aria-hidden />}
-      {status === "proposed" && pending ? "Checking against the room…" : STATUS_LABELS[status]}
+      {status === "proposed" && pending ? "Awaiting check" : STATUS_LABELS[status]}
     </span>
   );
 }

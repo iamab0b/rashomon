@@ -14,3 +14,6 @@
 .rui .selection-nav .button { width: 26px; padding: 0; }
 .rui .selection-nav .button:disabled { opacity: .35; cursor: default; }
 .rui .selection-nav .button:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+.rui button.event-override-note { width: fit-content; border: 0; background: transparent; font-family: inherit; cursor: pointer; text-decoration: underline dotted transparent; text-underline-offset: 3px; transition: text-decoration-color .15s; }
+.rui button.event-override-note:hover { text-decoration-color: currentColor; }
+.rui button.event-override-note:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }

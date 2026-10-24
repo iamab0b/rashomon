@@ -76,6 +76,7 @@ export function OverrideDialog({ event, status, by, onConfirm, onClose }: Overri
         className="modal"
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
+          e.stopPropagation();
           if (e.key === "Escape") {
             e.preventDefault();
             close();

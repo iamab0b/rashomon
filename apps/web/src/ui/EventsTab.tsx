@@ -27,6 +27,7 @@ export function EventsTab({
   placeOf,
   jumpTo,
   openSource,
+  openHistory,
 }: PanelContext) {
   const events = inDisplayOrder(graph.events);
 
@@ -91,10 +92,20 @@ export function EventsTab({
               )}
               <PendingNote note={pendingNoteOf(event)} />
               {status === "overridden" && (
-                <div className="event-override-note">
+                <button
+                  type="button"
+                  className="event-override-note"
+                  title="Show the override in History"
+                  aria-label={`Overridden, reason recorded. Show ${event.id} override in History`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openHistory(event.id);
+                  }}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
                   <span className="status-diamond" />
                   Overridden · Reason recorded
-                </div>
+                </button>
               )}
               <div className="investigation-event__source">
                 <SourceRefs sources={event.sources} onOpen={openSource} />

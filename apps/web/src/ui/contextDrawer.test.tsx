@@ -1,28 +1,13 @@
-import { robberyGraph, storeScene } from "@rashomon/schema/fixtures";
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import { gatedSnapshot } from "../scene/playback/graphSource";
-import { useSceneStore } from "../scene/store";
+import { describe, expect, test } from "vitest";
 import { ContextDrawer } from "./ContextDrawer";
-import { RightPanel } from "./RightPanel";
-import type { PanelContext } from "./shared";
+import { PanelHeader } from "./PanelHeader";
+import { StatusToken, type PanelContext } from "./shared";
+import { gatedRobbery } from "./testGraph";
 import { transcriptFor } from "./transcript";
 
-const pristine = { ...useSceneStore.getInitialState() };
-const hadWindow = "window" in globalThis;
-
-beforeAll(() => {
-  if (!hadWindow) Object.assign(globalThis, { window: { location: { search: "?fixture=store" } } });
-  Object.assign(useSceneStore.getInitialState(), gatedSnapshot(robberyGraph, storeScene), { selectedEventId: "e5" });
-});
-
-afterAll(() => {
-  Object.assign(useSceneStore.getInitialState(), pristine);
-  if (!hadWindow) delete (globalThis as { window?: unknown }).window;
-});
-
 function context(): PanelContext {
-  const { resolved } = gatedSnapshot(robberyGraph, storeScene);
+  const resolved = gatedRobbery();
   return {
     graph: resolved!,
     statusOf: (event) => event.status,
@@ -35,6 +20,7 @@ function context(): PanelContext {
     jumpTo: () => {},
     openOverride: () => {},
     openSource: () => {},
+    openHistory: () => {},
     notify: () => {},
     transcript: null,
   };
@@ -44,27 +30,45 @@ const drawer = (view: "transcript" | "history" | null, ctx: PanelContext = conte
   renderToStaticMarkup(<ContextDrawer view={view} onOpen={() => {}} onClose={() => {}} context={ctx} focusSourceId={focus} />);
 
 describe("context drawer", () => {
-  test("Transcript and History live on a rail, not as main tabs; the context box navigates", () => {
-    const html = renderToStaticMarkup(<RightPanel />);
-    const tabs = [...html.matchAll(/role="tab"[^>]*>([A-Za-z]+)/g)].map((m) => m[1]);
-    expect(tabs.slice(0, 3)).toEqual(["Flags", "Events", "Witnesses"]);
+  const header = (selectedEventId: string | null) =>
+    renderToStaticMarkup(
+      <PanelHeader
+        tabs={[
+          { id: "flags", label: "Flags", count: 1 },
+          { id: "events", label: "Events", count: 10 },
+          { id: "witnesses", label: "Witnesses" },
+        ]}
+        activeTab="flags"
+        onTab={() => {}}
+        graph={gatedRobbery()}
+        selectedEventId={selectedEventId}
+        placeOf={() => "At chips aisle"}
+        onJump={() => {}}
+      />,
+    );
+
+  test("the fixed header holds the three main tabs and the selected-event box with prev/next", () => {
+    const html = header("e5");
+    expect([...html.matchAll(/role="tab"[^>]*>([A-Za-z]+)/g)].map((m) => m[1])).toEqual(["Flags", "Events", "Witnesses"]);
+    expect(html).toContain('class="panel-head"');
+    expect(html).toContain("Event 6 of 10");
+    expect(html).toMatch(/class="selection-meta"><span class="mono">10\.0–12\.0 s<\/span> · At chips aisle/);
+    expect(html).toMatch(/aria-label="Previous event" title="Previous event"(?![^>]*disabled)/);
+    expect(html).toMatch(/aria-label="Next event" title="Next event"(?![^>]*disabled)/);
+    expect(html).not.toContain("History");
+  });
+
+  test("prev is disabled on the first event, next on the last", () => {
+    expect(header("e1")).toMatch(/aria-label="Previous event" title="Previous event" disabled=""/);
+    expect(header("e10")).toMatch(/aria-label="Next event" title="Next event" disabled=""/);
+    expect(header(null)).toContain("None selected");
+  });
+
+  test("Transcript and History sit on the drawer rail", () => {
+    const html = drawer(null);
     const rail = [...html.matchAll(/class="context-rail__button"[^>]*aria-expanded="false"[^>]*>.*?<span>([A-Za-z]+)<\/span>/g)].map((m) => m[1]);
     expect(rail).toEqual(["Transcript", "History"]);
     expect(html).toMatch(/<div id="context-drawer" class="context-inner" inert=""/);
-    expect(html).not.toContain("transcript-drawer");
-    expect(html).toContain("Event 6 of 10");
-    expect(html).toMatch(/aria-label="Previous event" title="Previous event"(?![^>]*disabled)/);
-    expect(html).toMatch(/aria-label="Next event" title="Next event"(?![^>]*disabled)/);
-  });
-
-  test("tabs and the selected-event box sit in a fixed header; only tab content scrolls", () => {
-    const html = renderToStaticMarkup(<RightPanel />);
-    const head = html.slice(html.indexOf('class="panel-head"'), html.indexOf('class="panel-scroll"'));
-    expect(head).toContain('role="tablist"');
-    expect(head).toContain('class="selection-bar"');
-    expect(head).toMatch(/class="selection-meta"><span class="mono">10\.0–12\.0 s<\/span>/);
-    expect(head).not.toContain('role="tabpanel"');
-    expect(html.slice(html.indexOf('class="panel-scroll"'))).toMatch(/^class="panel-scroll"><div class="tab-panel" role="tabpanel"/);
   });
 
   test("transcript view emphasises the selected event's utterances and links events", () => {
@@ -92,6 +96,30 @@ describe("context drawer", () => {
     expect(html).toMatch(/version-card--superseded/);
     expect(html).toContain("8.0–9.0 s → 10.0–12.0 s");
     expect(html).toContain("Replaced by e5");
+  });
+
+  test("an overridden selection tints the History rail and focuses its override entry", () => {
+    const base = context();
+    const override = { by: "investigator", reason: "Witness recalled the window view.", at: 0, flagIds: base.graph.events.find((e) => e.id === "e5")!.flags.map((f) => f.id) };
+    const graph = { ...base.graph, events: base.graph.events.map((e) => (e.id === "e5" ? { ...e, status: "overridden" as const, override } : e)) };
+    const ctx = { ...base, graph };
+    const render = (accent: boolean, view: "history" | null, focus: string | null) =>
+      renderToStaticMarkup(
+        <ContextDrawer view={view} onOpen={() => {}} onClose={() => {}} context={ctx} focusSourceId={null} overrideFocusId={focus} historyAccent={accent} />,
+      );
+    expect(render(true, null, null)).toMatch(/class="context-rail__button has-override"[^>]*aria-description="Selected event has override history"/);
+    expect(render(false, null, null)).not.toContain("has-override");
+    const html = render(true, "history", "e5");
+    expect(html).toContain("data-override-focus");
+    expect(html).toContain("Witness recalled the window view.");
+    expect(html).toMatch(/Before override<\/span> Implausible · sightline waived/);
+    expect(render(true, "history", "e3")).not.toContain("data-override-focus");
+  });
+
+  test("a live proposed event waits with static text, not a spinner", () => {
+    const html = renderToStaticMarkup(<StatusToken status="proposed" pending />);
+    expect(html).toContain("Awaiting check");
+    expect(html).not.toContain("spinner");
   });
 
   test("empty states keep the rail", () => {
