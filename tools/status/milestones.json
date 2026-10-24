@@ -1,0 +1,49 @@
+{
+  "h0": "2026-10-23T21:00:00-07:00",
+  "tracks": {
+    "B": {
+      "owner": "Sahil",
+      "aliases": ["Sahil", "Sahil Mehta", "iamab0b", "iamab0btwitch@gmail.com"],
+      "folders": ["apps/web/src/scene", "packages/schema", "packages/engine", "spacetimedb", "apps/web/scripts"],
+      "milestones": [
+        {"hours": "0-2", "goal": "Box-model store renders with landmarks and camera presets; fixtures load", "signals": ["apps/web/src/scene/Scene.tsx", "apps/web/src/scene/cameras/*.ts"]},
+        {"hours": "0-3", "goal": "Resolver on the fixture: positions, portals path, robbery.resolved.json committed", "signals": ["packages/engine/src/resolve/*.ts", "packages/schema/fixtures/robbery.resolved.json"]},
+        {"hours": "2-5", "goal": "Mixamo rigs and clips load, bind by bone name, blend from timeline t", "signals": ["apps/web/src/scene/characters/*.ts*"]},
+        {"hours": "3-6", "goal": "Plausibility gate on main: sightline, time-distance, reachability, contradiction; e5 implausible on the fixture", "signals": ["packages/engine/src/gate/*.ts"]},
+        {"hours": "5-8", "goal": "Playback of the resolved fixture in the store: actors walk the path, scrub both ways, statuses rendered", "signals": ["apps/web/src/scene/playback/useGraph.ts"]},
+        {"hours": "8-14", "goal": "SpacetimeDB module published: tables, insertSegment, applyPatches, override, setStatuses, graphForScene view; live adapter in the scene", "signals": ["spacetimedb/server/src/*.ts"]},
+        {"hours": "14-20", "goal": "POV camera and sightline ray, override wired to the gate, one drag-to-edit move emits a patch", "signals": []},
+        {"hours": "20-24", "goal": "Freeze: demo-v1 tag, fixture mode and live mode both demo the e5 correction", "signals": []}
+      ]
+    },
+    "C": {
+      "owner": "Eric",
+      "aliases": ["Eric"],
+      "folders": ["packages/extractor", "apps/agent", "apps/web/src/adapters", "spacetimedb/server/src/procedures"],
+      "milestones": [
+        {"hours": "0-3", "goal": "Extractor core: Claude call with the strict Patch tool, examples 01 and 02 pass against the fixture", "signals": ["packages/extractor/src/*.ts"]},
+        {"hours": "3-8", "goal": "All five examples pass; question suggester (Haiku) returns one question per flag", "signals": ["packages/extractor/src/**/*.test.ts"]},
+        {"hours": "8-14", "goal": "Cartesia managed agent configured; webhook tools record_statement, get_scene_context, end_interview; typed statement flows end to end", "signals": ["apps/agent/**/*.ts"]},
+        {"hours": "14-16", "goal": "extractSegment procedure in the SpacetimeDB module: calls Claude, runs the gate, commits patch and verdict in one transaction", "signals": ["spacetimedb/server/src/procedures/*.ts"]},
+        {"hours": "16-20", "goal": "Voice interview end to end on the demo laptop; uploads via AssemblyAI if time", "signals": []},
+        {"hours": "20-24", "goal": "Freeze: README features and limitations for the Cartesia track, no secrets anywhere", "signals": []}
+      ]
+    },
+    "D": {
+      "owner": "Hazel",
+      "aliases": ["Hazel"],
+      "folders": ["apps/web/src/ui", "packages/props", "docs/pitch", "docs/design"],
+      "milestones": [
+        {"hours": "0-3", "goal": "props.json values verified with sources; UI shell, dark theme, right panel layout", "signals": ["apps/web/src/ui/*.tsx"]},
+        {"hours": "3-8", "goal": "Flags panel and override dialog (reason, 10 chars minimum) against the fixture; landmark labeling tool shell", "signals": ["apps/web/src/ui/**/*Override*.tsx"]},
+        {"hours": "8-14", "goal": "Interview screen (typed and voice), fixture-mode toggle, demo laptop set up and rehearsed on fixtures", "signals": []},
+        {"hours": "14-20", "goal": "Pitch script, demo video plan, Devpost draft, Anthropic community call done", "signals": ["docs/pitch/*.md"]},
+        {"hours": "20-24", "goal": "Freeze: two-minute video recorded, Devpost submitted by Sun 8:50 AM", "signals": []}
+      ]
+    }
+  },
+  "shared": ["tools/status", ".claude", ".greptile", "CLAUDE.md", "README.md", ".gitignore", "docs", "apps/web/src/App.tsx", "apps/web/src/main.tsx", "apps/web/package.json", "package.json", "pnpm-workspace.yaml", "pnpm-lock.yaml", "tsconfig.base.json"],
+  "services": [
+    {"name": "web dev server", "url": "http://localhost:5173", "env": "RASHOMON_WEB_URL", "path": "/"}
+  ]
+}

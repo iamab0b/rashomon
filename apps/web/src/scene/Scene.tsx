@@ -1,5 +1,5 @@
 import { Canvas } from "@react-three/fiber";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CameraRig } from "./cameras/CameraRig";
 import { CAMERA_PRESETS } from "./cameras/presets";
 import { RigDebug } from "./characters/RigDebug";
@@ -11,7 +11,11 @@ import { LabelLayer } from "./landmarks/LabelLayer";
 import { LabelProjector } from "./landmarks/LabelProjector";
 import { LandmarkMarkers } from "./landmarks/LandmarkMarkers";
 import { loadScene, type LoadedScene } from "./loaders/scene";
+import { Actors } from "./playback/Actors";
+import { fixtureGraphSource } from "./playback/graphSource";
 import { Playhead } from "./playback/Playhead";
+import { ScrubBar } from "./playback/ScrubBar";
+import { useGraphSource } from "./playback/useGraph";
 import { useSceneStore } from "./store";
 import { useSceneKeys } from "./useSceneKeys";
 
@@ -112,6 +116,13 @@ export function Scene({ fixture, debug, t }: SceneProps) {
   useInitialTime(t, debug);
   const isRigDebug = debug === RIG_DEBUG;
   const loaded = useLoadedScene(isRigDebug ? undefined : fixture);
+  const graphSource = useMemo(
+    () => (!isRigDebug && fixture ? fixtureGraphSource(fixture) : null),
+    [isRigDebug, fixture],
+  );
+  useGraphSource(graphSource);
+  const hasGraph = useSceneStore((state) => state.resolved !== null);
+  const actorsReady = useSceneStore((state) => state.actorsReady);
   const status = useSceneStore((state) => state.status);
   const initial = CAMERA_PRESETS[useSceneStore.getState().preset];
 
@@ -137,12 +148,14 @@ export function Scene({ fixture, debug, t }: SceneProps) {
             <LandmarkMarkers landmarks={loaded.manifest.landmarks} />
             <LabelProjector landmarks={loaded.manifest.landmarks} occluders={loaded.model} />
             <FloorProbe interior={loaded.manifest.interior} />
-            <ReadySignal />
+            {hasGraph ? <Actors /> : null}
+            {!hasGraph || actorsReady ? <ReadySignal /> : null}
           </>
         ) : null}
       </Canvas>
       {loaded ? <LabelLayer landmarks={loaded.manifest.landmarks} /> : null}
       {isRigDebug ? <RigReportPanel /> : null}
+      <ScrubBar />
       <DebugOverlay />
     </div>
   );
