@@ -1,6 +1,7 @@
-import { useRef, type KeyboardEvent, type PointerEvent } from "react";
+import { useRef, type PointerEvent } from "react";
 import { useGraph, useSelection, useTimeline } from "../index";
 import { useSceneStore } from "../store";
+import { createDrag, makeJump, makeKeyHandler } from "./handlers";
 import {
   LABEL_W,
   ROW_H,
@@ -10,11 +11,12 @@ import {
   buildRows,
   implausibleStarts,
   neighborFlag,
-  nudgeDelta,
   strokeFor,
   tOfX,
   xOf,
 } from "./layout";
+
+export { createDrag, makeJump, makeKeyHandler } from "./handlers";
 
 export type TimelineProps = { onOpen?: (id: string) => void };
 
@@ -37,7 +39,7 @@ export function Timeline({ onOpen }: TimelineProps) {
   const { selectedEventId, select } = useSelection();
   const setSpeed = useSceneStore((s) => s.setSpeed);
   const svgRef = useRef<SVGSVGElement>(null);
-  const dragging = useRef(false);
+  const drag = useRef(createDrag()).current;
 
   const rows = buildRows(resolved, statuses);
   const flags = implausibleStarts(resolved, statuses);
@@ -50,24 +52,13 @@ export function Timeline({ onOpen }: TimelineProps) {
     setT(tOfX(((event.clientX - rect.left) / rect.width) * W, duration));
   };
 
-  const jump = (dir: 1 | -1) => {
-    const target = neighborFlag(flags, t, dir);
-    if (!target) return;
-    select(target.id);
-    setT(target.tStart);
-  };
-
-  const onKeyDown = (event: KeyboardEvent) => {
-    const onButton = (event.target as HTMLElement).tagName === "BUTTON";
-    if (event.key === " " && !onButton) {
-      event.preventDefault();
-      toggle();
-      return;
-    }
-    const delta = nudgeDelta(event.key, event.shiftKey);
-    if (delta === null) return;
-    event.preventDefault();
-    setT(t + delta);
+  const jump = makeJump({ flags, t, select, setT });
+  const onKeyDown = makeKeyHandler({ t, setT, toggle });
+  const endDrag = (e: PointerEvent) => drag.end(e.pointerId);
+  const startDrag = (e: PointerEvent) => {
+    if (!drag.down(e.pointerId, e.button)) return false;
+    svgRef.current?.setPointerCapture?.(e.pointerId);
+    return true;
   };
 
   const ticks = Array.from({ length: Math.floor(duration) + 1 }, (_, i) => i).filter((i) => i % 2 === 0);
@@ -103,13 +94,13 @@ export function Timeline({ onOpen }: TimelineProps) {
         width="100%"
         style={{ display: "block", touchAction: "none", userSelect: "none" }}
         onPointerDown={(e) => {
-          if (e.button !== 0 || (e.target as Element).closest("[data-block]")) return;
-          dragging.current = true;
-          e.currentTarget.setPointerCapture?.(e.pointerId);
-          scrub(e);
+          if ((e.target as Element).closest("[data-block]")) return;
+          if (startDrag(e)) scrub(e);
         }}
-        onPointerMove={(e) => dragging.current && scrub(e)}
-        onPointerUp={() => (dragging.current = false)}
+        onPointerMove={(e) => drag.move(e.pointerId) && scrub(e)}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onLostPointerCapture={endDrag}
       >
         <rect x={0} y={0} width={W} height={height} fill="#0e121a" />
         {ticks.map((s) => (
@@ -171,10 +162,12 @@ export function Timeline({ onOpen }: TimelineProps) {
           data-playhead
           style={{ cursor: "ew-resize" }}
           onPointerDown={(e) => {
-            dragging.current = true;
-            svgRef.current?.setPointerCapture?.(e.pointerId);
+            startDrag(e);
             e.stopPropagation();
           }}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onLostPointerCapture={endDrag}
         >
           <line x1={xOf(t, duration)} x2={xOf(t, duration)} y1={TOP - 6} y2={height} stroke="#ff5d73" strokeWidth={2} />
           <rect x={xOf(t, duration) - 6} y={TOP - 10} width={12} height={10} rx={2} fill="#ff5d73" />

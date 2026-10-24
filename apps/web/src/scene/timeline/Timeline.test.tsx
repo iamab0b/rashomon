@@ -1,10 +1,10 @@
 import { robberyGraph, storeScene } from "@rashomon/schema/fixtures";
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { gatedSnapshot } from "../playback/graphSource";
 import { useSceneStore, type SceneState } from "../store";
-import { Timeline } from "./Timeline";
-import { buildRows, implausibleStarts, neighborFlag, nudgeDelta, strokeFor } from "./layout";
+import { Timeline, createDrag, makeJump, makeKeyHandler } from "./Timeline";
+import { buildRows, implausibleStarts, strokeFor } from "./layout";
 
 const initial = useSceneStore.getState();
 const pristine = { ...useSceneStore.getInitialState() };
@@ -60,29 +60,84 @@ describe("layout", () => {
   });
 });
 
+function fakeKey(key: string, shiftKey = false, tagName = "DIV") {
+  let prevented = 0;
+  return { key, shiftKey, target: { tagName }, preventDefault: () => void prevented++, count: () => prevented };
+}
+
+function drive() {
+  const s = useSceneStore.getState();
+  const { resolved, statuses } = snap();
+  const api = () => useSceneStore.getState();
+  const jump = (dir: 1 | -1) =>
+    makeJump({ flags: implausibleStarts(resolved, statuses), t: api().t, select: s.select, setT: s.setT })(dir);
+  const key = (k: string, shift = false, tag = "DIV") =>
+    makeKeyHandler({ t: api().t, setT: s.setT, toggle: () => (api().playing ? s.pause() : s.play()) })(fakeKey(k, shift, tag));
+  return { api, jump, key };
+}
+
 describe("interaction", () => {
-  test("jump to flag selects e5 and sets t to 10", () => {
-    const { resolved, statuses } = snap();
-    const target = neighborFlag(implausibleStarts(resolved, statuses), 0, 1)!;
-    const s = useSceneStore.getState();
-    s.select(target.id);
-    s.setT(target.tStart);
-    expect(useSceneStore.getState().selectedEventId).toBe("e5");
-    expect(useSceneStore.getState().t).toBe(10);
-    expect(neighborFlag(implausibleStarts(resolved, statuses), 10, 1)).toBeNull();
-    expect(neighborFlag(implausibleStarts(resolved, statuses), 11, -1)?.id).toBe("e5");
+  test("jump handler selects e5 and sets t to 10", () => {
+    const { api, jump } = drive();
+    jump(1);
+    expect(api().selectedEventId).toBe("e5");
+    expect(api().t).toBe(10);
+    jump(1);
+    expect(api().t).toBe(10);
+    api().setT(11);
+    jump(-1);
+    expect(api().t).toBe(10);
   });
 
-  test("keyboard nudges clamp at 0 and duration", () => {
-    const s = useSceneStore.getState();
-    const duration = s.duration;
-    s.setT(0.2);
-    s.setT(useSceneStore.getState().t + nudgeDelta("ArrowLeft", false)!);
-    expect(useSceneStore.getState().t).toBe(0);
-    s.setT(duration - 0.05);
-    s.setT(useSceneStore.getState().t + nudgeDelta("ArrowRight", true)!);
-    expect(useSceneStore.getState().t).toBe(duration);
-    expect(nudgeDelta("ArrowLeft", true)).toBe(-0.1);
-    expect(nudgeDelta("a", false)).toBeNull();
+  test("key handler nudges, clamps and toggles play", () => {
+    const { api, key } = drive();
+    key("ArrowLeft");
+    expect(api().t).toBe(0);
+    key("ArrowRight");
+    expect(api().t).toBe(0.5);
+    key("ArrowRight", true);
+    expect(api().t).toBeCloseTo(0.6);
+    api().setT(api().duration - 0.05);
+    key("ArrowRight", true);
+    expect(api().t).toBe(api().duration);
+    key(" ");
+    expect(api().playing).toBe(true);
+    key(" ", false, "BUTTON");
+    expect(api().playing).toBe(true);
+    key("a");
+  });
+});
+
+describe("drag state machine", () => {
+  const run = (end: "cancel" | "up" | "none" | "other") => {
+    const drag = createDrag();
+    const setT = vi.fn();
+    const move = (id: number) => drag.move(id) && setT();
+    expect(drag.down(1, 0)).toBe(true);
+    move(1);
+    expect(setT).toHaveBeenCalledTimes(1);
+    if (end === "cancel" || end === "up") drag.end(1);
+    if (end === "other") drag.end(2);
+    move(1);
+    return setT.mock.calls.length;
+  };
+
+  test("cancel and up stop scrubbing", () => {
+    expect(run("cancel")).toBe(1);
+    expect(run("up")).toBe(1);
+  });
+
+  test("other pointers neither scrub nor end the drag", () => {
+    expect(run("other")).toBe(2);
+    const drag = createDrag();
+    drag.down(1, 0);
+    expect(drag.move(2)).toBe(false);
+  });
+
+  test("move without down and non-primary buttons do nothing", () => {
+    const drag = createDrag();
+    expect(drag.move(1)).toBe(false);
+    expect(drag.down(1, 2)).toBe(false);
+    expect(drag.move(1)).toBe(false);
   });
 });
