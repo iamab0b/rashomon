@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export type IconName = "eye" | "warning" | "x";
+export type IconName = "eye" | "warning" | "x" | "chevron" | "copy";
 
 const icons: Record<IconName, ReactNode> = {
   eye: (
@@ -16,6 +16,13 @@ const icons: Record<IconName, ReactNode> = {
     </>
   ),
   x: <path d="m5 5 10 10M15 5 5 15" />,
+  chevron: <path d="m6 8 4 4 4-4" />,
+  copy: (
+    <>
+      <rect x="7" y="7" width="9" height="9" rx="1.5" />
+      <path d="M13 4H5.5A1.5 1.5 0 0 0 4 5.5V13" />
+    </>
+  ),
 };
 
 export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
