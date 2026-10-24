@@ -59,6 +59,7 @@ function event(id: string, actor: string, action: Action, tStart: number, tEnd: 
     path: [],
     pathLengthM: 0,
     reachable: true,
+    sources: [`utt_${id}`],
     tInferred: false,
     ...extra,
   };

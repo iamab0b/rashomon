@@ -1,10 +1,14 @@
 import type { ResolvedEvent, Vec3 } from "../types";
 
-export const startPoint = (e: ResolvedEvent): Vec3 | undefined =>
-  e.from ?? e.path[0] ?? e.at;
+const isMovement = (e: ResolvedEvent): boolean => e.action === "walk" || e.action === "run";
 
-export const endPoint = (e: ResolvedEvent): Vec3 | undefined =>
-  e.to ?? e.path[e.path.length - 1] ?? e.at;
+export const startPoint = (e: ResolvedEvent): Vec3 | undefined =>
+  isMovement(e) ? e.from : (e.at ?? e.from);
+
+export const endPoint = (e: ResolvedEvent): Vec3 | undefined => {
+  if (!isMovement(e)) return e.at ?? e.to;
+  return e.reachable ? e.to : undefined;
+};
 
 export const dist = (a: Vec3, b: Vec3): number =>
   Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
@@ -27,11 +31,11 @@ export function eventPositionAt(e: ResolvedEvent, t: number): Vec3 | undefined {
       target -= seg;
     }
   }
-  return frac(e, t) < 0.5 ? startPoint(e) : endPoint(e);
+  if (!isMovement(e)) return e.at ?? startPoint(e);
+  if (t <= e.tStart) return startPoint(e);
+  if (t >= e.tEnd) return endPoint(e);
+  return undefined;
 }
-
-const frac = (e: ResolvedEvent, t: number): number =>
-  e.tEnd > e.tStart ? (t - e.tStart) / (e.tEnd - e.tStart) : 0;
 
 export function actorPositionAt(
   events: ResolvedEvent[],
@@ -40,16 +44,14 @@ export function actorPositionAt(
 ): Vec3 | undefined {
   const mine = events.filter((e) => e.actor === actor && e.status !== "superseded");
   const covering = mine.filter((e) => e.tStart <= t && t <= e.tEnd);
-  for (let i = covering.length - 1; i >= 0; i--) {
-    const p = eventPositionAt(covering[i]!, t);
-    if (p) return p;
+  if (covering.length > 0) {
+    for (let i = covering.length - 1; i >= 0; i--) {
+      const p = eventPositionAt(covering[i]!, t);
+      if (p) return p;
+    }
+    return undefined;
   }
-  const before = mine
-    .filter((e) => e.tEnd < t && endPoint(e))
-    .sort((a, b) => b.tEnd - a.tEnd)[0];
-  if (before) return endPoint(before);
-  const after = mine
-    .filter((e) => e.tStart > t && startPoint(e))
-    .sort((a, b) => a.tStart - b.tStart)[0];
-  return after ? startPoint(after) : undefined;
+  let latest: ResolvedEvent | undefined;
+  for (const e of mine) if (e.tEnd < t && (!latest || e.tEnd >= latest.tEnd)) latest = e;
+  return latest ? endPoint(latest) : undefined;
 }

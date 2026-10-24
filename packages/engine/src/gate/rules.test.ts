@@ -83,6 +83,37 @@ describe("sightline", () => {
     expect(f).toHaveLength(1);
   });
 
+  test("a looker whose only known position is later gets no sightline flag and stays proposed", () => {
+    const g = graphOf([
+      ev({ id: "l", actor: "a", action: "look", target: "b", tStart: 0, tEnd: 2 }),
+      ev({ id: "later", actor: "a", at: [1, 0, 5], tStart: 5, tEnd: 6 }),
+      seen([8, 0, 5]),
+    ]);
+    expect(sightlineFlags(g, manifest(), wall)).toEqual([]);
+    const out = gate(g, manifest(), wall);
+    expect(out.statuses.l).toBe("proposed");
+    expect(out.flags.map((f) => f.check)).toEqual(["unanchored"]);
+  });
+
+  test("a target whose only known position is later gets no sightline flag", () => {
+    const g = graphOf([look(), ev({ id: "s", actor: "b", at: [8, 0, 5], tStart: 5, tEnd: 6 })]);
+    expect(sightlineFlags(g, manifest(), wall)).toEqual([]);
+  });
+
+  test("an earlier event's end is used only when nothing sits between it and the look", () => {
+    const withEarlier = graphOf([
+      ev({ id: "early", actor: "b", at: [8, 0, 5], tStart: 0, tEnd: 0.5 }),
+      ev({ id: "l", actor: "a", action: "look", target: "b", at: [1, 0, 5], tStart: 1, tEnd: 2 }),
+    ]);
+    expect(sightlineFlags(withEarlier, manifest(), wall)).toHaveLength(1);
+    const withGap = graphOf([
+      ev({ id: "early", actor: "b", at: [8, 0, 5], tStart: 0, tEnd: 0.5 }),
+      ev({ id: "unknown", actor: "b", tStart: 0.6, tEnd: 0.8 }),
+      ev({ id: "l", actor: "a", action: "look", target: "b", at: [1, 0, 5], tStart: 1, tEnd: 2 }),
+    ]);
+    expect(sightlineFlags(withGap, manifest(), wall)).toEqual([]);
+  });
+
   test("a clear look and non-actor targets give no flag", () => {
     expect(sightlineFlags(graphOf([look(), seen([4, 0, 12])]), manifest(), wall)).toEqual([]);
     expect(sightlineFlags(graphOf([look("shelf_x")]), manifest(), wall)).toEqual([]);
@@ -200,6 +231,53 @@ describe("time_distance", () => {
     const f = timeDistanceFlags(g);
     expect(f.map((x) => x.eventId)).toEqual(["back"]);
     expect(f[0]!.evidence).toMatchObject({ previousEventId: "long", distanceM: 10 });
+  });
+
+  test("a walk that knows only where it ends invents no start and no jump", () => {
+    const g = graphOf([
+      ev({ id: "stand", at: [0, 0, 0], tStart: 0, tEnd: 1 }),
+      ev({
+        id: "toOnly",
+        action: "walk",
+        to: [4, 0, 0],
+        path: [[4, 0, 0]],
+        pathLengthM: 0,
+        tStart: 1,
+        tEnd: 5,
+      }),
+    ]);
+    expect(timeDistanceFlags(g)).toEqual([]);
+    const reversed = graphOf([...g.events].reverse());
+    expect(timeDistanceFlags(reversed)).toEqual([]);
+  });
+
+  test("the end of an unreachable walk is unknown, so no jump is measured from it", () => {
+    const g = graphOf([
+      ev({ id: "stand", at: [0, 0, 0], tStart: 0, tEnd: 1 }),
+      ev({ id: "blocked", action: "walk", from: [0, 0, 0], to: [30, 0, 0], reachable: false, tStart: 1, tEnd: 2 }),
+      ev({ id: "after", at: [0, 0, 1], tStart: 2.5, tEnd: 3 }),
+    ]);
+    expect(timeDistanceFlags(g)).toEqual([]);
+  });
+
+  test("a gap is held to the 8 m/s limit, not to the next event's own walk limit", () => {
+    const walkFrom = (x: number, tStart: number) =>
+      ev({
+        id: "w",
+        action: "walk",
+        from: [x, 0, 0],
+        to: [x, 0, 1],
+        path: [[x, 0, 0], [x, 0, 1]],
+        pathLengthM: 1,
+        tStart,
+        tEnd: tStart + 5,
+      });
+    const near = graphOf([ev({ id: "p", at: [0, 0, 0], tStart: 0, tEnd: 1 }), walkFrom(4, 2)]);
+    expect(timeDistanceFlags(near)).toEqual([]);
+    const far = timeDistanceFlags(graphOf([ev({ id: "p", at: [0, 0, 0], tStart: 0, tEnd: 1 }), walkFrom(10, 2)]));
+    expect(far).toHaveLength(1);
+    expect(far[0]).toMatchObject({ eventId: "w", severity: "hard" });
+    expect(far[0]!.evidence).toMatchObject({ distanceM: 10, durationS: 1, speedMS: 10, limitMS: 8 });
   });
 
   test("overlapping events are not compared with each other", () => {

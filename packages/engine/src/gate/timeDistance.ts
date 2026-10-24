@@ -6,8 +6,9 @@ export const RUN_MAX_MS = 6;
 export const ANY_MAX_MS = 8;
 export const MIN_GAP_S = 0.1;
 
-function limitExceeded(action: string, speed: number): number | null {
+function limitExceeded(action: string, speed: number, ownMovement: boolean): number | null {
   if (speed > ANY_MAX_MS) return ANY_MAX_MS;
+  if (!ownMovement) return null;
   if (action === "walk" && speed > WALK_MAX_MS) return WALK_MAX_MS;
   if (action === "run" && speed > RUN_MAX_MS) return RUN_MAX_MS;
   return null;
@@ -21,10 +22,11 @@ export function timeDistanceFlags(resolved: ResolvedGraph): FlagDraft[] {
     seconds: number,
     lead: string,
     between: string,
+    ownMovement: boolean,
     extra: Record<string, string> = {},
   ) => {
     const speed = meters / seconds;
-    const limit = limitExceeded(e.action, speed);
+    const limit = limitExceeded(e.action, speed, ownMovement);
     if (limit === null) return;
     flags.push({
       eventId: e.id,
@@ -50,7 +52,7 @@ export function timeDistanceFlags(resolved: ResolvedGraph): FlagDraft[] {
     for (const e of mine) {
       if ((e.action === "walk" || e.action === "run") && e.pathLengthM > 0) {
         const seconds = e.tEnd - e.tStart;
-        push(e, e.pathLengthM, seconds > 0 ? seconds : MIN_GAP_S, `${e.actor} covers`, "");
+        push(e, e.pathLengthM, seconds > 0 ? seconds : MIN_GAP_S, `${e.actor} covers`, "", true);
       }
       const to = startPoint(e);
       if (!to) continue;
@@ -70,6 +72,7 @@ export function timeDistanceFlags(resolved: ResolvedGraph): FlagDraft[] {
         gap > 0 ? gap : MIN_GAP_S,
         `${e.actor} would have to cover`,
         ` between ${prev.id} and ${e.id}`,
+        false,
         { previousEventId: prev.id },
       );
     }
