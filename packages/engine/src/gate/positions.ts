@@ -37,11 +37,29 @@ export function eventPositionAt(e: ResolvedEvent, t: number): Vec3 | undefined {
   return undefined;
 }
 
+export function movementCover(
+  events: ResolvedEvent[],
+  actor: string,
+  t: number,
+): { position: Vec3 | undefined } | undefined {
+  const moving = events.filter(
+    (e) => e.actor === actor && e.status !== "superseded" && isMovement(e) && e.tStart <= t && t <= e.tEnd,
+  );
+  if (moving.length === 0) return undefined;
+  for (let i = moving.length - 1; i >= 0; i--) {
+    const p = eventPositionAt(moving[i]!, t);
+    if (p) return { position: p };
+  }
+  return { position: undefined };
+}
+
 export function actorPositionAt(
   events: ResolvedEvent[],
   actor: string,
   t: number,
 ): Vec3 | undefined {
+  const cover = movementCover(events, actor, t);
+  if (cover) return cover.position;
   const mine = events.filter((e) => e.actor === actor && e.status !== "superseded");
   const covering = mine.filter((e) => e.tStart <= t && t <= e.tEnd);
   if (covering.length > 0) {
