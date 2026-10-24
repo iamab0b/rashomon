@@ -543,7 +543,7 @@ describe("the robbery demo path", () => {
     expect([...harness.db.flags.sessionId.filter(SESSION)].some((f) => f.severity !== "hard" && result.hardFlags.some((h) => h.id === f.id))).toBe(false);
   });
 
-  test("the same statement through the Cartesia webhook comes back with e5 implausible", () => {
+  test("the same statement through the Cartesia webhook comes back with e5 implausible and its question", () => {
     const req = new Request("http://localhost/webhook/cartesia", {
       method: "POST",
       headers: { [SECRET_HEADER]: HOOK },
@@ -554,6 +554,16 @@ describe("the robbery demo path", () => {
     expect(out.status).toBe(200);
     expect(out.body).toMatchObject({ segmentId: "seg_w1", patchCount: 12, error: undefined });
     expect((out.body as { statuses: unknown[] }).statuses).toContainEqual({ eventId: "e5", status: "implausible" });
-    expect(harness.db.flags.rowKey.find(`${SESSION}/sightline:e5`)?.suggestedQuestion).toMatch(/Where exactly were you standing/);
+    const stored = harness.db.flags.rowKey.find(`${SESSION}/sightline:e5`)!;
+    const e5 = (out.body as { hardFlags: { id: string; suggestedQuestion: string }[] }).hardFlags.find((f) => f.id === "sightline:e5");
+    expect(e5).toEqual({
+      id: "sightline:e5",
+      eventId: "e5",
+      check: "sightline",
+      detail: stored.detail,
+      suggestedQuestion: stored.suggestedQuestion,
+    });
+    expect(e5?.suggestedQuestion).toMatch(/Where exactly were you standing/);
+    expect(JSON.parse(JSON.stringify(out.body)).hardFlags).toContainEqual(e5);
   });
 });
