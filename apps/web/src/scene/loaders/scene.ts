@@ -18,7 +18,7 @@ export type LoadedScene = {
   isPlaceholder: boolean;
 };
 
-const DRESS_PREFIX = "dress_";
+export const DRESS_PREFIX = "dress_";
 const FIXTURES: Readonly<Record<string, SceneManifest>> = {
   store: storeScene,
 };
@@ -39,7 +39,7 @@ export function tagCollision(root: Object3D): void {
   });
 }
 
-function enableShadows(root: Object3D): void {
+export function enableShadows(root: Object3D): void {
   root.traverse((object) => {
     if (object instanceof Mesh) {
       object.castShadow = true;
@@ -85,7 +85,7 @@ export function buildPlaceholder(manifest: SceneManifest): Group {
   return group;
 }
 
-async function loadGlb(url: string): Promise<Object3D> {
+export async function loadGlb(url: string): Promise<Object3D> {
   const gltf = await new GLTFLoader().loadAsync(url);
   return gltf.scene;
 }
