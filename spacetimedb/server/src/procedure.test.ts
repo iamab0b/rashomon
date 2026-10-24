@@ -184,7 +184,7 @@ describe("extractSegment", () => {
     expect(graph().events).toHaveLength(1);
   });
 
-  test("a failure while applying rolls back and is written as an error", () => {
+  test("a call naming an unknown target is rejected before anything is written", () => {
     const dangling = { ...walkInput, actor: "suspect", target: "nobody" };
     const result = runExtraction(ioFor(ok([toolUse("tu_1", "add_event", dangling)])), SESSION, "utt_2");
     expect(result.error).toBe(EXTRACTION_FAILED);
@@ -192,6 +192,55 @@ describe("extractSegment", () => {
     expect(graph().events).toEqual([]);
     expect(graph().version).toBe(1);
     expect(segmentRow().extractError).toMatch(/nobody/);
+  });
+
+  test("when the second patch of a validated batch fails to apply, the first is rolled back too", () => {
+    call((ctx) =>
+      mod.applyPatches(ctx, {
+        sessionId: SESSION,
+        baseVersion: 1,
+        patchesJson: JSON.stringify([
+          ...robberyGraph.props.map((prop) => ({ op: "add_prop", prop })),
+          ...robberyGraph.events.map((event) => ({ op: "add_event", event })),
+        ]),
+      }),
+    );
+    // e7 is retracted while the model call is in flight, so the batch is valid against the
+    // snapshot the model saw but its second patch fails inside applyPatchBatch.
+    const responder: TestHttpResponder<never> = (test, req, b) => {
+      call((ctx) =>
+        mod.applyPatches(ctx, {
+          sessionId: SESSION,
+          baseVersion: 2,
+          patchesJson: JSON.stringify([{ op: "retract_event", id: "e7", sources: ["utt_2"] }]),
+        }),
+      );
+      const nulls = { action: null, from: null, to: null, at: null, facing: null, target: null, prop: null, t_end: null };
+      return ok([
+        toolUse("tu_1", "add_event", { ...walkInput, actor: "clerk", t_start: 15, t_end: 18 }),
+        toolUse("tu_2", "update_event", { id: "e7", ...nulls, t_start: 12.5, sources: ["utt_2"] }),
+      ])(test, req, b);
+    };
+    const before = { graph: undefined as ReturnType<typeof graph> | undefined, patches: 0 };
+    const seen: TestHttpResponder<never> = (test, req, b) => {
+      const out = responder(test, req, b);
+      before.graph = graph();
+      before.patches = [...harness.db.patches.sessionId.filter(SESSION)].length;
+      return out;
+    };
+    const result = runExtraction(ioFor(seen), SESSION, "utt_2");
+
+    expect(requests).toHaveLength(1);
+    expect(result).toEqual({ segmentId: "utt_2", patchCount: 0, statuses: [], error: EXTRACTION_FAILED });
+    expect(segmentRow().extractError).toMatch(/e7 was retracted and cannot be updated/);
+    const after = graph();
+    expect(before.graph?.version).toBe(3);
+    expect(after.version).toBe(3);
+    expect(after.events.map((e) => [e.id, e.status])).toEqual(before.graph?.events.map((e) => [e.id, e.status]));
+    expect(after).toEqual(before.graph);
+    expect(after.events.some((e) => e.actor === "clerk" && e.action === "walk")).toBe(false);
+    expect([...harness.db.patches.sessionId.filter(SESSION)]).toHaveLength(before.patches);
+    expect(segmentRow().extractedAt).toBeUndefined();
   });
 
   test("no key, an unknown segment and a non-witness segment never reach the model", () => {
