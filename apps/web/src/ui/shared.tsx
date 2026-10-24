@@ -142,6 +142,30 @@ export function PlaybackDot({ active, playing }: { active: boolean; playing: boo
   return <span className="playback-dot" role="img" aria-label={label} title={label} />;
 }
 
+export function SourceMeta({ sources, onOpen }: { sources: string[]; onOpen: (sourceId: string) => void }) {
+  if (sources.length === 0) return <span className="source-meta">Sources: none recorded</span>;
+  return (
+    <span className="source-meta">
+      Sources: Witness statement ·{" "}
+      {sources.map((id, i) => (
+        <Fragment key={id}>
+          {i > 0 && ", "}
+          <button
+            type="button"
+            className="source-ref mono"
+            title={`Show ${id} in the transcript`}
+            aria-label={`Show ${id} in the transcript`}
+            onClick={stop(() => onOpen(id))}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            {id}
+          </button>
+        </Fragment>
+      ))}
+    </span>
+  );
+}
+
 export function FlagCard({
   flag,
   sceneId,

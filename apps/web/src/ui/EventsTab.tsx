@@ -1,4 +1,4 @@
-import { flagHeadline } from "./flagCopy";
+import { BASIS_LABELS, checkBasis, flagHeadline } from "./flagCopy";
 import { Icon } from "./Icon";
 import { eventCoordinates, placeName } from "./places";
 import { inDisplayOrder } from "./playback";
@@ -10,7 +10,7 @@ import {
   eventTime,
   PendingNote,
   PlaybackDot,
-  SourceRefs,
+  SourceMeta,
   StatusToken,
   words,
   type PanelContext,
@@ -60,28 +60,35 @@ export function EventsTab({
                 <span className="playback-when">
                   <PlaybackDot active={playbackActive.has(event.id)} playing={playing} />
                   <time className="mono">{eventTime(event)}</time>
+                  {event.tInferred && <small className="event-inferred">time inferred</small>}
                 </span>
-                {event.tInferred && <small className="event-inferred">time inferred</small>}
+                <StatusToken status={status} pending={isPending(event)} />
               </div>
               <div className="investigation-event__body">
-                <strong>
-                  {actorLabel(graph, event.actor)} · {words(event.action)}
-                </strong>
-                <span
-                  className={place ? "event-place" : "event-place event-place--missing"}
-                  title={coordinates ? `Scene position ${coordinates}` : undefined}
-                >
-                  {place ?? "Location label not available"}
-                </span>
-                {details.length > 0 && <span className="event-anchor">{details.join(" · ")}</span>}
-              </div>
-              <div className="investigation-event__status">
-                <StatusToken status={status} pending={isPending(event)} />
+                <span className="event-actor">{actorLabel(graph, event.actor)}</span>
+                <div className="event-what">
+                  <strong className="event-action">{words(event.action)}</strong>
+                  <span
+                    className={place ? "event-place" : "event-place event-place--missing"}
+                    title={coordinates ? `Scene position ${coordinates}` : undefined}
+                  >
+                    {place ?? "Location label not available"}
+                  </span>
+                  {details.map((detail) => (
+                    <span className="event-anchor" key={detail}>
+                      {detail}
+                    </span>
+                  ))}
+                </div>
               </div>
               {flags.map((flag) => (
                 <div className="event-flag" key={flag.id}>
-                  <span className="check-chip">{words(flag.check)}</span>
-                  <span>{flagHeadline(flag, (id) => placeName(graph.sceneId, id))}</span>
+                  <div className="flag-chips">
+                    <span className="check-chip">{words(flag.check)}</span>
+                    <span className={`severity-chip${flag.severity === "soft" ? " soft" : ""}`}>{flag.severity}</span>
+                  </div>
+                  <p>{flagHeadline(flag, (id) => placeName(graph.sceneId, id))}</p>
+                  <small>{BASIS_LABELS[checkBasis(flag.check)]}</small>
                 </div>
               ))}
               {status === "implausible" && flags.length === 0 && (
@@ -108,10 +115,8 @@ export function EventsTab({
                 </button>
               )}
               <div className="investigation-event__source">
-                <SourceRefs sources={event.sources} onOpen={openSource} />
-                <small className="mono">
-                  {[event.id, ...event.sources].join(" · ")}
-                </small>
+                <SourceMeta sources={event.sources} onOpen={openSource} />
+                <small className="event-id mono">{event.id}</small>
               </div>
             </div>
           );
