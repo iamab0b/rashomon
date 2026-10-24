@@ -1,5 +1,5 @@
 import { canOverride } from "./overridePending";
-import { FlagCard, PendingNote, type PanelContext } from "./shared";
+import { actorLabel, eventTime, FlagCard, PendingNote, words, type PanelContext } from "./shared";
 
 export function openFlagCount({ graph, statusOf }: Pick<PanelContext, "graph" | "statusOf">): number {
   return graph.events
@@ -7,7 +7,16 @@ export function openFlagCount({ graph, statusOf }: Pick<PanelContext, "graph" | 
     .reduce((count, event) => count + event.flags.length, 0);
 }
 
-export function FlagsTab({ graph, statusOf, pendingNoteOf, jumpTo, openOverride }: PanelContext) {
+async function copyText(text: string, notify: (message: string) => void) {
+  try {
+    await navigator.clipboard.writeText(text);
+    notify("Question copied.");
+  } catch {
+    notify("Couldn't copy. Select the question text instead.");
+  }
+}
+
+export function FlagsTab({ graph, statusOf, pendingNoteOf, selectedEventId, playbackActive, playing, jumpTo, openOverride, notify }: PanelContext) {
   const flagged = graph.events
     .filter((event) => event.flags.length > 0 && statusOf(event) !== "overridden")
     .sort((a, b) => b.tStart - a.tStart);
@@ -23,7 +32,7 @@ export function FlagsTab({ graph, statusOf, pendingNoteOf, jumpTo, openOverride 
         <div className="flags-empty">
           <div>
             <strong>No open flags.</strong>
-            <p>The room agrees with everything stated so far.</p>
+            <p>No check raised a flag under the current scene data.</p>
           </div>
         </div>
       ) : (
@@ -33,10 +42,15 @@ export function FlagsTab({ graph, statusOf, pendingNoteOf, jumpTo, openOverride 
               <div key={flag.id}>
                 <FlagCard
                   flag={flag}
-                  eventLabel={`${event.id} · ${event.actor} · ${event.action}`}
-                  waived={false}
-                  onJump={() => jumpTo(event.id)}
+                  sceneId={graph.sceneId}
+                  eventLabel={`${event.id} · ${actorLabel(graph, event.actor)} · ${words(event.action)}`}
+                  eventTimeLabel={eventTime(event)}
+                  selected={selectedEventId === event.id}
+                  playbackActive={playbackActive.has(event.id)}
+                  playing={playing}
+                  onSelect={() => jumpTo(event.id)}
                   onOverride={canOverride(statusOf(event)) ? () => openOverride(event.id) : undefined}
+                  onCopy={(text) => void copyText(text, notify)}
                 />
                 <PendingNote note={pendingNoteOf(event)} />
               </div>

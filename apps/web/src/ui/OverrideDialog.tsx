@@ -71,7 +71,7 @@ export function OverrideDialog({ event, status, by, onConfirm, onClose }: Overri
         <div className="modal-header">
           <div>
             <span className="eyebrow">Investigator override</span>
-            <h2 id={titleId}>Override the room’s reading</h2>
+            <h2 id={titleId}>Override the scene reading</h2>
           </div>
           <button type="button" className="close" onClick={close} aria-label="Close">
             <Icon name="x" />
@@ -112,7 +112,7 @@ export function OverrideDialog({ event, status, by, onConfirm, onClose }: Overri
               setReason(e.currentTarget.value);
               setError("");
             }}
-            placeholder="Why the room’s reading should be overridden here, in one sentence"
+            placeholder="Why this reading should be overridden here, in one sentence"
           />
           <small className={valid ? "ok" : undefined}>
             {reasonLength(reason)} / {MIN_REASON_LENGTH} characters minimum

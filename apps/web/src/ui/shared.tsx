@@ -1,7 +1,10 @@
 import type { Override } from "@rashomon/schema";
-import type { ReactNode } from "react";
+import { Fragment, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import type { Flag, ResolvedEvent, ResolvedGraph, Status } from "../scene";
+import { BASIS_LABELS, checkBasis, flagHeadline } from "./flagCopy";
 import { Icon } from "./Icon";
+import { placeName } from "./places";
+import { sourceNumber, type Utterance } from "./transcript";
 
 const STATUS_LABELS: Record<Status, string> = {
   plausible: "Plausible",
@@ -11,22 +14,20 @@ const STATUS_LABELS: Record<Status, string> = {
   superseded: "Replaced by a later statement",
 };
 
-const CHECK_TITLES: Record<Flag["check"], string> = {
-  sightline: "The room blocks this sightline",
-  reachability: "This place can't be reached",
-  time_distance: "Too far to cover in that time",
-  contradiction: "This contradicts another statement",
-  unanchored: "No place given for this",
-  missing_time: "No time given for this",
-};
-
 export type PanelContext = {
   graph: ResolvedGraph;
   statusOf: (event: ResolvedEvent) => Status;
   pendingNoteOf: (event: ResolvedEvent) => string | null;
+  isPending: (event: ResolvedEvent) => boolean;
   selectedEventId: string | null;
+  playbackActive: ReadonlySet<string>;
+  placeOf: (event: ResolvedEvent) => string | null;
+  playing: boolean;
   jumpTo: (eventId: string) => void;
   openOverride: (eventId: string) => void;
+  openSource: (sourceId: string) => void;
+  notify: (message: string) => void;
+  transcript: readonly Utterance[] | null;
 };
 
 export function words(value: string): string {
@@ -49,6 +50,21 @@ function propLabel(graph: ResolvedGraph, propId: string): string {
   return words(graph.props.find((prop) => prop.id === propId)?.type ?? propId);
 }
 
+const PROP_NAMES: Record<string, string> = { knife_chef: "chef’s knife" };
+
+export function propName(graph: ResolvedGraph, propId: string): string {
+  const type = graph.props.find((prop) => prop.id === propId)?.type ?? propId;
+  return PROP_NAMES[type] ?? words(type);
+}
+
+export function eventTarget(graph: ResolvedGraph, event: ResolvedEvent): string | null {
+  return event.target ? `Target: ${actorLabel(graph, event.target).toLowerCase()}` : null;
+}
+
+export function eventHolding(graph: ResolvedGraph, event: ResolvedEvent): string | null {
+  return event.prop ? `Holding: ${propName(graph, event.prop)}` : null;
+}
+
 export function eventDetail(graph: ResolvedGraph, event: ResolvedEvent): string {
   const parts = [
     event.target && `target ${words(event.target)}`,
@@ -64,32 +80,117 @@ function formatEvidence(flag: Flag): string {
     .join(" · ");
 }
 
-export function StatusToken({ status }: { status: Status }) {
+export function activateOnKey(action: () => void) {
+  return (e: KeyboardEvent) => {
+    if (e.target !== e.currentTarget) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      action();
+    }
+  };
+}
+
+function stop(action: () => void) {
+  return (e: MouseEvent) => {
+    e.stopPropagation();
+    action();
+  };
+}
+
+export function StatusToken({ status, pending = false }: { status: Status; pending?: boolean }) {
   return (
     <span className={`status-token status-${status}`}>
       {status === "implausible" && <Icon name="warning" size={12} />}
       {status === "overridden" && <span className="status-diamond" />}
-      {STATUS_LABELS[status]}
+      {status === "proposed" && pending && <span className="spinner" aria-hidden />}
+      {status === "proposed" && pending ? "Checking against the room…" : STATUS_LABELS[status]}
     </span>
   );
 }
 
+export function SourceRefs({ sources, onOpen }: { sources: string[]; onOpen: (sourceId: string) => void }) {
+  if (sources.length === 0) return <span className="source-refs">No source recorded</span>;
+  return (
+    <span className="source-refs">
+      Witness statement · {sources.length === 1 ? "Source" : "Sources"}{" "}
+      {sources.map((id, i) => (
+        <Fragment key={id}>
+          {i > 0 && ", "}
+          <button
+            type="button"
+            className="source-ref"
+            title={`Show ${id} in the transcript`}
+            aria-label={`Show source ${sourceNumber(id)} (${id}) in the transcript`}
+            onClick={stop(() => onOpen(id))}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            {sourceNumber(id)}
+          </button>
+        </Fragment>
+      ))}
+    </span>
+  );
+}
+
+export function playbackMarkLabel(playing: boolean): string {
+  return playing ? "Playing now" : "At the playhead";
+}
+
+export function PlaybackDot({ active, playing }: { active: boolean; playing: boolean }) {
+  if (!active) return null;
+  const label = playbackMarkLabel(playing);
+  return <span className="playback-dot" role="img" aria-label={label} title={label} />;
+}
+
 export function FlagCard({
   flag,
+  sceneId,
   eventLabel,
-  waived,
-  onJump,
+  eventTimeLabel,
+  selected,
+  playbackActive,
+  playing,
+  onSelect,
   onOverride,
+  onCopy,
 }: {
   flag: Flag;
-  eventLabel?: string;
-  waived: boolean;
-  onJump: () => void;
+  sceneId: string;
+  eventLabel: string;
+  eventTimeLabel: string;
+  selected: boolean;
+  playbackActive: boolean;
+  playing: boolean;
+  onSelect: () => void;
   onOverride?: () => void;
+  onCopy: (text: string) => void;
 }) {
   return (
-    <article className={`hard-flag${waived ? " is-waived" : ""}`}>
-      {eventLabel && <span className="flag-event mono">{eventLabel}</span>}
+    <article
+      className={`hard-flag${selected ? " selected" : ""}`}
+      role="button"
+      tabIndex={0}
+      aria-label={`View ${eventLabel}, ${eventTimeLabel}, in the scene${playbackActive ? `, ${playbackMarkLabel(playing).toLowerCase()}` : ""}`}
+      data-playback-active={playbackActive ? "true" : undefined}
+      onClick={onSelect}
+      onKeyDown={activateOnKey(onSelect)}
+    >
+      <div className="flag-event">
+        <span className="flag-related">
+          <span className="field-label">Related event</span>
+          <span className="flag-related__event">
+            {eventLabel} ·{" "}
+            <span className="playback-when">
+              <PlaybackDot active={playbackActive} playing={playing} />
+              <time className="mono">{eventTimeLabel}</time>
+            </span>
+          </span>
+        </span>
+        <span className="view-in-scene" aria-hidden>
+          <Icon name="eye" size={13} />
+          View in scene
+        </span>
+      </div>
       <div className="hard-flag__heading">
         <div className="hard-flag__warning">
           <Icon name="warning" size={16} />
@@ -99,21 +200,35 @@ export function FlagCard({
           <span className={`severity-chip${flag.severity === "soft" ? " soft" : ""}`}>{flag.severity}</span>
         </div>
       </div>
-      <h3>{CHECK_TITLES[flag.check]}</h3>
+      <h3>{flagHeadline(flag, (id) => placeName(sceneId, id))}</h3>
+      <span className="flag-basis">{BASIS_LABELS[checkBasis(flag.check)]}</span>
       <p className="hard-flag__detail">{flag.detail}</p>
       {Object.keys(flag.evidence).length > 0 && <div className="flag-evidence mono">{formatEvidence(flag)}</div>}
-      <blockquote>“{flag.suggestedQuestion}”</blockquote>
-      <div className="flag-actions">
-        <button type="button" className="button" onClick={onJump}>
-          <Icon name="eye" size={16} />
-          Jump to
+      <div className="suggested-question">
+        <span className="field-label">Suggested question</span>
+        <blockquote>“{flag.suggestedQuestion}”</blockquote>
+        <button
+          type="button"
+          className="button button--small"
+          onClick={stop(() => onCopy(flag.suggestedQuestion))}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          <Icon name="copy" size={13} />
+          Copy
         </button>
-        {onOverride && (
-          <button type="button" className="button" onClick={onOverride}>
+      </div>
+      {onOverride && (
+        <div className="flag-actions">
+          <button
+            type="button"
+            className="button"
+            onClick={stop(onOverride)}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
             Override…
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </article>
   );
 }
@@ -124,6 +239,7 @@ export function OverrideLog({ override }: { override: Override }) {
       <div className="override-log__head">
         <span className="status-diamond" />
         <strong>Overridden by {override.by}</strong>
+        <span className="decision-tag">Reason recorded</span>
       </div>
       <p>
         <span>Reason</span>“{override.reason}”

@@ -4,12 +4,13 @@ import {
   NotConnected,
   OverrideLog,
   PendingNote,
+  SourceRefs,
   StatusToken,
   words,
   type PanelContext,
 } from "./shared";
 
-export function HistoryTab({ graph, statusOf, pendingNoteOf, selectedEventId }: PanelContext) {
+export function HistoryTab({ graph, statusOf, pendingNoteOf, selectedEventId, openSource }: PanelContext) {
   const event = graph.events.find((e) => e.id === selectedEventId) ?? null;
   const overridden = graph.events.filter((e) => e.override);
 
@@ -33,12 +34,7 @@ export function HistoryTab({ graph, statusOf, pendingNoteOf, selectedEventId }: 
             <strong>{eventDetail(graph, event)}</strong>
             <div className="version-meta">
               <span>{eventTime(event)}</span>
-              <span>Source</span>
-              {event.sources.map((source) => (
-                <span key={source} className="source-chip">
-                  {source}
-                </span>
-              ))}
+              <SourceRefs sources={event.sources} onOpen={openSource} />
               {event.flags.map((flag) => (
                 <b key={flag.id} className="mono">
                   {words(flag.check)}
