@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { ConnectionId } from "spacetimedb";
+import { SenderError } from "spacetimedb/server";
 import { Request } from "spacetimedb/server";
 import { TestAuth, createModuleTestHarness } from "spacetimedb/server/test-utils";
 import type { TestHttpResponder } from "spacetimedb/server/test-utils";
@@ -8,7 +9,8 @@ import robberyTranscript from "../../../packages/extractor/fixtures/robbery.tran
 import robberyToolUses from "./fixtures/robbery.tool-uses.json";
 import { EXTRACTION_MODEL } from "@rashomon/extractor";
 import { MAX_BODY_BYTES, MAX_UTTERANCES, SECRET_HEADER, handleCartesia, secretsMatch } from "./http/cartesia";
-import { EXTRACTION_FAILED, PROMPT_HASH, runExtraction, type Io } from "./extract/run";
+import { EXTRACTION_FAILED, MAX_SEGMENT_TEXT_CHARS, PROMPT_HASH, runExtraction, type Io } from "./extract/run";
+import { NOT_THE_MODULE, extractAs } from "./procedures/extractSegment";
 import * as mod from "./index";
 import { eventGraphFromRow } from "./convert";
 import { spacetimedb } from "./tables";
@@ -21,6 +23,7 @@ const HOOK = "whsec-test-value";
 const h = () => createModuleTestHarness(spacetimedb, mod);
 let harness: ReturnType<typeof h>;
 let requests: { headers: string; body: string }[];
+let logged: string[];
 
 const call = (fn: (ctx: never) => unknown) => harness.withReducerTx(auth, fn as never);
 
@@ -88,9 +91,15 @@ const insertWitnessSegment = (id = "utt_2", speaker = "witness") =>
     }),
   );
 
+const lastLog = () => logged[logged.length - 1] ?? "";
+
 beforeEach(() => {
   harness = h();
   requests = [];
+  logged = [];
+  vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+    logged.push(args.map(String).join(" "));
+  });
   call((ctx) => mod.createSession(ctx, { id: SESSION, sceneId: robberyGraph.sceneId }));
   call((ctx) =>
     mod.applyPatches(ctx, {
@@ -148,7 +157,8 @@ describe("extractSegment", () => {
     const before = graph();
     const result = runExtraction(ioFor(status(500, JSON.stringify({ error: { message: "overloaded" } }))), SESSION, "utt_2");
     expect(result).toEqual({ segmentId: "utt_2", patchCount: 0, statuses: [], hardFlags: [], error: EXTRACTION_FAILED });
-    expect(segmentRow().extractError).toBe("Anthropic API 500: overloaded");
+    expect(segmentRow().extractError).toBe("model_error");
+    expect(lastLog()).toBe("extract_segment s1/utt_2 model_error: Anthropic API 500: overloaded");
     expect(segmentRow().extractModel).toBeUndefined();
     expect(graph()).toEqual(before);
     expect(JSON.stringify(result)).not.toContain(SECRET);
@@ -156,10 +166,12 @@ describe("extractSegment", () => {
 
   test("a refusal and a response with no tool call are written as errors", () => {
     expect(runExtraction(ioFor(ok([], { stop_reason: "refusal" })), SESSION, "utt_2").error).toBe(EXTRACTION_FAILED);
-    expect(segmentRow().extractError).toMatch(/refused/);
+    expect(segmentRow().extractError).toBe("model_refused");
+    expect(lastLog()).toMatch(/model_refused: the model refused/);
     const empty = runExtraction(ioFor(ok([{ type: "text", text: "hello" }])), SESSION, "utt_2");
     expect(empty.error).toBe(EXTRACTION_FAILED);
-    expect(segmentRow().extractError).toMatch(/validation failed: the model returned no tool call/);
+    expect(segmentRow().extractError).toBe("bad_tool_output");
+    expect(lastLog()).toMatch(/bad_tool_output: validation failed: the model returned no tool call/);
     expect(graph().events).toEqual([]);
   });
 
@@ -170,7 +182,8 @@ describe("extractSegment", () => {
     expect(JSON.parse(requests[1]!.body).messages).toHaveLength(3);
     expect(result.patchCount).toBe(0);
     expect(result.error).toBe(EXTRACTION_FAILED);
-    expect(segmentRow().extractError).toMatch(/^validation failed: add_event:/);
+    expect(segmentRow().extractError).toBe("bad_tool_output");
+    expect(lastLog()).toMatch(/bad_tool_output: validation failed: add_event:/);
     expect(graph().events).toEqual([]);
     expect(graph().version).toBe(1);
   });
@@ -194,7 +207,8 @@ describe("extractSegment", () => {
     expect(result.patchCount).toBe(0);
     expect(graph().events).toEqual([]);
     expect(graph().version).toBe(1);
-    expect(segmentRow().extractError).toMatch(/nobody/);
+    expect(segmentRow().extractError).toBe("bad_tool_output");
+    expect(lastLog()).toMatch(/nobody/);
   });
 
   test("when the second patch of a validated batch fails to apply, the first is rolled back too", () => {
@@ -235,7 +249,8 @@ describe("extractSegment", () => {
 
     expect(requests).toHaveLength(1);
     expect(result).toEqual({ segmentId: "utt_2", patchCount: 0, statuses: [], hardFlags: [], error: EXTRACTION_FAILED });
-    expect(segmentRow().extractError).toMatch(/e7 was retracted and cannot be updated/);
+    expect(segmentRow().extractError).toBe("apply_failed");
+    expect(lastLog()).toMatch(/apply_failed: applying the patches failed: .*e7 was retracted and cannot be updated/);
     const after = graph();
     expect(before.graph?.version).toBe(3);
     expect(after.version).toBe(3);
@@ -298,7 +313,8 @@ describe("extractSegment", () => {
 
   test("no key, an unknown segment and a non-witness segment never reach the model", () => {
     expect(runExtraction(ioFor(ok([]), ""), SESSION, "utt_2").error).toBe(EXTRACTION_FAILED);
-    expect(segmentRow().extractError).toMatch(/ANTHROPIC_API_KEY is not set/);
+    expect(segmentRow().extractError).toBe("no_api_key");
+    expect(lastLog()).toMatch(/no_api_key: ANTHROPIC_API_KEY is not set/);
     expect(runExtraction(ioFor(ok([])), SESSION, "nope").error).toBe("unknown segment");
     expect(runExtraction(ioFor(ok([])), "nope", "utt_2").error).toBe("unknown session");
     insertWitnessSegment("q1", "interviewer");
@@ -443,7 +459,8 @@ describe("the Cartesia webhook", () => {
   test("an extraction error is a 502 with a generic message, and the detail stays on the segment", () => {
     const out = handleCartesia(webhookIo(status(500, JSON.stringify({ error: { message: "overloaded" } }))), post(body()));
     expect(out).toEqual({ status: 502, body: { error: EXTRACTION_FAILED } });
-    expect(harness.db.segments.rowKey.find(`${SESSION}/seg_1234`)?.extractError).toBe("Anthropic API 500: overloaded");
+    expect(harness.db.segments.rowKey.find(`${SESSION}/seg_1234`)?.extractError).toBe("model_error");
+    expect(lastLog()).toBe("extract_segment s1/seg_1234 model_error: Anthropic API 500: overloaded");
   });
 
   test("an upstream message echoing a variant of the key never reaches the caller", () => {
@@ -474,7 +491,8 @@ describe("the Cartesia webhook", () => {
     expect(out.status).toBe(200);
     expect(out.body).toMatchObject({ patchCount: 1, error: "extraction partly failed" });
     expect(JSON.stringify(out.body)).not.toContain("moon_base");
-    expect(harness.db.segments.rowKey.find(`${SESSION}/seg_1234`)?.extractError).toMatch(/^partly rejected: add_event: .*moon_base/);
+    expect(harness.db.segments.rowKey.find(`${SESSION}/seg_1234`)?.extractError).toBe("partly_rejected");
+    expect(lastLog()).toMatch(/partly_rejected: partly rejected: add_event: .*moon_base/);
   });
 });
 
@@ -565,5 +583,78 @@ describe("the robbery demo path", () => {
     });
     expect(e5?.suggestedQuestion).toMatch(/Where exactly were you standing/);
     expect(JSON.parse(JSON.stringify(out.body)).hardFlags).toContainEqual(e5);
+  });
+});
+
+describe("who can run extraction", () => {
+  const stranger = () =>
+    TestAuth.fromJwtPayload(
+      JSON.stringify({ iss: "https://auth.example", sub: "stranger", aud: ["spacetimedb"], iat: 0 }),
+      ConnectionId.random(),
+    );
+  const procedure = mod.extractSegment as unknown as (ctx: never, args: { sessionId: string; segmentId: string }) => unknown;
+
+  test("an anonymous caller cannot run extraction", () => {
+    const ctx = harness.procedureContextBuilder(stranger()).build();
+    expect(ctx.sender.isEqual(ctx.databaseIdentity)).toBe(false);
+    const before = graph();
+    const run = () => extractAs(ctx, () => ioFor(ok([toolUse("tu_1", "add_event", walkInput)])), SESSION, "utt_2");
+    expect(run).toThrow(SenderError);
+    expect(run).toThrow(NOT_THE_MODULE);
+    expect(() => procedure(ctx as never, { sessionId: SESSION, segmentId: "utt_2" })).toThrow(NOT_THE_MODULE);
+    expect(requests).toHaveLength(0);
+    expect(graph()).toEqual(before);
+    expect(segmentRow()).toMatchObject({ extractedAt: undefined, extractError: undefined, extractModel: undefined });
+  });
+
+  test("the module itself can still run extraction", () => {
+    const ctx = harness.procedureContext(auth);
+    expect(ctx.sender.isEqual(ctx.databaseIdentity)).toBe(true);
+    const result = extractAs(ctx, () => ioFor(ok([toolUse("tu_1", "add_event", walkInput)])), SESSION, "utt_2");
+    expect(result).toMatchObject({ patchCount: 1, error: undefined });
+    expect(requests).toHaveLength(1);
+  });
+
+  test("a segment over the text cap never reaches the model", () => {
+    const long = "a".repeat(MAX_SEGMENT_TEXT_CHARS + 1);
+    call((ctx) =>
+      mod.insertSegment(ctx, {
+        id: "big",
+        sessionId: SESSION,
+        witnessId: "w1",
+        speaker: "witness",
+        text: long,
+        tStart: 0,
+        tEnd: 1,
+        source: "upload_text",
+        supersedes: undefined,
+        utterances: [{ id: "big_a", text: long, tStart: 0, tEnd: 1 }],
+      }),
+    );
+    const result = runExtraction(ioFor(ok([toolUse("tu_1", "add_event", walkInput)])), SESSION, "big");
+    expect(result).toEqual({ segmentId: "big", patchCount: 0, statuses: [], hardFlags: [], error: EXTRACTION_FAILED });
+    expect(requests).toHaveLength(0);
+    expect(segmentRow("big").extractError).toBe("segment_too_long");
+    expect(lastLog()).toBe(`extract_segment s1/big segment_too_long: ${MAX_SEGMENT_TEXT_CHARS + 1} characters, over ${MAX_SEGMENT_TEXT_CHARS}`);
+  });
+
+  test("a segment exactly at the text cap is sent", () => {
+    const text = "a".repeat(MAX_SEGMENT_TEXT_CHARS);
+    call((ctx) =>
+      mod.insertSegment(ctx, {
+        id: "edge",
+        sessionId: SESSION,
+        witnessId: "w1",
+        speaker: "witness",
+        text,
+        tStart: 0,
+        tEnd: 1,
+        source: "upload_text",
+        supersedes: undefined,
+        utterances: [{ id: "edge_a", text, tStart: 0, tEnd: 1 }],
+      }),
+    );
+    runExtraction(ioFor(ok([toolUse("tu_1", "add_event", walkInput)])), SESSION, "edge");
+    expect(requests).toHaveLength(1);
   });
 });

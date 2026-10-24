@@ -27,6 +27,18 @@ export const EXTRACTION_FAILED = "extraction failed";
 export const EXTRACTION_PARTLY_FAILED = "extraction partly failed";
 export const UNKNOWN_SESSION = "unknown session";
 export const UNKNOWN_SEGMENT = "unknown segment";
+export const MAX_SEGMENT_TEXT_CHARS = 32_000;
+
+export type ErrorCode =
+  | "no_api_key"
+  | "segment_too_long"
+  | "model_unreachable"
+  | "model_error"
+  | "bad_model_response"
+  | "model_refused"
+  | "bad_tool_output"
+  | "partly_rejected"
+  | "apply_failed";
 
 export type Io = {
   apiKey: () => string | undefined;
@@ -83,6 +95,7 @@ type Snapshot =
   | { error: string }
   | { skipped: true }
   | { stored: Extraction }
+  | { tooLong: number }
   | { segment: Segment; context: ExtractContext; utteranceIds: string[] };
 
 function snapshot(io: Io, sessionId: string, segmentId: string): Snapshot {
@@ -93,6 +106,7 @@ function snapshot(io: Io, sessionId: string, segmentId: string): Snapshot {
     if (!row || row.sessionId !== sessionId) return { error: UNKNOWN_SEGMENT };
     if (row.speaker !== "witness") return { skipped: true };
     if (row.extractedAt !== undefined) return { stored: storedResult(ctx, row) };
+    if (row.text.length > MAX_SEGMENT_TEXT_CHARS) return { tooLong: row.text.length };
     const graphRow = buildGraph(ctx.db, sessionId);
     if (!graphRow) return { error: UNKNOWN_SESSION };
     const graph = eventGraphFromRow(graphRow);
@@ -122,15 +136,19 @@ function snapshot(io: Io, sessionId: string, segmentId: string): Snapshot {
   });
 }
 
-function recordError(io: Io, sessionId: string, segmentId: string, error: string): Extraction {
+const logFailure = (sessionId: string, segmentId: string, code: ErrorCode, detail: string): void =>
+  console.error(`extract_segment ${sessionId}/${segmentId} ${code}: ${detail}`);
+
+function recordError(io: Io, sessionId: string, segmentId: string, code: ErrorCode, detail: string): Extraction {
+  logFailure(sessionId, segmentId, code, detail);
   io.withTx((ctx) => {
     const row = ctx.db.segments.rowKey.find(key(sessionId, segmentId));
-    if (row) ctx.db.segments.rowKey.update({ ...row, extractError: error });
+    if (row) ctx.db.segments.rowKey.update({ ...row, extractError: code });
   });
   return done(segmentId, 0, [], [], EXTRACTION_FAILED);
 }
 
-type Gathered = { patches: Patch[]; unparsed: string[] } | { error: string };
+type Gathered = { patches: Patch[]; unparsed: string[] } | { code: ErrorCode; detail: string };
 
 function gather(io: Io, apiKey: string, segment: Segment, base: ExtractContext): Gathered {
   const scrub = (text: string): string => text.split(apiKey).join("[redacted]");
@@ -154,7 +172,7 @@ function gather(io: Io, apiKey: string, segment: Segment, base: ExtractContext):
         timeout: TimeDuration.fromMillis(REQUEST_TIMEOUT_MS),
       });
     } catch (e) {
-      return { error: scrub(`request to the model failed: ${messageOf(e)}`) };
+      return { code: "model_unreachable", detail: scrub(`request to the model failed: ${messageOf(e)}`) };
     }
     if (response.status !== 200) {
       let detail = "";
@@ -164,15 +182,15 @@ function gather(io: Io, apiKey: string, segment: Segment, base: ExtractContext):
       } catch {
         detail = "";
       }
-      return { error: scrub(`Anthropic API ${response.status}${detail ? `: ${detail.slice(0, 200)}` : ""}`) };
+      return { code: "model_error", detail: scrub(`Anthropic API ${response.status}${detail ? `: ${detail.slice(0, 200)}` : ""}`) };
     }
     let body: ModelResponse;
     try {
       body = response.json() as ModelResponse;
     } catch {
-      return { error: "the model response was not valid JSON" };
+      return { code: "bad_model_response", detail: "the model response was not valid JSON" };
     }
-    if (body.stop_reason === "refusal") return { error: "the model refused this statement" };
+    if (body.stop_reason === "refusal") return { code: "model_refused", detail: "the model refused this statement" };
     const blocks = (Array.isArray(body.content) ? body.content : []).filter(isToolUse);
     if (blocks.length === 0) {
       unparsed = ["the model returned no tool call"];
@@ -207,18 +225,21 @@ export function runExtraction(io: Io, sessionId: string, segmentId: string): Ext
   if ("error" in snap) return done(segmentId, 0, [], [], snap.error);
   if ("skipped" in snap) return done(segmentId, 0, [], []);
   if ("stored" in snap) return snap.stored;
+  if ("tooLong" in snap)
+    return recordError(io, sessionId, segmentId, "segment_too_long", `${snap.tooLong} characters, over ${MAX_SEGMENT_TEXT_CHARS}`);
 
   const apiKey = io.apiKey();
-  if (!apiKey) return recordError(io, sessionId, segmentId, "ANTHROPIC_API_KEY is not set on this module");
+  if (!apiKey) return recordError(io, sessionId, segmentId, "no_api_key", "ANTHROPIC_API_KEY is not set on this module");
 
   const gathered = gather(io, apiKey, snap.segment, snap.context);
-  if ("error" in gathered) return recordError(io, sessionId, segmentId, gathered.error);
+  if ("code" in gathered) return recordError(io, sessionId, segmentId, gathered.code, gathered.detail);
   const { unparsed } = gathered;
   const patches = mintPropIds(gathered.patches, snap.context);
   if (patches.length === 0 && unparsed.length > 0)
-    return recordError(io, sessionId, segmentId, `validation failed: ${unparsed.join("; ")}`);
+    return recordError(io, sessionId, segmentId, "bad_tool_output", `validation failed: ${unparsed.join("; ")}`);
 
-  const partial = unparsed.length > 0 ? `partly rejected: ${unparsed.join("; ")}` : undefined;
+  if (unparsed.length > 0) logFailure(sessionId, segmentId, "partly_rejected", `partly rejected: ${unparsed.join("; ")}`);
+  const partial: ErrorCode | undefined = unparsed.length > 0 ? "partly_rejected" : undefined;
   try {
     return io.withTx((ctx) => {
       const session = ctx.db.sessions.id.find(sessionId);
@@ -244,6 +265,6 @@ export function runExtraction(io: Io, sessionId: string, segmentId: string): Ext
       return done(segmentId, patches.length, statuses, hardFlags, partial === undefined ? undefined : EXTRACTION_PARTLY_FAILED);
     });
   } catch (e) {
-    return recordError(io, sessionId, segmentId, `applying the patches failed: ${messageOf(e)}`);
+    return recordError(io, sessionId, segmentId, "apply_failed", `applying the patches failed: ${messageOf(e)}`);
   }
 }
