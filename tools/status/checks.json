@@ -26,6 +26,15 @@
       "paths": [
         "packages/schema"
       ]
+    },
+    {
+      "id": "insert-segment-cap",
+      "due": "14-16",
+      "todo": "Before Maincloud: cap insert_segment's text to match the Cartesia webhook (64 KB, 50 utterances; share the constants with http/cartesia.ts once PR #16 merges), with a test named 'insert_segment rejects a segment over the webhook caps'; create_session and insert_segment stay open to any caller for the demo",
+      "grep": "insert_segment rejects a segment over the webhook caps",
+      "paths": [
+        "spacetimedb/server/src"
+      ]
     }
   ],
   "C": [
