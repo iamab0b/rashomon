@@ -254,6 +254,16 @@ export const extractionQueue = table(
   },
 );
 
+const askedFlags = table(
+  { name: "asked_flags" },
+  {
+    rowKey: t.string().primaryKey(),
+    sessionId: t.string().index(),
+    flagId: t.string(),
+    askedAt: t.timestamp(),
+  },
+);
+
 export const ExtractionT = t.object("Extraction", {
   segmentId: t.string(),
   patchCount: t.u32(),
@@ -273,6 +283,7 @@ export const spacetimedb = schema({
   flags,
   overrides,
   extractionQueue,
+  askedFlags,
 }, {
   env: { ANTHROPIC_API_KEY: t.string(), CARTESIA_WEBHOOK_SECRET: t.string(), EDITOR_IDENTITIES: t.string() },
 });

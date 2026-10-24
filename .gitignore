@@ -10,3 +10,4 @@ apps/web/shots/
 prep/
 .claude/settings.local.json
 .coordination
+apps/agent/.cartesia-ids.json

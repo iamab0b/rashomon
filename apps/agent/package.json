@@ -1,0 +1,21 @@
+{
+  "name": "agent",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p . --noEmit",
+    "test": "vitest run",
+    "models": "tsx --env-file=../../.env.local src/setup.ts models",
+    "setup": "tsx --env-file=../../.env.local src/setup.ts setup"
+  },
+  "dependencies": {
+    "@rashomon/schema": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.3",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "3.2.4"
+  }
+}
