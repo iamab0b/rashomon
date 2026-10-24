@@ -126,7 +126,7 @@ export function FlagCard({
   eventLabel: string;
   selected: boolean;
   onSelect: () => void;
-  onOverride: () => void;
+  onOverride?: () => void;
   onCopy: (text: string) => void;
 }) {
   return (
@@ -171,16 +171,18 @@ export function FlagCard({
           Copy
         </button>
       </div>
-      <div className="flag-actions">
-        <button
-          type="button"
-          className="button"
-          onClick={stop(onOverride)}
-          onKeyDown={(e) => e.stopPropagation()}
-        >
-          Override…
-        </button>
-      </div>
+      {onOverride && (
+        <div className="flag-actions">
+          <button
+            type="button"
+            className="button"
+            onClick={stop(onOverride)}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            Override…
+          </button>
+        </div>
+      )}
     </article>
   );
 }

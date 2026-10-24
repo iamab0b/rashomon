@@ -1,3 +1,4 @@
+import { canOverride } from "./overridePending";
 import { actorLabel, FlagCard, PendingNote, words, type PanelContext } from "./shared";
 
 export function openFlagCount({ graph, statusOf }: Pick<PanelContext, "graph" | "statusOf">): number {
@@ -45,7 +46,7 @@ export function FlagsTab({ graph, statusOf, pendingNoteOf, selectedEventId, jump
                   eventLabel={`${actorLabel(graph, event.actor)} · ${words(event.action)} · ${event.tStart.toFixed(1)} s`}
                   selected={selectedEventId === event.id}
                   onSelect={() => jumpTo(event.id)}
-                  onOverride={() => openOverride(event.id)}
+                  onOverride={canOverride(statusOf(event)) ? () => openOverride(event.id) : undefined}
                   onCopy={(text) => void copyText(text, notify)}
                 />
                 <PendingNote note={pendingNoteOf(event)} />

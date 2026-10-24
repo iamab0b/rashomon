@@ -23,4 +23,13 @@ Done-check:
 - Switching the toggle reloads with the new `?mode`, and fixture is the default with no query string.
 - Update the PR description: it depends on #12, and live is wired once scene-core's N3 lands.
 
+
+## Second review (PR #14 at 11cf5b3)
+
+The preview is gone and the toggle reloads with `?mode=`. One fix remains:
+
+1. TopBar.tsx line 28: `liveConnected` defaults to false and App.tsx never passes it, so in live mode the badge always reads "Live · not connected", with the tooltip "still playing the fixture". Since scene-core N3 merged, `?mode=live` really connects and plays the server's graph, so the badge is no longer truthful. Until the scene exports a connection status, use `useGraph().resolved`: show "Live" when it is non-null and "Live · connecting" while it is null, and drop the "still playing the fixture" tooltip.
+
+Optional: confirm before switching away from fixture mode, since the reload drops fixture-mode overrides.
+
 `/team-status` closes this item when no file under `apps/web/src/ui/` contains `previewStatuses` and the toggle reloads with `?mode=`; the tracker's grep watches for an assignment to `location.search` in apps/web/src/ui.

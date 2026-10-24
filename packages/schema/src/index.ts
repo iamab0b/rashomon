@@ -156,10 +156,10 @@ export type EventGraph = {
 };
 
 export type Patch =
-  | { op: "add_event"; event: Omit<Event, "id" | "status" | "flags"> }
+  | { op: "add_event"; event: Omit<Event, "id" | "status" | "flags"> & { id?: string } }
   | { op: "update_event"; id: string; changes: Partial<Event>; sources: string[] }
   | { op: "retract_event"; id: string; sources: string[] }
-  | { op: "add_prop"; prop: Omit<PropInstance, "id"> }
+  | { op: "add_prop"; prop: Omit<PropInstance, "id"> & { id?: string } }
   | { op: "update_prop"; id: string; changes: Partial<PropInstance>; sources: string[] }
   | { op: "add_actor"; actor: Actor }
   | { op: "override"; id: string; reason: string; by: string };

@@ -1,4 +1,7 @@
-import { SenderError, t } from "spacetimedb/server";
+import { gate, resolve } from "@rashomon/engine";
+import { storeScene } from "@rashomon/schema/fixtures";
+import type { SceneManifest } from "@rashomon/schema";
+import { t } from "spacetimedb/server";
 import type { ReducerCtx } from "spacetimedb/server";
 import {
   MIN_OVERRIDE_REASON_CHARS,
@@ -9,6 +12,7 @@ import {
   STATUSES,
   eventChangesFrom,
   eventFieldsFrom,
+  eventGraphFromRow,
   fail,
   idOf,
   intervalOf,
@@ -27,6 +31,48 @@ import { EventGraphT, FlagT, StatusEntryT, UtteranceInputT, spacetimedb } from "
 type Ctx = ReducerCtx<ModuleSchema>;
 
 const key = (sessionId: string, id: string): string => `${sessionId}/${id}`;
+
+const MANIFESTS: Record<string, SceneManifest> = { store_v1: storeScene };
+
+function manifestFor(sceneId: string): SceneManifest {
+  return MANIFESTS[sceneId] ?? fail(`unknown sceneId ${sceneId}; known scenes: ${Object.keys(MANIFESTS).join(", ")}`);
+}
+
+const isRetracted = (e: { status: string; supersededBy?: string | undefined }): boolean =>
+  e.status === "superseded" || e.supersededBy !== undefined;
+
+function regate(ctx: Ctx, sessionId: string): void {
+  const session = requireSession(ctx, sessionId);
+  const manifest = manifestFor(session.sceneId);
+  const row = buildGraph(ctx.db, sessionId) ?? fail(`unknown session ${sessionId}`);
+  const graph = eventGraphFromRow(row);
+  const judged = {
+    ...graph,
+    events: graph.events.map((e) => ({ ...e, status: isRetracted(e) ? ("superseded" as const) : ("proposed" as const) })),
+  };
+  const { statuses, flags } = gate(resolve(judged, manifest), manifest, { meshes: [] });
+  for (const e of ctx.db.events.sessionId.filter(sessionId)) {
+    const next = statuses[e.id];
+    if (next !== undefined && next !== e.status) ctx.db.events.rowKey.update({ ...e, status: next });
+  }
+  const old = [...ctx.db.flags.sessionId.filter(sessionId)].map((f) => f.rowKey);
+  for (const rowKey of old) ctx.db.flags.rowKey.delete(rowKey);
+  flags.forEach((f, i) =>
+    ctx.db.flags.insert({
+      rowKey: key(sessionId, f.id),
+      sessionId,
+      seq: i + 1,
+      id: f.id,
+      eventId: f.eventId,
+      check: f.check,
+      severity: f.severity,
+      detail: f.detail,
+      evidence: JSON.stringify(f.evidence),
+      conflictsWith: f.conflictsWith,
+      suggestedQuestion: f.suggestedQuestion,
+    }),
+  );
+}
 
 function requireSession(ctx: Ctx, sessionId: string) {
   return ctx.db.sessions.id.find(sessionId) ?? fail(`unknown session ${sessionId}`);
@@ -86,12 +132,13 @@ function applyOverride(ctx: Ctx, sessionId: string, eventId: string, reason: unk
     fail(`override reason must be at least ${MIN_OVERRIDE_REASON_CHARS} characters`);
   const who = nonEmptyString(by, "override.by");
   const event = requireEvent(ctx, sessionId, eventId);
+  if (isRetracted(event)) fail(`event ${eventId} was retracted and cannot be overridden`);
   if (event.status !== "implausible")
     fail(`event ${eventId} is ${event.status}; only implausible events can be overridden`);
   const flagIds = [...ctx.db.flags.eventId.filter(eventId)]
     .filter((f) => f.sessionId === sessionId && f.severity === "hard")
     .map((f) => f.id);
-  ctx.db.events.rowKey.update({ ...event, status: "overridden" });
+  ctx.db.overrides.rowKey.delete(key(sessionId, eventId));
   ctx.db.overrides.insert({
     rowKey: key(sessionId, eventId),
     sessionId,
@@ -125,16 +172,14 @@ function applyPatch(ctx: Ctx, sessionId: string, patch: unknown): string[] {
       const id = idOf(patch.id, "update_event.id");
       const sources = sourcesOf(patch.sources, "update_event");
       const event = requireEvent(ctx, sessionId, id);
-      if (event.status === "superseded") return fail(`event ${id} was retracted and cannot be updated`);
+      if (isRetracted(event)) return fail(`event ${id} was retracted and cannot be updated`);
       const { keys, fields } = eventChangesFrom(patch.changes);
       const onlyTime = keys.every((k) => k === "t");
-      const keepsOverride = event.status === "overridden" && onlyTime;
-      if (event.status === "overridden" && !onlyTime) ctx.db.overrides.rowKey.delete(key(sessionId, id));
+      if (!onlyTime) ctx.db.overrides.rowKey.delete(key(sessionId, id));
       ctx.db.events.rowKey.update({
         ...event,
         ...fields,
         sources: union(event.sources, sources),
-        status: keepsOverride ? "overridden" : "proposed",
       });
       return sources;
     }
@@ -142,7 +187,11 @@ function applyPatch(ctx: Ctx, sessionId: string, patch: unknown): string[] {
       const id = idOf(patch.id, "retract_event.id");
       const sources = sourcesOf(patch.sources, "retract_event");
       const event = requireEvent(ctx, sessionId, id);
-      ctx.db.events.rowKey.update({ ...event, sources: union(event.sources, sources), status: "superseded" });
+      ctx.db.events.rowKey.update({
+        ...event,
+        sources: union(event.sources, sources),
+        supersededBy: event.supersededBy ?? sources[0],
+      });
       return sources;
     }
     case "add_prop": {
@@ -188,6 +237,7 @@ export const createSession = spacetimedb.reducer(
   (ctx, { id, sceneId }) => {
     idOf(id, "session id");
     nonEmptyString(sceneId, "sceneId");
+    manifestFor(sceneId);
     if (ctx.db.sessions.id.find(id)) fail(`session ${id} already exists`);
     ctx.db.sessions.insert({ id, sceneId, version: 0, creator: ctx.sender.toHexString(), createdAt: ctx.timestamp });
   },
@@ -214,10 +264,12 @@ export const insertSegment = spacetimedb.reducer(
     oneOf(a.speaker, SPEAKERS, "segment speaker");
     oneOf(a.source, SEGMENT_SOURCES, "segment source");
     intervalOf([a.tStart, a.tEnd], "segment t");
-    if (ctx.db.segments.id.find(a.id)) fail(`segment ${a.id} already exists`);
+    const segmentKey = key(a.sessionId, a.id);
+    if (ctx.db.segments.rowKey.find(segmentKey)) fail(`segment ${a.id} already exists`);
     if (a.supersedes !== undefined) {
-      const earlier = ctx.db.segments.id.find(a.supersedes) ?? fail(`unknown segment ${a.supersedes}`);
-      if (earlier.sessionId !== a.sessionId) fail(`segment ${a.supersedes} belongs to another session`);
+      idOf(a.supersedes, "segment supersedes");
+      const earlier = ctx.db.segments.rowKey.find(key(a.sessionId, a.supersedes));
+      if (!earlier || earlier.sessionId !== a.sessionId) fail(`unknown segment ${a.supersedes}`);
     }
     const seen = new Set<string>();
     for (const u of a.utterances) {
@@ -228,6 +280,7 @@ export const insertSegment = spacetimedb.reducer(
       seen.add(u.id);
     }
     ctx.db.segments.insert({
+      rowKey: segmentKey,
       id: a.id,
       sessionId: a.sessionId,
       witnessId: a.witnessId,
@@ -243,7 +296,7 @@ export const insertSegment = spacetimedb.reducer(
         rowKey: key(a.sessionId, u.id),
         sessionId: a.sessionId,
         id: u.id,
-        segmentId: a.id,
+        segmentKey,
         text: u.text,
         tStart: u.tStart,
         tEnd: u.tEnd,
@@ -265,7 +318,18 @@ export const applyPatches = spacetimedb.reducer(
     }
     if (!Array.isArray(patches) || patches.length === 0) return fail("patchesJson must be a non-empty array of patches");
     const appliedVersion = session.version + 1;
+    const touched = new Set<string>();
     for (const patch of patches) {
+      if (isRecord(patch)) {
+        if (patch.op === "override" && typeof patch.id === "string" && touched.has(patch.id)) {
+          regate(ctx, sessionId);
+        }
+        if (patch.op === "update_event" || patch.op === "retract_event") {
+          if (typeof patch.id === "string") touched.add(patch.id);
+        } else if (patch.op === "add_event" && isRecord(patch.event) && typeof patch.event.id === "string") {
+          touched.add(patch.event.id);
+        }
+      }
       const sources = applyPatch(ctx, sessionId, patch);
       ctx.db.patches.insert({
         id: 0n,
@@ -280,6 +344,7 @@ export const applyPatches = spacetimedb.reducer(
     }
     checkReferences(ctx, sessionId);
     ctx.db.sessions.id.update({ ...session, version: appliedVersion });
+    regate(ctx, sessionId);
   },
 );
 
@@ -288,6 +353,7 @@ export const override = spacetimedb.reducer(
   (ctx, { sessionId, eventId, reason, by }) => {
     requireSession(ctx, sessionId);
     applyOverride(ctx, sessionId, eventId, reason, by);
+    regate(ctx, sessionId);
   },
 );
 
@@ -296,7 +362,7 @@ export const setStatuses = spacetimedb.reducer(
   (ctx, { sessionId, baseVersion, statuses, flags }) => {
     const session = requireSession(ctx, sessionId);
     const sender = ctx.sender.toHexString();
-    if (sender !== ctx.identity.toHexString() && sender !== session.creator)
+    if (sender !== ctx.databaseIdentity.toHexString() && sender !== session.creator)
       fail("only the module or the session's creator can set statuses");
     if (baseVersion !== session.version)
       fail(`stale baseVersion ${baseVersion}; the graph is at version ${session.version}`);

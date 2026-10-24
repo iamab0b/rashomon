@@ -30,6 +30,8 @@ async function main(): Promise<void> {
   if (cam) query.set("cam", cam);
   const t = args.get("t");
   if (t !== undefined) query.set("t", t);
+  const scenario = args.get("scenario");
+  if (scenario !== undefined) query.set("scenario", scenario);
   const outDir = resolve(process.cwd(), "shots");
   const defaultName = debug ? `debug-${debug}.png` : `${cam}.png`;
   const outFile = resolve(outDir, args.get("out") ?? defaultName);

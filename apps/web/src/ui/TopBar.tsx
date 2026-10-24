@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useGraph } from "../scene";
-import { GRAPH_MODES, type GraphMode } from "./graphMode";
+import { GRAPH_MODES, modeBadge, type GraphMode } from "./graphMode";
 import { Icon } from "./Icon";
 import { useGraphMode } from "./useGraphMode";
 import "./rashomon-ui.css";
@@ -14,14 +14,9 @@ const TOAST_MS = 3200;
 export const IMPORT_NOT_CONNECTED =
   "Transcript import is not connected in this demo. Use Fixture mode to explore the workspace.";
 
-function ModeBadge({ mode, liveConnected }: { mode: GraphMode; liveConnected: boolean }) {
-  if (mode === "fixture") return <span className="badge badge--amber">Fixture data</span>;
-  if (liveConnected) return <span className="badge badge--green">Live</span>;
-  return (
-    <span className="badge badge--red" title="No live backend yet; the scene is still playing the fixture">
-      Live · not connected
-    </span>
-  );
+function ModeBadge({ mode, hasGraph }: { mode: GraphMode; hasGraph: boolean }) {
+  const badge = modeBadge(mode, hasGraph);
+  return <span className={`badge badge--${badge.tone}`}>{badge.label}</span>;
 }
 
 function AddSourceMenu({ onLoadFixture, onNotConnected }: { onLoadFixture: () => void; onNotConnected: () => void }) {
@@ -80,7 +75,7 @@ function AddSourceMenu({ onLoadFixture, onNotConnected }: { onLoadFixture: () =>
   );
 }
 
-export function TopBar({ liveConnected = false }: { liveConnected?: boolean }) {
+export function TopBar() {
   const { resolved } = useGraph();
   const [mode, setMode] = useGraphMode();
   const [toast, setToast] = useState("");
@@ -100,7 +95,7 @@ export function TopBar({ liveConnected = false }: { liveConnected?: boolean }) {
         <strong>Rashomon</strong>
         <div className="divider" />
         <span>{sceneLabel}</span>
-        <ModeBadge mode={mode} liveConnected={liveConnected} />
+        <ModeBadge mode={mode} hasGraph={resolved !== null} />
       </div>
       <div className="top-actions">
         <AddSourceMenu

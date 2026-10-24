@@ -28,7 +28,7 @@ const TABS: Tab[] = [
 
 const TOAST_MS = 2200;
 
-export function RightPanel({ by = "investigator", liveConnected = false }: { by?: string; liveConnected?: boolean }) {
+export function RightPanel({ by = "investigator" }: { by?: string }) {
   const { resolved, statuses } = useGraph();
   const { selectedEventId, select } = useSelection();
   const { setT, pause } = useTimeline();
@@ -58,7 +58,7 @@ export function RightPanel({ by = "investigator", liveConnected = false }: { by?
 
   const statusOf = (event: ResolvedEvent): Status => eventDisplay(event, statuses, pending).status;
 
-  const awaitingGate = mode === "live" && liveConnected;
+  const awaitingGate = mode === "live";
 
   const jumpTo = (eventId: string) => {
     const event = resolved.events.find((e) => e.id === eventId);

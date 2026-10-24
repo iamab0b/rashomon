@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { parseMode, searchWithMode } from "./graphMode";
+import { modeBadge, parseMode, searchWithMode } from "./graphMode";
 
 describe("parseMode", () => {
   test("defaults to fixture", () => {
@@ -30,5 +30,13 @@ describe("searchWithMode", () => {
   test("round-trips through parseMode", () => {
     expect(parseMode(searchWithMode("", "live"))).toBe("live");
     expect(parseMode(searchWithMode("?mode=live", "fixture"))).toBe("fixture");
+  });
+});
+
+describe("modeBadge", () => {
+  test("fixture says so, live says Live only once a graph has arrived", () => {
+    expect(modeBadge("fixture", true)).toEqual({ label: "Fixture data", tone: "amber" });
+    expect(modeBadge("live", false)).toEqual({ label: "Live · connecting", tone: "red" });
+    expect(modeBadge("live", true)).toEqual({ label: "Live", tone: "green" });
   });
 });
