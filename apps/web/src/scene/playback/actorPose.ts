@@ -1,6 +1,6 @@
 import type { ResolvedEvent, ResolvedGraph, Vec3 } from "@rashomon/engine";
 import type { Status } from "@rashomon/schema";
-import { buildEventPath, eventFraction, holdPoint, samplePath, type EventPath } from "./paths";
+import { buildEventPath, getPose, type EventPath } from "./paths";
 
 export const TURN_DURATION_S = 0.3;
 const TIMELINE_START_S = 0;
@@ -75,32 +75,33 @@ function activeMovement(playback: ActorPlayback, t: number): ResolvedEvent | und
   return active;
 }
 
-function endPoint(playback: ActorPlayback, event: ResolvedEvent): Vec3 | null {
-  const path = playback.paths.get(event.id);
-  if (path) return samplePath(path, 1).position;
-  return event.at ?? holdPoint(event);
+function pointAt(playback: ActorPlayback, event: ResolvedEvent, t: number): Vec3 | null {
+  return getPose(event, t, playback.paths.get(event.id) ?? null)?.position ?? null;
 }
 
-function startPoint(playback: ActorPlayback, event: ResolvedEvent): Vec3 | null {
-  const path = playback.paths.get(event.id);
-  if (path) return samplePath(path, 0).position;
-  return event.at ?? holdPoint(event);
+function heldEvent(playback: ActorPlayback, t: number): ResolvedEvent | undefined {
+  let best: ResolvedEvent | undefined;
+  let bestEnd = Number.NEGATIVE_INFINITY;
+  for (const event of playback.events) {
+    if (event.tStart > t) break;
+    const reached = Math.min(event.tEnd, t);
+    if (reached > bestEnd || (reached === bestEnd && event.tStart >= (best?.tStart ?? Number.NEGATIVE_INFINITY))) {
+      best = event;
+      bestEnd = reached;
+    }
+  }
+  return best;
 }
 
 export function actorPosition(playback: ActorPlayback, t: number): Vec3 | null {
   const moving = activeMovement(playback, t);
-  if (moving) {
-    const path = playback.paths.get(moving.id);
-    if (path) return samplePath(path, eventFraction(moving, t)).position;
-  }
-  for (let index = playback.events.length - 1; index >= 0; index -= 1) {
-    const event = playback.events[index];
-    if (!event || event.tStart > t) continue;
-    const point = endPoint(playback, event);
-    if (point) return point;
-  }
+  const movingPoint = moving ? pointAt(playback, moving, t) : null;
+  if (movingPoint) return movingPoint;
+  const held = heldEvent(playback, t);
+  const heldPoint = held ? pointAt(playback, held, t) : null;
+  if (heldPoint) return heldPoint;
   const first = playback.events[0];
-  return playback.restPosition ?? (first ? startPoint(playback, first) : null);
+  return playback.restPosition ?? (first ? pointAt(playback, first, first.tStart) : null);
 }
 
 function yawToward(from: Vec3, to: Vec3): number | null {
@@ -113,8 +114,7 @@ function yawToward(from: Vec3, to: Vec3): number | null {
 function desiredYaw(playback: ActorPlayback, t: number, positionOf: PositionLookup): number | null {
   const moving = activeMovement(playback, t);
   if (moving) {
-    const path = playback.paths.get(moving.id);
-    const tangent = path ? samplePath(path, eventFraction(moving, t)).tangent : null;
+    const tangent = getPose(moving, t, playback.paths.get(moving.id) ?? null)?.tangent;
     return tangent ? yawToward([0, 0, 0], tangent) : null;
   }
   const event = latestStarted(playback, t);

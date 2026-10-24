@@ -119,6 +119,12 @@ describe("holding events", () => {
     expect(pose).toEqual({ position: [1.5, 0, 0.4], tangent: null });
   });
 
+  test("an event with both from and at holds at from", () => {
+    const pose = getPose({ path: [], reachable: true, tStart: 0, tEnd: 2, from: [1, 0, 1], at: [8, 0, 8] }, 1);
+
+    expect(pose?.position).toEqual([1, 0, 1]);
+  });
+
   test("an anchored event with no path holds at at", () => {
     const pose = getPose({ path: [], reachable: true, tStart: 0, tEnd: 2, at: [8.7, 0, 2.5] }, 1);
 

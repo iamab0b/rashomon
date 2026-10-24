@@ -243,3 +243,74 @@ describe("actors with no event yet", () => {
     closeTo(actorPosition(buildActorPlayback(g, "b", (e) => e.status), 2), [5, 0, 5]);
   });
 });
+
+describe("holding between events (review fix 1)", () => {
+  const nested = graphOf([
+    event("walk", "a", "walk", 0, 20, { path: [[0, 0, 0], [10, 0, 0]], from: [0, 0, 0], to: [10, 0, 0] }),
+    event("look", "a", "look", 5, 8, { at: [5, 0, 0] }),
+  ]);
+  const a = buildActorPlayback(nested, "a", (e) => e.status);
+
+  test("after a parent walk with a nested look, the actor holds at the walk's end, not the look's anchor", () => {
+    for (const t of [20, 21, 25, 99]) closeTo(actorPosition(a, t), [10, 0, 0]);
+  });
+
+  test("while the walk is active the actor keeps walking through the nested look", () => {
+    closeTo(actorPosition(a, 6), [3, 0, 0]);
+    closeTo(actorPosition(a, 10), [5, 0, 0]);
+  });
+
+  test("an in-progress non-moving event wins over an earlier finished one", () => {
+    const g = graphOf([
+      event("s1", "a", "stand", 0, 4, { at: [0, 0, 0] }),
+      event("s2", "a", "speak", 4, 9, { at: [3, 0, 0] }),
+    ]);
+    closeTo(actorPosition(buildActorPlayback(g, "a", (e) => e.status), 6), [3, 0, 0]);
+  });
+
+  test("ties on end time go to the later tStart", () => {
+    const g = graphOf([
+      event("outer", "a", "stand", 0, 10, { at: [1, 0, 0] }),
+      event("inner", "a", "look", 4, 10, { at: [2, 0, 0] }),
+    ]);
+    closeTo(actorPosition(buildActorPlayback(g, "a", (e) => e.status), 12), [2, 0, 0]);
+  });
+
+  test("a parent stand with a nested look holds the parent after both end", () => {
+    const g = graphOf([
+      event("outer", "a", "stand", 0, 20, { at: [1, 0, 0] }),
+      event("inner", "a", "look", 5, 8, { at: [2, 0, 0] }),
+    ]);
+    closeTo(actorPosition(buildActorPlayback(g, "a", (e) => e.status), 21), [1, 0, 0]);
+  });
+});
+
+describe("hold uses from ?? at (review fix 4)", () => {
+  test("an unreachable movement holds at from, not at", () => {
+    const g = graphOf([
+      event("m", "a", "walk", 0, 5, {
+        reachable: false,
+        path: [[0, 0, 0], [4, 0, 0]],
+        from: [1, 0, 0],
+        at: [9, 0, 0],
+        to: [4, 0, 0],
+      }),
+    ]);
+    const a = buildActorPlayback(g, "a", (e) => e.status);
+
+    closeTo(actorPosition(a, 2), [1, 0, 0]);
+    closeTo(actorPosition(a, 8), [1, 0, 0]);
+  });
+
+  test("an event with from and at holds at from", () => {
+    const g = graphOf([event("m", "a", "stand", 0, 5, { from: [1, 0, 0], at: [9, 0, 0] })]);
+
+    closeTo(actorPosition(buildActorPlayback(g, "a", (e) => e.status), 8), [1, 0, 0]);
+  });
+
+  test("an event with only at holds at at", () => {
+    const g = graphOf([event("m", "a", "stand", 0, 5, { at: [9, 0, 0] })]);
+
+    closeTo(actorPosition(buildActorPlayback(g, "a", (e) => e.status), 8), [9, 0, 0]);
+  });
+});

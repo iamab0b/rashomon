@@ -68,8 +68,8 @@ export function samplePath(path: EventPath, fraction: number): Pose {
   return { position: toVec3(point), tangent: toVec3(tangent) };
 }
 
-export function holdPoint(event: Pick<ResolvedEvent, "from" | "at" | "to">): Vec3 | null {
-  return event.from ?? event.at ?? event.to ?? null;
+export function holdPoint(event: Pick<ResolvedEvent, "from" | "at">): Vec3 | null {
+  return event.from ?? event.at ?? null;
 }
 
 export function getPose(event: PathEvent, t: number, path: EventPath | null = buildEventPath(event)): Pose | null {

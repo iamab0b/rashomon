@@ -8,3 +8,5 @@ export type { GraphView } from "./playback/useGraph";
 export type { GraphSource, LiveGraphSourceFactory, LiveGraphSourceOptions } from "./playback/graphSource";
 export { useTimeline } from "./playback/useTimeline";
 export type { TimelineApi } from "./playback/useTimeline";
+export { useSelection } from "./playback/useSelection";
+export type { SelectionApi } from "./playback/useSelection";

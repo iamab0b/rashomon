@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AnimationMixer, type Bone, type Object3D, type SkinnedMesh } from "three";
-import { ownMaterials } from "./materials";
+import type { Material } from "three";
+import { disposeMaterials, ownMaterials } from "./materials";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import {
   findHipBone,
@@ -17,6 +18,7 @@ export type CharacterHandle = {
   skinnedMeshes: readonly SkinnedMesh[];
   mixer: AnimationMixer;
   hips: Bone | undefined;
+  ownedMaterials: readonly Material[];
 };
 
 type Props = {
@@ -28,7 +30,7 @@ type Props = {
 function instantiate(rig: Rig, source: Object3D): CharacterHandle {
   const root = cloneSkinned(source);
   root.scale.setScalar(MIXAMO_UNIT_SCALE);
-  ownMaterials(root);
+  const ownedMaterials = ownMaterials(root);
   root.traverse((object) => {
     object.castShadow = true;
     object.receiveShadow = true;
@@ -42,6 +44,7 @@ function instantiate(rig: Rig, source: Object3D): CharacterHandle {
     skinnedMeshes,
     mixer: new AnimationMixer(mixerRoot),
     hips: findHipBone(mixerRoot),
+    ownedMaterials,
   };
 }
 
@@ -67,6 +70,7 @@ export function useCharacter(rig: Rig): CharacterHandle | null {
     return () => {
       handle.mixer.stopAllAction();
       handle.mixer.uncacheRoot(handle.mixer.getRoot());
+      disposeMaterials(handle.ownedMaterials);
     };
   }, [handle]);
 

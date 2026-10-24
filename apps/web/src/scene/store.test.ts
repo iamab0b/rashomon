@@ -144,3 +144,85 @@ describe("timeline transport", () => {
     expect(useSceneStore.getState().speed).toBe(1);
   });
 });
+
+describe("setT bounds and selection", () => {
+  const events = ["e1", "e2"].map((id) => ({ id }));
+  const graph = { sceneId: "s", version: 1, durationS: 24, actors: [], events, props: [] } as unknown as Parameters<
+    ReturnType<typeof useSceneStore.getState>["setResolved"]
+  >[0];
+
+  test("setT clamps to the duration when paused", () => {
+    useSceneStore.getState().setResolved(graph);
+
+    useSceneStore.getState().setT(999);
+
+    expect(useSceneStore.getState().t).toBe(24);
+  });
+
+  test("setT has no upper bound before a graph is loaded", () => {
+    useSceneStore.getState().setT(999);
+
+    expect(useSceneStore.getState().t).toBe(999);
+  });
+
+  test("setGraph re-clamps t when the duration shrinks", () => {
+    useSceneStore.getState().setResolved(graph);
+    useSceneStore.getState().setT(20);
+
+    useSceneStore.getState().setGraph({ resolved: { ...graph!, durationS: 10 }, statuses: {} });
+
+    expect(useSceneStore.getState().t).toBe(10);
+  });
+
+  test("setResolved re-clamps t as well", () => {
+    useSceneStore.getState().setT(50);
+
+    useSceneStore.getState().setResolved(graph);
+
+    expect(useSceneStore.getState().t).toBe(24);
+  });
+
+  test("select stores an id that exists in the graph and clear removes it", () => {
+    useSceneStore.getState().setResolved(graph);
+
+    useSceneStore.getState().select("e2");
+    expect(useSceneStore.getState().selectedEventId).toBe("e2");
+    useSceneStore.getState().clear();
+    expect(useSceneStore.getState().selectedEventId).toBeNull();
+  });
+
+  test("selecting an id that is not in the graph leaves the selection unchanged", () => {
+    useSceneStore.getState().setResolved(graph);
+    useSceneStore.getState().select("e1");
+
+    useSceneStore.getState().select("nope");
+
+    expect(useSceneStore.getState().selectedEventId).toBe("e1");
+  });
+
+  test("selecting with no graph loaded does nothing", () => {
+    useSceneStore.getState().select("e1");
+
+    expect(useSceneStore.getState().selectedEventId).toBeNull();
+  });
+
+  test("setGraph clears a selection that no longer exists and keeps one that does", () => {
+    useSceneStore.getState().setResolved(graph);
+    useSceneStore.getState().select("e2");
+
+    useSceneStore.getState().setGraph({ resolved: { ...graph!, events: [{ id: "e2" }] } as typeof graph, statuses: {} });
+    expect(useSceneStore.getState().selectedEventId).toBe("e2");
+
+    useSceneStore.getState().setGraph({ resolved: { ...graph!, events: [{ id: "e1" }] } as typeof graph, statuses: {} });
+    expect(useSceneStore.getState().selectedEventId).toBeNull();
+  });
+
+  test("unloading the graph clears the selection", () => {
+    useSceneStore.getState().setResolved(graph);
+    useSceneStore.getState().select("e1");
+
+    useSceneStore.getState().setGraph({ resolved: null, statuses: {} });
+
+    expect(useSceneStore.getState().selectedEventId).toBeNull();
+  });
+});
