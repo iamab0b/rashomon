@@ -14,8 +14,9 @@ export function searchWithMode(search: string, mode: GraphMode): string {
 
 export type ModeBadge = { label: string; tone: "amber" | "green" | "red" };
 
-export function modeBadge(mode: GraphMode, hasGraph: boolean): ModeBadge {
+export function modeBadge(mode: GraphMode, hasGraph: boolean, disconnected = false): ModeBadge {
   if (mode === "fixture") return { label: "Fixture data", tone: "amber" };
+  if (disconnected) return { label: "Live · disconnected", tone: "red" };
   return hasGraph ? { label: "Live", tone: "green" } : { label: "Live · connecting", tone: "red" };
 }
 
