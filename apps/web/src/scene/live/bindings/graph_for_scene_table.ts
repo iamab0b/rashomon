@@ -13,6 +13,7 @@ import {
   Actor,
   Event,
   PropInstance,
+  Witness,
 } from "./types";
 
 
@@ -26,6 +27,9 @@ export default __t.row({
   },
   get props() {
     return __t.array(PropInstance);
+  },
+  get witnesses() {
+    return __t.option(__t.array(Witness));
   },
   version: __t.u32(),
 });

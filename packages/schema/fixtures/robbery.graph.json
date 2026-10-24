@@ -1,6 +1,7 @@
 {
   "sceneId": "store_v1",
   "version": 1,
+  "witnesses": [{ "id": "w1", "label": "Customer", "actorId": "witness" }],
   "actors": [
     { "id": "witness", "label": "Witness (customer)", "role": "witness", "rig": "mixamo_ybot" },
     { "id": "suspect", "label": "Suspect", "role": "suspect", "rig": "mixamo_ybot" },

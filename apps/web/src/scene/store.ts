@@ -51,6 +51,7 @@ export type SceneState = {
   povFollow: boolean;
   povActor: string | null;
   dimmedActors: ReadonlySet<string>;
+  hiddenWitnesses: ReadonlySet<string>;
   dimmedMeshes: ReadonlySet<string>;
   setPreset: (preset: CameraPreset) => void;
   toggleDebug: () => void;
@@ -78,6 +79,9 @@ export type SceneState = {
   setPovActor: (actorId: string | null) => void;
   setDimmedActors: (actorIds: ReadonlySet<string>) => void;
   setDimmedMeshes: (names: ReadonlySet<string>) => void;
+  toggleWitness: (id: string) => void;
+  onlyWitness: (id: string, allIds: readonly string[]) => void;
+  showAllWitnesses: () => void;
 };
 
 const NO_ACTORS: ReadonlySet<string> = new Set();
@@ -130,6 +134,7 @@ export const useSceneStore = create<SceneState>((set) => ({
   povFollow: false,
   povActor: null,
   dimmedActors: NO_ACTORS,
+  hiddenWitnesses: NO_ACTORS,
   dimmedMeshes: NO_ACTORS,
   setPreset: (preset) => set((state) => ({ preset, povFollow: false, poseResetCount: state.poseResetCount + 1 })),
   toggleDebug: () => set((state) => ({ debugVisible: !state.debugVisible })),
@@ -165,7 +170,16 @@ export const useSceneStore = create<SceneState>((set) => ({
         selectedEventId: survivingSelection(state.selectedEventId, resolved),
       };
     }),
-  setGraphSource: (graphSource) => set({ graphSource }),
+  setGraphSource: (graphSource) =>
+    set((state) => ({ graphSource, hiddenWitnesses: graphSource === state.graphSource ? state.hiddenWitnesses : NO_ACTORS })),
+  toggleWitness: (id) =>
+    set((state) => {
+      const next = new Set(state.hiddenWitnesses);
+      if (!next.delete(id)) next.add(id);
+      return { hiddenWitnesses: next };
+    }),
+  onlyWitness: (id, allIds) => set({ hiddenWitnesses: new Set(allIds.filter((other) => other !== id)) }),
+  showAllWitnesses: () => set((state) => (state.hiddenWitnesses.size === 0 ? state : { hiddenWitnesses: NO_ACTORS })),
   setGraphErrors: ({ connection, action }) =>
     set((state) => ({ connectionError: connection, actionError: action, errorEpoch: state.errorEpoch + 1 })),
   setActionError: (actionError) => set({ actionError }),

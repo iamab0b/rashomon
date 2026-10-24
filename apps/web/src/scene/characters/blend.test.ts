@@ -30,6 +30,7 @@ function event(
 ): ResolvedEvent {
   return {
     id,
+    witnessId: "w1",
     actor,
     action,
     tStart,

@@ -16,6 +16,7 @@ export const RIG_DEBUG_ACTORS: readonly DebugActor[] = [
 function debugEvent(id: string, actor: string, action: Action, tStart: number, tEnd: number): ResolvedEvent {
   return {
     id,
+    witnessId: "w1",
     actor,
     action,
     tStart,
