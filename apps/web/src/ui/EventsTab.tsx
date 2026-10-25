@@ -2,7 +2,6 @@ import { BASIS_LABELS, checkBasis, flagHeadline } from "./flagCopy";
 import { Icon } from "./Icon";
 import { eventCoordinates, placeName } from "./places";
 import { inDisplayOrder } from "./playback";
-import { witnessColor } from "./WitnessesTab";
 import {
   activateOnKey,
   actorLabel,
@@ -17,35 +16,40 @@ import {
   words,
   type PanelContext,
 } from "./shared";
-import { filterSummary, isSolo, visibleEvents, type WitnessFilter } from "./witnessFilter";
+import { actorsWithEvents, focusedActor, matchesActor, visibleEvents } from "./witnessFilter";
 
-export function WitnessFilterBar({ filter, colorOf }: { filter: WitnessFilter; colorOf: (witnessId: string) => string }) {
-  if (filter.layers.length < 2) return null;
-  const summary = filterSummary(filter);
+export function ActorFilterBar({
+  actors,
+  active,
+  labelOf,
+  colorOf,
+  onChange,
+}: {
+  actors: readonly string[];
+  active: string | null;
+  labelOf: (actorId: string) => string;
+  colorOf: (actorId: string) => string;
+  onChange: (actorId: string | null) => void;
+}) {
+  if (actors.length < 2) return null;
   return (
-    <div className="witness-filter">
-      <div className="segmented witness-filter__options" role="group" aria-label="Filter events by witness">
-        <button type="button" aria-pressed={filter.hidden.size === 0} className={filter.hidden.size === 0 ? "active" : undefined} onClick={filter.showAll}>
-          All
+    <div className="actor-filter segmented" role="group" aria-label="Filter events by who acts">
+      <button type="button" aria-pressed={active === null} className={active === null ? "active" : undefined} onClick={() => onChange(null)}>
+        All
+      </button>
+      {actors.map((id) => (
+        <button
+          type="button"
+          key={id}
+          aria-pressed={active === id}
+          className={active === id ? "active" : undefined}
+          title={`Show only events where ${labelOf(id)} acts`}
+          onClick={() => onChange(active === id ? null : id)}
+        >
+          <span className="witness-dot" style={{ background: colorOf(id) }} aria-hidden />
+          {labelOf(id)}
         </button>
-        {filter.layers.map((layer) => {
-          const on = isSolo(filter, layer.id);
-          return (
-            <button type="button" key={layer.id} aria-pressed={on} className={on ? "active" : undefined} onClick={() => filter.only(layer.id)}>
-              <span className="witness-dot" style={{ background: colorOf(layer.id) }} aria-hidden />
-              {layer.label}
-            </button>
-          );
-        })}
-      </div>
-      {summary && (
-        <p className="witness-filter__active" role="status">
-          <span>Filtered: {summary}</span>
-          <button type="button" className="button button--small" onClick={filter.showAll}>
-            Show all
-          </button>
-        </p>
-      )}
+      ))}
     </div>
   );
 }
@@ -63,12 +67,15 @@ export function EventsTab({
   witnessOf,
   actorColorOf,
   witnessFilter,
+  actorFocus,
   jumpTo,
   openSource,
   openHistory,
 }: PanelContext) {
   const all = inDisplayOrder(graph.events);
-  const events = visibleEvents(all, witnessFilter.hidden);
+  const actors = actorsWithEvents(graph);
+  const actor = focusedActor(actorFocus, actors);
+  const events = matchesActor(visibleEvents(all, witnessFilter.hidden), actor);
 
   return (
     <>
@@ -78,7 +85,7 @@ export function EventsTab({
           Chronological · {events.length === all.length ? `${all.length} events` : `${events.length} of ${all.length} events`}
         </span>
       </div>
-      <WitnessFilterBar filter={witnessFilter} colorOf={(id) => witnessColor(witnessFilter.layers, id)} />
+      <ActorFilterBar actors={actors} active={actor} labelOf={(id) => actorLabel(graph, id)} colorOf={actorColorOf} onChange={actorFocus.setActor} />
       <div className="investigation-events">
         {events.map((event) => {
           const status = statusOf(event);

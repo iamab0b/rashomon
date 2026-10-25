@@ -7,7 +7,7 @@ import type { Status } from "../scene";
 import { MISSING_OVERRIDE_RECORD } from "./OverrideHistory";
 import { gatedRobbery, OVERRIDE_REASON, overriddenRobbery } from "./testGraph";
 import { transcriptFor } from "./transcript";
-import { NO_WITNESS_FILTER } from "./witnessFilter";
+import { NO_ACTOR_FOCUS, NO_WITNESS_FILTER } from "./witnessFilter";
 
 function context(): PanelContext {
   const resolved = gatedRobbery();
@@ -23,6 +23,7 @@ function context(): PanelContext {
     witnessOf: () => null,
     actorColorOf: () => "#c58bff",
     witnessFilter: NO_WITNESS_FILTER,
+    actorFocus: NO_ACTOR_FOCUS,
     playing: false,
     jumpTo: () => {},
     openOverride: () => {},

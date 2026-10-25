@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { NotConnected, words, type PanelContext } from "./shared";
-import { relatedUtterances, sourceLabel, speakerLabel, utteranceEvents } from "./transcript";
-import { filterSummary, visibleUtterances } from "./witnessFilter";
+import { relatedUtterances, sourceLabel, utteranceEvents } from "./transcript";
+import { actorsWithEvents, focusedActor, utteranceSpeaker, visibleUtterances } from "./witnessFilter";
 
 export function TranscriptView({
   graph,
@@ -9,9 +9,10 @@ export function TranscriptView({
   transcript,
   jumpTo,
   witnessFilter,
+  actorFocus,
   focusId,
 }: PanelContext & { focusId: string | null }) {
-  const summary = filterSummary(witnessFilter);
+  const actor = focusedActor(actorFocus, actorsWithEvents(graph));
   const listRef = useRef<HTMLOListElement>(null);
   const event = graph.events.find((e) => e.id === selectedEventId) ?? null;
   const related = relatedUtterances(event);
@@ -55,16 +56,8 @@ export function TranscriptView({
               : `Cited by ${[...related].map(sourceLabel).join(", ")}`}
         </span>
       </div>
-      {summary && (
-        <p className="witness-filter__active" role="status">
-          <span>Filtered: {summary}</span>
-          <button type="button" className="button button--small" onClick={witnessFilter.showAll}>
-            Show all
-          </button>
-        </p>
-      )}
       <ol ref={listRef} className="utterance-list">
-        {visibleUtterances(transcript, graph.events, witnessFilter.hidden).map((utterance) => {
+        {visibleUtterances(transcript, graph.events, witnessFilter.hidden, actor).map((utterance) => {
           const isRelated = related.has(utterance.id);
           const isFocus = utterance.id === focusId;
           return (
@@ -75,7 +68,7 @@ export function TranscriptView({
               aria-current={isRelated || undefined}
             >
               <span className="utterance-speaker">
-                {speakerLabel(utterance.speaker)} · {sourceLabel(utterance.id)}
+                {utteranceSpeaker(utterance, graph.events, witnessFilter.layers)} · {sourceLabel(utterance.id)}
                 <small className="mono">{utterance.id}</small>
               </span>
               <q>{utterance.text}</q>

@@ -5,7 +5,7 @@ import { BASIS_LABELS, checkBasis, flagHeadline } from "./flagCopy";
 import { Icon } from "./Icon";
 import { placeName } from "./places";
 import { sourceNumber, type Utterance } from "./transcript";
-import type { WitnessFilter } from "./witnessFilter";
+import type { ActorFocus, WitnessFilter } from "./witnessFilter";
 
 const STATUS_LABELS: Record<Status, string> = {
   plausible: "Plausible",
@@ -27,6 +27,7 @@ export type PanelContext = {
   witnessOf: (event: ResolvedEvent) => WitnessTag | null;
   actorColorOf: (actorId: string) => string;
   witnessFilter: WitnessFilter;
+  actorFocus: ActorFocus;
   playing: boolean;
   jumpTo: (eventId: string) => void;
   openOverride: (eventId: string) => void;
@@ -41,8 +42,13 @@ export function words(value: string): string {
   return value.replace(/_/g, " ");
 }
 
+export function displayLabel(label: string): string {
+  const inner = /^witness \((.+)\)$/i.exec(label.trim())?.[1];
+  return inner ? inner.charAt(0).toUpperCase() + inner.slice(1) : label;
+}
+
 export function actorLabel(graph: ResolvedGraph, actorId: string): string {
-  return graph.actors.find((actor) => actor.id === actorId)?.label ?? actorId;
+  return displayLabel(graph.actors.find((actor) => actor.id === actorId)?.label ?? actorId);
 }
 
 export function eventTitle(event: ResolvedEvent): string {

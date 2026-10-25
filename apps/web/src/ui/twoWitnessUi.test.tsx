@@ -8,7 +8,7 @@ import { chosenWitness, NEW_WITNESS, witnessToSend } from "./statement";
 import { StatementSectionView, type StatementSectionViewProps } from "./StatementSection";
 import type { PanelContext } from "./shared";
 import { WitnessesTabView, witnessTagOf } from "./WitnessesTab";
-import { NO_WITNESS_FILTER } from "./witnessFilter";
+import { NO_ACTOR_FOCUS, NO_WITNESS_FILTER } from "./witnessFilter";
 
 function twoWitnesses(): ResolvedGraph {
   return selectSource("?scenario=two-witnesses")!.getSnapshot().resolved!;
@@ -34,6 +34,7 @@ function context(graph: ResolvedGraph, overrides: Partial<PanelContext> = {}): P
     witnessOf: (event) => witnessTagOf(layers, event.witnessId),
     actorColorOf: () => "#c58bff",
     witnessFilter: NO_WITNESS_FILTER,
+    actorFocus: NO_ACTOR_FOCUS,
     playing: false,
     jumpTo: () => {},
     openOverride: () => {},

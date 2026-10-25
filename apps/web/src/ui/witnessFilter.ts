@@ -1,5 +1,5 @@
 import type { ResolvedEvent, WitnessLayer } from "../scene";
-import type { Utterance } from "./transcript";
+import { speakerLabel, type Utterance } from "./transcript";
 
 export type WitnessFilter = {
   layers: readonly WitnessLayer[];
@@ -8,6 +8,22 @@ export type WitnessFilter = {
   only: (id: string) => void;
   showAll: () => void;
 };
+
+export type ActorFocus = { actor: string | null; setActor: (actor: string | null) => void };
+
+export const NO_ACTOR_FOCUS: ActorFocus = { actor: null, setActor: () => {} };
+
+export function actorsWithEvents(graph: { actors: readonly { id: string }[]; events: readonly Pick<ResolvedEvent, "actor">[] }): string[] {
+  return graph.actors.filter((actor) => graph.events.some((event) => event.actor === actor.id)).map((actor) => actor.id);
+}
+
+export function focusedActor(focus: ActorFocus, actorIds: readonly string[]): string | null {
+  return focus.actor !== null && actorIds.includes(focus.actor) ? focus.actor : null;
+}
+
+export function matchesActor<T extends Pick<ResolvedEvent, "actor">>(events: readonly T[], actor: string | null): T[] {
+  return actor === null ? [...events] : events.filter((event) => event.actor === actor);
+}
 
 export const NO_WITNESS_FILTER: WitnessFilter = { layers: [], hidden: new Set(), toggle: () => {}, only: () => {}, showAll: () => {} };
 
@@ -38,12 +54,24 @@ export function visibleEvents<T extends Pick<ResolvedEvent, "witnessId">>(events
 
 export function visibleUtterances(
   transcript: readonly Utterance[],
-  events: readonly Pick<ResolvedEvent, "witnessId" | "sources">[],
+  events: readonly Pick<ResolvedEvent, "witnessId" | "sources" | "actor">[],
   hidden: ReadonlySet<string>,
+  actor: string | null = null,
 ): Utterance[] {
-  if (hidden.size === 0) return [...transcript];
+  if (hidden.size === 0 && actor === null) return [...transcript];
   return transcript.filter((utterance) => {
     const citing = events.filter((event) => event.sources.includes(utterance.id));
+    if (actor !== null) return citing.some((event) => event.actor === actor && !hidden.has(event.witnessId));
     return citing.length === 0 || citing.some((event) => !hidden.has(event.witnessId));
   });
+}
+
+export function utteranceSpeaker(
+  utterance: Utterance,
+  events: readonly Pick<ResolvedEvent, "witnessId" | "sources">[],
+  layers: readonly Pick<WitnessLayer, "id" | "label">[],
+): string {
+  const witnesses = new Set(events.filter((event) => event.sources.includes(utterance.id)).map((event) => event.witnessId));
+  const only = witnesses.size === 1 ? layers.find((layer) => layer.id === [...witnesses][0]) : undefined;
+  return only ? only.label : speakerLabel(utterance.speaker);
 }

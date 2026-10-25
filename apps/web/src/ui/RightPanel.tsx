@@ -14,6 +14,7 @@ import {
 import { EventsTab } from "./EventsTab";
 import { witnessTagOf } from "./WitnessesTab";
 import { WitnessStrip } from "./WitnessStrip";
+import { useActorFocus } from "./actorFocus";
 import { FlagsTab, openFlagCount } from "./FlagsTab";
 import { ContextDrawer, type ContextView } from "./ContextDrawer";
 import { OverrideDialog } from "./OverrideDialog";
@@ -25,7 +26,6 @@ import { PanelHeader } from "./PanelHeader";
 import { timeBasis, type PanelContext } from "./shared";
 import { transcriptFor } from "./transcript";
 import { useGraphMode } from "./useGraphMode";
-import { WitnessesTab } from "./WitnessesTab";
 import { isStatementRejection } from "./statement";
 import "./rashomon-ui.css";
 import "./panel-layout.css";
@@ -40,7 +40,6 @@ type Tab = {
 const TABS: Tab[] = [
   { id: "flags", label: "Flags", count: openFlagCount, Component: FlagsTab },
   { id: "events", label: "Events", count: ({ graph }) => graph.events.length, Component: EventsTab },
-  { id: "witnesses", label: "Witnesses", Component: WitnessesTab },
 ];
 
 const TOAST_MS = 2200;
@@ -63,6 +62,7 @@ function PanelColumn({ children, padded = false }: { children: ReactNode; padded
 
 export function RightPanel({ by = "investigator" }: { by?: string }) {
   const { resolved, statuses, graph } = useGraph();
+  const actorFocus = useActorFocus();
   const { witnesses: layers, hidden: hiddenWitnesses, toggle: toggleWitness, only: onlyWitness, showAll: showAllWitnesses } = useWitnessLayers();
   const { actionError } = useGraphErrors();
   const scene = useSceneStatus();
@@ -171,6 +171,7 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
       return actor ? actorColor(actor.id, actor.role, index) : "var(--text-primary)";
     },
     witnessFilter: { layers, hidden: hiddenWitnesses, toggle: toggleWitness, only: onlyWitness, showAll: showAllWitnesses },
+    actorFocus,
     jumpTo,
     openOverride: setDialogEventId,
     openSource: (id) => {

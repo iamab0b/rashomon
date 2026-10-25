@@ -1,7 +1,7 @@
 import type { PanelContext } from "./shared";
 import { Icon } from "./Icon";
-import { actorLabel } from "./shared";
-import { filterSummary, isSolo, toggleSolo, type WitnessFilter } from "./witnessFilter";
+import { actorLabel, displayLabel } from "./shared";
+import { isSolo, toggleSolo, type WitnessFilter } from "./witnessFilter";
 import { witnessColor } from "./WitnessesTab";
 
 export type WitnessStripProps = Pick<PanelContext, "graph" | "statusOf" | "openStatement"> & { filter: WitnessFilter };
@@ -15,20 +15,11 @@ function counts({ graph, statusOf }: Pick<PanelContext, "graph" | "statusOf">, w
 export function WitnessStrip({ graph, statusOf, openStatement, filter }: WitnessStripProps) {
   const { layers, hidden } = filter;
   if (layers.length === 0) return null;
-  const summary = filterSummary(filter);
   const many = layers.length > 1;
 
   return (
     <section className="witness-strip" aria-label="Witnesses">
-      <div className="witness-strip__head">
-        <span className="eyebrow">Witnesses</span>
-        <span className="witness-strip__state">{summary ?? (many ? "All shown" : "1 witness")}</span>
-        {summary && (
-          <button type="button" className="button button--small" onClick={filter.showAll}>
-            Show all
-          </button>
-        )}
-      </div>
+      <span className="eyebrow witness-strip__head">Witnesses</span>
       <ul className="witness-strip__cards">
         {layers.map((layer) => {
           const shown = !hidden.has(layer.id);
@@ -38,8 +29,8 @@ export function WitnessStrip({ graph, statusOf, openStatement, filter }: Witness
             <li key={layer.id} className={`witness-card${shown ? "" : " is-hidden"}${solo ? " is-solo" : ""}`} data-witness-id={layer.id}>
               <div className="witness-card__name">
                 <span className="witness-card__swatch" style={{ background: witnessColor(layers, layer.id) }} aria-hidden />
-                <strong>{layer.label}</strong>
-                {layer.actorId && <span>{actorLabel(graph, layer.actorId)}</span>}
+                <strong>{displayLabel(layer.label)}</strong>
+                {layer.actorId && actorLabel(graph, layer.actorId) !== displayLabel(layer.label) && <span>{actorLabel(graph, layer.actorId)}</span>}
               </div>
               <div className="witness-card__counts">
                 <span>

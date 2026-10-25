@@ -5,9 +5,9 @@ import { actorColor, selectSource, type ResolvedGraph, type WitnessLayer } from 
 import { ContextDrawer } from "./ContextDrawer";
 import { EventsTab } from "./EventsTab";
 import { FlagsTab, groupFlags } from "./FlagsTab";
-import type { PanelContext } from "./shared";
+import { displayLabel, type PanelContext } from "./shared";
 import type { Utterance } from "./transcript";
-import { filterSummary, isSolo, toggleSolo, visibleUtterances, type WitnessFilter } from "./witnessFilter";
+import { actorsWithEvents, filterSummary, isSolo, NO_ACTOR_FOCUS, toggleSolo, utteranceSpeaker, visibleUtterances, type WitnessFilter } from "./witnessFilter";
 import { witnessTagOf } from "./WitnessesTab";
 import { WitnessStrip } from "./WitnessStrip";
 
@@ -40,6 +40,7 @@ function context(graph: ResolvedGraph, overrides: Partial<PanelContext> = {}): P
       return actorColor(id, graph.actors[i]!.role, i);
     },
     witnessFilter: filter(graph),
+    actorFocus: NO_ACTOR_FOCUS,
     playing: false,
     jumpTo: () => {},
     openOverride: () => {},
@@ -65,36 +66,55 @@ function findAll(node: ReactNode, matches: (el: ReactElement<Record<string, unkn
 }
 
 describe("panel layout pass", () => {
-  test("actor names use the timeline's actor colors, and the customer is purple, not blue", () => {
-    expect(actorColor("witness", "witness", 0)).toBe("#c58bff");
+  test("actor names use the timeline's actor colors, with Sahil's blue for the customer, shown as Customer", () => {
+    expect(actorColor("witness", "witness", 0)).toBe("#4f9dff");
     expect(actorColor("suspect", "suspect", 1)).toBe("#ff9f43");
-    expect(actorColor("clerk", "clerk", 2)).toBe("#4cd6a0");
+    expect(actorColor("clerk", "victim", 2)).toBe("#4cd6a0");
+    expect(displayLabel("Witness (customer)")).toBe("Customer");
+    expect(displayLabel("Clerk")).toBe("Clerk");
     const html = renderToStaticMarkup(<EventsTab {...context(twoWitnesses())} />);
-    expect(html).toMatch(/<span class="event-actor" style="color:#c58bff">Witness \(customer\)<\/span>/);
+    expect(html).toMatch(/<span class="event-actor" style="color:#4f9dff">Customer<\/span>/);
     expect(html).toMatch(/<span class="event-actor" style="color:#ff9f43">Suspect<\/span>/);
-    expect(html).not.toContain("color:#4f9dff");
+    expect(html).not.toContain("Witness (customer)");
   });
 
-  test("Events filters by witness through the shared witness visibility, with All to go back", () => {
+  test("Events filters by who acts, not by whose statement it is, and All goes back", () => {
     const graph = twoWitnesses();
+    expect(actorsWithEvents(graph)).toEqual(["witness", "suspect", "clerk"]);
     const all = renderToStaticMarkup(<EventsTab {...context(graph)} />);
-    expect(all).toMatch(/<button type="button" aria-pressed="true" class="active">All<\/button>/);
+    expect(all).toMatch(/aria-label="Filter events by who acts"><button type="button" aria-pressed="true" class="active">All<\/button>/);
     expect(all).toContain("Chronological · 11 events");
-    expect(all).not.toContain("Filtered:");
 
-    const clerkOnly = renderToStaticMarkup(<EventsTab {...context(graph, { witnessFilter: filter(graph, ["w1"]) })} />);
-    expect(clerkOnly).toContain("Chronological · 1 of 11 events");
-    expect(clerkOnly.match(/data-event-id="/g)).toHaveLength(1);
-    expect(clerkOnly).toContain('data-event-id="e11"');
-    expect(clerkOnly).toContain("Filtered: Showing Clerk only");
-    expect(clerkOnly).toMatch(/aria-pressed="true" class="active"><span class="witness-dot"[^>]*><\/span>Clerk/);
+    const clerkActs = renderToStaticMarkup(<EventsTab {...context(graph, { actorFocus: { actor: "clerk", setActor: () => {} } })} />);
+    const shown = [...clerkActs.matchAll(/data-event-id="(e\d+)"/g)].map((m) => m[1]);
+    expect(shown).toEqual(["e2", "e8"]);
+    expect(graph.events.filter((e) => shown.includes(e.id)).every((e) => e.witnessId === "w1")).toBe(true);
+    expect(shown).not.toContain("e11");
+    expect(clerkActs).toContain("Chronological · 2 of 11 events");
+    expect(clerkActs).not.toContain("Filtered:");
+    expect(clerkActs).not.toContain("Show all");
 
-    const spies = filter(graph);
-    const buttons = findAll(EventsTab(context(graph, { witnessFilter: spies })), (el) => el.type === "button" && el.props["aria-pressed"] !== undefined);
-    (buttons[2]!.props.onClick as () => void)();
-    expect(spies.only).toHaveBeenCalledWith("w2");
+    const setActor = vi.fn();
+    const buttons = findAll(EventsTab(context(graph, { actorFocus: { actor: "clerk", setActor } })), (el) => el.type === "button" && el.props["aria-pressed"] !== undefined);
     (buttons[0]!.props.onClick as () => void)();
-    expect(spies.showAll).toHaveBeenCalled();
+    expect(setActor).toHaveBeenLastCalledWith(null);
+    (buttons[2]!.props.onClick as () => void)();
+    expect(setActor).toHaveBeenLastCalledWith("suspect");
+    (buttons[3]!.props.onClick as () => void)();
+    expect(setActor).toHaveBeenLastCalledWith(null);
+  });
+
+  test("the actor filter keeps only that actor's cited transcript lines", () => {
+    const graph = twoWitnesses();
+    const transcript: Utterance[] = [
+      { id: "utt_2", speaker: "witness", text: "suspect and clerk" },
+      { id: "utt_5", speaker: "witness", text: "suspect only" },
+      { id: "utt_x", speaker: "investigator", text: "uncited" },
+    ];
+    expect(visibleUtterances(transcript, graph.events, new Set(), "clerk").map((u) => u.id)).toEqual(["utt_2"]);
+    expect(visibleUtterances(transcript, graph.events, new Set(), null).map((u) => u.id)).toEqual(["utt_2", "utt_5", "utt_x"]);
+    expect(utteranceSpeaker(transcript[0]!, graph.events, layersOf(graph))).toBe("Customer");
+    expect(utteranceSpeaker(transcript[2]!, graph.events, layersOf(graph))).toBe("Investigator");
   });
 
   test("solo, summaries and transcript hiding work on the same hidden set", () => {
@@ -119,14 +139,15 @@ describe("panel layout pass", () => {
     expect(visibleUtterances(transcript, graph.events, new Set(["w1"])).map((u) => u.id)).toEqual(["utt_w2_2", "utt_x"]);
   });
 
-  test("the Witnesses strip shows each witness with eye, Solo and Re-interview", () => {
+  test("the Witnesses strip shows each witness with eye, Solo and Re-interview, without status text", () => {
     const graph = twoWitnesses();
     const openStatement = vi.fn();
     const spies = filter(graph, ["w1"]);
-    const strip = <WitnessStrip graph={graph} statusOf={(e) => e.status} openStatement={openStatement} filter={spies} />;
-    const html = renderToStaticMarkup(strip);
+    const html = renderToStaticMarkup(<WitnessStrip graph={graph} statusOf={(e) => e.status} openStatement={openStatement} filter={spies} />);
     expect(html).toContain('aria-label="Witnesses"');
-    expect(html).toContain("Showing Clerk only");
+    expect(html).not.toContain(">Showing");
+    expect(html).not.toContain(">Show all<");
+    expect(html).toMatch(/<strong>Customer<\/strong><\/div>/);
     expect(html).toMatch(/class="witness-card is-hidden" data-witness-id="w1"/);
     expect(html).toMatch(/class="witness-card is-solo" data-witness-id="w2"/);
     expect(html).toMatch(/aria-pressed="false" aria-label="Show Customer"[^>]*><svg[^>]*>.*?<path d="M3.5 3.5l13 13"/s);
