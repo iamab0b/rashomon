@@ -28,6 +28,7 @@ import {
   tooLargeMessage,
   type ScanRequest,
 } from "./scanRequest";
+import { makeScanUnlit, scanLitFromSearch } from "./scanUnlit";
 import { patchScan, putScanBytes, readScan } from "./scanStore";
 
 export const SCAN_ROOT = "scan_root";
@@ -37,6 +38,7 @@ export type ScanDeps = {
   readonly fetcher?: typeof fetch;
   readonly storage?: Pick<Storage, "getItem">;
   readonly parse?: (bytes: ArrayBuffer) => Promise<Object3D>;
+  readonly lit?: boolean;
 };
 
 export type LoadedScan = {
@@ -122,7 +124,8 @@ export async function loadScan(request: ScanRequest, deps: ScanDeps = {}): Promi
   const source = await scanBytes(request, deps);
   const raw = await (deps.parse ?? parseGlb)(source.bytes);
   tagCollision(raw);
-  enableShadows(raw);
+  if (deps.lit ?? scanLitFromSearch(globalThis.location?.search ?? "")) enableShadows(raw);
+  else makeScanUnlit(raw);
   ownMaterials(raw);
   const aligned = isAlignment(source.alignment);
   const alignment = aligned ? source.alignment! : IDENTITY_ALIGNMENT;
