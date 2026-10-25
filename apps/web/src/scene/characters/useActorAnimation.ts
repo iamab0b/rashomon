@@ -5,6 +5,7 @@ import type { AnimationAction } from "three";
 import { statusOf } from "../playback/useGraph";
 import { useSceneStore } from "../store";
 import { buildClipWindows, createClipSampler, EMPTY_WINDOW_SET } from "./blend";
+import { strideLookup } from "./bodies";
 import type { CharacterHandle } from "./Character";
 import { cycleDistanceOf, getClip, loadClips, loadOptionalClips } from "./clips";
 import { poseActorFrame } from "./procedural/applyProcedural";
@@ -72,9 +73,10 @@ export function useActorAnimation(
     [actorId, events, statuses, clipsLoaded, optionalSettled],
   );
 
+  const stride = character?.scale ?? 1;
   const timeOf = useMemo(
-    () => (clipsLoaded && events ? locomotionTimer(events, cycleDistanceOf) : undefined),
-    [events, clipsLoaded],
+    () => (clipsLoaded && events ? locomotionTimer(events, strideLookup(cycleDistanceOf, stride)) : undefined),
+    [events, clipsLoaded, stride],
   );
   const rig = useMemo(() => (character ? rigFromCharacter(character) : null), [character]);
   const scene = useMemo(

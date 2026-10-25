@@ -1,6 +1,15 @@
 import { SenderError } from "spacetimedb/server";
-import { ACTIONS, ACTION_STYLES, MAX_VERB_CHARS, STYLE_ACTION } from "@rashomon/schema";
-import type { ActionStyle, Anchor, Event, EventGraph, Flag, Override, PropInstance, Status } from "@rashomon/schema";
+import {
+  ACTIONS,
+  ACTION_STYLES,
+  ACTOR_BODIES,
+  MAX_HEIGHT_M,
+  MAX_VERB_CHARS,
+  MIN_HEIGHT_M,
+  STYLE_ACTION,
+  TINT_PATTERN,
+} from "@rashomon/schema";
+import type { ActionStyle, ActorBody, Anchor, Event, EventGraph, Flag, Override, PropInstance, Status } from "@rashomon/schema";
 
 export const SPEAKERS = ["witness", "interviewer", "agent"] as const;
 export const SEGMENT_SOURCES = ["live", "copilot", "upload_audio", "upload_text"] as const;
@@ -193,6 +202,26 @@ export function styleFits(style: string | undefined, action: string): boolean {
   return style === undefined || STYLE_ACTION[style as ActionStyle] === action;
 }
 
+export type ActorLook = {
+  body: ActorBody | undefined;
+  heightM: number | undefined;
+  tint: string | undefined;
+};
+
+export function actorLookFrom(value: Record<string, unknown>): ActorLook {
+  const heightM = value.heightM;
+  if (heightM !== undefined && (typeof heightM !== "number" || !(heightM >= MIN_HEIGHT_M && heightM <= MAX_HEIGHT_M)))
+    return fail(`actor.heightM must be a number from ${MIN_HEIGHT_M} to ${MAX_HEIGHT_M}`);
+  const tint = value.tint;
+  if (tint !== undefined && (typeof tint !== "string" || !TINT_PATTERN.test(tint)))
+    return fail("actor.tint must be a lowercase #rrggbb colour");
+  return {
+    body: value.body === undefined ? undefined : oneOf(value.body, ACTOR_BODIES, "actor.body"),
+    heightM,
+    tint,
+  };
+}
+
 const optionalAnchorRow = (value: unknown, what: string): AnchorRow | undefined =>
   value === undefined ? undefined : toAnchorRow(anchorFrom(value, what));
 
@@ -358,7 +387,15 @@ export function flagFromRow(f: FlagRowInput): Flag {
 
 export type GraphRow = {
   sceneId: string;
-  actors: { id: string; label: string; role: string; rig: string }[];
+  actors: {
+    id: string;
+    label: string;
+    role: string;
+    rig: string;
+    body: string | undefined;
+    heightM: number | undefined;
+    tint: string | undefined;
+  }[];
   events: {
     id: string;
     witnessId: string;
@@ -402,6 +439,9 @@ export function eventGraphFromRow(row: GraphRow): EventGraph {
       label: a.label,
       role: a.role as EventGraph["actors"][number]["role"],
       rig: a.rig as EventGraph["actors"][number]["rig"],
+      ...(a.body !== undefined ? { body: a.body as ActorBody } : {}),
+      ...(a.heightM !== undefined ? { heightM: a.heightM } : {}),
+      ...(a.tint !== undefined ? { tint: a.tint } : {}),
     })),
     events: row.events.map((e): Event => {
       const override: Override | undefined = e.override

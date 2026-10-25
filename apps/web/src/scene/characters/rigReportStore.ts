@@ -1,11 +1,13 @@
 import { create } from "zustand";
 import type { RigDebugClipLine } from "./rigDebugGraph";
-import type { Rig } from "./rigs";
 
 export type RigReport = {
-  rig: Rig;
+  name: string;
+  bones: number;
   hipBone: string;
   hipY: number;
+  eyeY: number;
+  eyeEstimated: boolean;
   height: number;
 };
 
@@ -20,7 +22,7 @@ export const useRigReportStore = create<RigReportState>((set) => ({
   reports: [],
   addReport: (report) =>
     set((state) => ({
-      reports: [...state.reports.filter((existing) => existing.rig !== report.rig), report],
+      reports: [...state.reports.filter((existing) => existing.name !== report.name), report],
     })),
   clipLines: [],
   setClipLines: (clipLines) => set({ clipLines }),

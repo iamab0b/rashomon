@@ -5,7 +5,10 @@ import transcriptJson from "../fixtures/robbery.transcript.json";
 import correctionJson from "../fixtures/robbery.correction.json";
 import type { EventGraph, PropType, Segment } from "@rashomon/schema";
 import { NO_TOOL_CALL, NO_TOOL_CALL_NUDGE, SYSTEM_PROMPT, TRUNCATED } from "./prompt";
+import { TINT_PATTERN } from "@rashomon/schema";
 import {
+  CLOTHING_COLORS,
+  CLOTHING_COLOR_NAMES,
   applyPatchesLocal,
   buildRequest,
   isPatchList,
@@ -710,5 +713,103 @@ describe("approximated verbs and styles", () => {
     const updateProps = update.input_schema.properties as Record<string, Record<string, unknown>>;
     expect(JSON.stringify(updateProps.style)).toContain('"enum":["sneak","scared","forward","outward","behind","none"]');
     expect(JSON.stringify(props.action)).toContain('"dodge"');
+  });
+});
+
+describe("actor bodies from the witness's description", () => {
+  const statement = (id: string, text: string): Segment => ({ ...utt("utt_2"), id, text });
+
+  const statementText = (req: Parameters<CallModel>[0]): string =>
+    /NEW STATEMENT \w+\n([\s\S]*)$/.exec(String((req.messages[0]?.content as { text: string }[])[0]?.text))?.[1] ?? "";
+
+  const actorModel = (fields: (text: string) => Record<string, unknown>): CallModel =>
+    async (req): Promise<ModelResponse> => {
+      expect(req.system[0]?.text).toContain(
+        "When the witness describes a person's build or height, choose the nearest body and estimate heightM. Map clothing colour words to tint. Only use what the witness said; leave a field out when it was not described.",
+      );
+      const text = statementText(req);
+      return {
+        content: [use("add_actor", { id: "newcomer", label: "Newcomer", role: "other", body: null, heightM: null, tint: null, ...fields(text) })],
+        stop_reason: "tool_use",
+      };
+    };
+
+  const describing = actorModel((text) => {
+    const build = /\bheavy\b/.test(text) ? "heavy" : /\bslim|skinny\b/.test(text) ? "slim" : /\baverage\b/.test(text) ? "average" : null;
+    const height = /\btall\b/.test(text) ? "tall" : /\bshort\b/.test(text) ? "short" : null;
+    return {
+      body: build || height ? `${build ?? "average"}_${height ?? "short"}` : null,
+      heightM: height === "tall" ? 1.88 : height === "short" ? 1.65 : null,
+      tint: /\bred\b/.test(text) ? "red" : null,
+    };
+  });
+
+  const addedActor = async (text: string, model: CallModel) => {
+    const r = await extractSegment(statement("utt_who", text), baseCtx(), model);
+    expect(r.unparsed).toEqual([]);
+    const p = r.patches[0];
+    if (p?.op !== "add_actor") throw new Error("expected add_actor");
+    expect(isPatchList(r.patches)).toBe(true);
+    return p.actor;
+  };
+
+  test("a tall heavy guy in a red hoodie is heavy_tall, about 1.88 m, in red", async () => {
+    const actor = await addedActor("Then a tall heavy guy in a red hoodie came in.", describing);
+    expect(actor.body).toBe("heavy_tall");
+    expect(actor.heightM).toBeCloseTo(1.88, 2);
+    expect(actor.tint).toBe(CLOTHING_COLORS.red.hex);
+    expect(actor.rig).toBe("mixamo_ybot");
+  });
+
+  test("a woman gets no body, no height and no tint", async () => {
+    const actor = await addedActor("A woman came in.", describing);
+    expect(Object.keys(actor).sort()).toEqual(["id", "label", "rig", "role"]);
+  });
+
+  test("a tint never comes from an unstated colour", async () => {
+    const alwaysRed = actorModel(() => ({ tint: "red" }));
+    expect((await addedActor("A woman came in.", alwaysRed)).tint).toBeUndefined();
+    expect((await addedActor("A man in a blue jacket came in.", alwaysRed)).tint).toBeUndefined();
+    expect((await addedActor("A redhead in a dark coat came in.", alwaysRed)).tint).toBeUndefined();
+    expect((await addedActor("A man in a dark red coat came in.", alwaysRed)).tint).toBe(CLOTHING_COLORS.red.hex);
+    const grey = actorModel(() => ({ tint: "gray" }));
+    expect((await addedActor("She wore a grey sweater.", grey)).tint).toBe(CLOTHING_COLORS.gray.hex);
+  });
+
+  test("a height outside 1.4 to 2.1 m is clamped and a body outside the six is rejected", () => {
+    const [giant, unknown] = validateToolUses(
+      [
+        use("add_actor", { id: "giant", label: "Giant", role: "other", body: "heavy_tall", heightM: 2.4, tint: null }, "giant"),
+        use("add_actor", { id: "odd", label: "Odd", role: "other", body: "muscular_tall", heightM: null, tint: null }, "odd"),
+      ],
+      statement("utt_who", "A huge guy, maybe seven and a half feet."),
+      baseCtx(),
+    );
+    const p = giant?.patches[0];
+    expect(p?.op === "add_actor" ? p.actor.heightM : undefined).toBe(2.1);
+    expect(unknown?.patches).toEqual([]);
+    expect(unknown?.error).toContain("body must be one of");
+  });
+
+  test("add_actor is strict and types body, heightM and tint", () => {
+    const tool = buildRequest(utt("utt_1"), baseCtx()).tools.find((t) => t.name === "add_actor")!;
+    const props = tool.input_schema.properties as Record<string, unknown>;
+    expect(tool.strict).toBe(true);
+    expect(tool.input_schema.required).toEqual(["id", "label", "role", "body", "heightM", "tint"]);
+    expect(JSON.stringify(props.body)).toContain('"enum":["slim_short","slim_tall","average_short","average_tall","heavy_short","heavy_tall"]');
+    expect(JSON.stringify(props.heightM)).toContain('"type":"number"');
+    expect(JSON.stringify(props.tint)).toContain(`"enum":${JSON.stringify(CLOTHING_COLOR_NAMES)}`);
+  });
+
+  test("the colour table maps every colour to a lowercase #rrggbb", () => {
+    for (const name of CLOTHING_COLOR_NAMES) expect(TINT_PATTERN.test(CLOTHING_COLORS[name].hex)).toBe(true);
+  });
+
+  test("the Patch guard rejects a bad body, height or tint", () => {
+    const actor = { id: "x", label: "X", role: "other", rig: "mixamo_ybot" };
+    expect(isPatchList([{ op: "add_actor", actor: { ...actor, body: "heavy_tall", heightM: 1.9, tint: "#b22222" } }])).toBe(true);
+    expect(isPatchList([{ op: "add_actor", actor: { ...actor, body: "huge" } }])).toBe(false);
+    expect(isPatchList([{ op: "add_actor", actor: { ...actor, heightM: 2.5 } }])).toBe(false);
+    expect(isPatchList([{ op: "add_actor", actor: { ...actor, tint: "red" } }])).toBe(false);
   });
 });

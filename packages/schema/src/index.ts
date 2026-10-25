@@ -41,11 +41,35 @@ export type Segment = {
   supersedes?: string;
 };
 
+export type ActorBody =
+  | "slim_short"
+  | "slim_tall"
+  | "average_short"
+  | "average_tall"
+  | "heavy_short"
+  | "heavy_tall";
+
+export const ACTOR_BODIES: readonly ActorBody[] = [
+  "slim_short",
+  "slim_tall",
+  "average_short",
+  "average_tall",
+  "heavy_short",
+  "heavy_tall",
+];
+
+export const MIN_HEIGHT_M = 1.4;
+export const MAX_HEIGHT_M = 2.1;
+export const TINT_PATTERN = /^#[0-9a-f]{6}$/;
+
 export type Actor = {
   id: string;
   label: string;
   role: "witness" | "suspect" | "victim" | "other";
   rig: "mixamo_ybot" | "mixamo_xbot";
+  body?: ActorBody;
+  heightM?: number;
+  tint?: string;
 };
 
 export type Anchor =

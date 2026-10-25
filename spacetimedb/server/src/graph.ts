@@ -29,7 +29,7 @@ export function buildGraph(db: ReadDb, sessionId: string): GraphRow | undefined 
     witnesses: witnessIds.length > 0 ? witnessIds.map((id) => ({ id, label: id, actorId: undefined })) : undefined,
     actors: [...db.actors.sessionId.filter(sessionId)]
       .sort(bySeq)
-      .map((a) => ({ id: a.id, label: a.label, role: a.role, rig: a.rig })),
+      .map((a) => ({ id: a.id, label: a.label, role: a.role, rig: a.rig, body: a.body, heightM: a.heightM, tint: a.tint })),
     events: eventRows.map((e) => {
       const o = overrides.get(e.id);
       return {

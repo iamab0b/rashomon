@@ -14,6 +14,9 @@ export const ActorT = t.object("Actor", {
   label: t.string(),
   role: t.string(),
   rig: t.string(),
+  body: t.option(t.string()),
+  heightM: t.option(t.f64()),
+  tint: t.option(t.string()),
 });
 
 export const FlagT = t.object("Flag", {
@@ -150,6 +153,9 @@ const actors = table(
     label: t.string(),
     role: t.string(),
     rig: t.string(),
+    body: t.option(t.string()).default(undefined),
+    heightM: t.option(t.f64()).default(undefined),
+    tint: t.option(t.string()).default(undefined),
   },
 );
 
