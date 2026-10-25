@@ -122,6 +122,18 @@
         "packages/extractor",
         "spacetimedb/server/src"
       ]
+    },
+    {
+      "id": "voice-in-app",
+      "from": "Sahil",
+      "due": "03-04",
+      "todo": "#63 round 2: a test that the ?voice=1 gate on the new voice button holds (no button, no token fetch, no getUserMedia without the flag); optional dynamic import",
+      "doc": "tools/status/requests/voice-in-app.md",
+      "grep": "Talk to the interviewer",
+      "paths": [
+        "apps/web/src/ui",
+        "apps/web/src/adapters"
+      ]
     }
   ],
   "D": [

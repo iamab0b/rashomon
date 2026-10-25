@@ -6,6 +6,7 @@ import type {
   PropInstance,
   PropType,
   Segment,
+  Witness,
 } from "@rashomon/schema";
 
 export type ToolDef = {
@@ -54,6 +55,7 @@ export type ExtractContext = {
   events: Event[];
   props: PropInstance[];
   recentSegments: Segment[];
+  witnesses?: Witness[];
 };
 
 export type BlockResult = {
@@ -67,6 +69,7 @@ export type ExtractResult = {
   segmentId: string;
   patches: Patch[];
   unparsed: string[];
+  notes?: string[];
   attempts: number;
   skipped?: string;
 };
