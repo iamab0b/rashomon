@@ -62,7 +62,7 @@ Fixture mode is the fallback for the whole demo. If the venue Wi-Fi or Maincloud
 | --- | --- |
 | The demo session (judges look at this one) | http://localhost:5173/?mode=live&stdb=wss://maincloud.spacetimedb.com&db=rashomon&session=demo2 |
 
-Expect what smoke L2 and M2 say: "Live · connecting", then "Live", 10 events, and e5 implausible with sightline:e5. Never edit session demo2 during rehearsals. It must be at version 1 when a judge walks up. (Since the Sun 2:45 AM freeze the judges' session is demo2: the old session demo had been edited to version 2, with e5 plausible, so it no longer shows the flagged moment.)
+Expect what smoke L2 and M2 say: "Live · connecting", then "Live", 10 events, and e5 implausible with sightline:e5. Never edit session demo2 during rehearsals. It must be at version 1 when a judge walks up. (Since the freeze (done by Sun 2:09 AM) the judges' session is demo2: the old session demo had been edited to version 2, with e5 plausible, so it no longer shows the flagged moment.)
 
 For rehearsals and video takes, use a fresh scratch session for each take. Sahil seeds it:
 
