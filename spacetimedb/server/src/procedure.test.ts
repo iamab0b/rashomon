@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { ConnectionId } from "spacetimedb";
+import { ConnectionId, TimeDuration } from "spacetimedb";
 import { SenderError } from "spacetimedb/server";
 import { Request } from "spacetimedb/server";
 import { TestAuth, createModuleTestHarness } from "spacetimedb/server/test-utils";
@@ -14,8 +14,10 @@ import {
   handleCartesia,
   handleEndInterview,
   handleSceneContext,
+  MAX_TOOL_RESPONSE_BYTES,
   secretsMatch,
   takeNextQuestion,
+  toolResponse,
 } from "./http/cartesia";
 import { MAX_BODY_BYTES, MAX_SEGMENT_TEXT_CHARS, MAX_UTTERANCES } from "./limits";
 import {
@@ -391,6 +393,36 @@ describe("extractSegment", () => {
     expect(graph().events.map((e) => e.actor)).toEqual(["suspect"]);
   });
 
+  test("an earlier segment over the text cap is left out of the prompt", () => {
+    const huge = "q".repeat(MAX_SEGMENT_TEXT_CHARS + 500);
+    call((ctx: { db: { segments: { insert: (row: unknown) => void } } }) =>
+      ctx.db.segments.insert({
+        rowKey: `${SESSION}/huge`,
+        sessionId: SESSION,
+        id: "huge",
+        witnessId: "w1",
+        speaker: "witness",
+        text: huge,
+        tStart: 1,
+        tEnd: 2,
+        source: "upload_text",
+        supersedes: undefined,
+        extractModel: undefined,
+        extractPromptHash: undefined,
+        extractUtteranceIds: undefined,
+        extractedAt: undefined,
+        extractPatchCount: undefined,
+        extractError: undefined,
+      }),
+    );
+    insertWitnessSegment("utt_3");
+    runExtraction(ioFor(ok([toolUse("tu_1", "add_event", { ...walkInput, sources: ["utt_3"] })])), SESSION, "utt_3");
+    expect(requests).toHaveLength(1);
+    expect(requests[0]!.body).not.toContain("q".repeat(1000));
+    expect(requests[0]!.body.length).toBeLessThan(MAX_SEGMENT_TEXT_CHARS);
+    expect(requests[0]!.body).toContain("A guy came in the front door and went straight up to the counter.");
+  });
+
   test("no key, an unknown segment and a non-witness segment never reach the model", () => {
     expect(runExtraction(ioFor(ok([]), ""), SESSION, "utt_2").error).toBe(EXTRACTION_FAILED);
     expect(segmentRow().extractError).toBe("no_api_key");
@@ -538,7 +570,7 @@ describe("the Cartesia webhook", () => {
     expect(requests).toHaveLength(1);
   });
 
-  test("a resend without a segmentId gets the same id and the stored result, not a second call", () => {
+  test("a resend without a segmentId does not extract twice", () => {
     const io = webhookIo(ok([toolUse("tu_1", "add_event", walkInput)]));
     const first = handleCartesia(io, post(body()));
     expect(first.status).toBe(200);
@@ -786,6 +818,135 @@ describe("the Cartesia webhook", () => {
 
   test("both extraction attempts finish inside Cartesia's 120 second tool limit", () => {
     expect((MAX_RETRIES + 1) * REQUEST_TIMEOUT_MS).toBeLessThan(120_000);
+  });
+
+  test("two identical statements 20 s apart both extract", () => {
+    const first = defaultSegmentId(SESSION, "witness", [{ text: "Yes." }], 1);
+    const second = defaultSegmentId(SESSION, "witness", [{ text: "Yes." }], 2);
+    let n = 0;
+    const sources = [first, second];
+    const responder: TestHttpResponder<never> = (test, req, b) =>
+      ok([toolUse(`tu_${n}`, "add_event", { ...walkInput, sources: [sources[n++]] })])(test, req, b);
+    const io = webhookIo(responder);
+    expect(handleCartesia(io, post(plain({ text: "Yes." }))).body).toMatchObject({ segmentId: first, patchCount: 1 });
+    harness.clock.advance(TimeDuration.fromMillis(20_000));
+    expect(handleCartesia(io, post(plain({ text: "Yes." }))).body).toMatchObject({ segmentId: second, patchCount: 1 });
+    expect(requests).toHaveLength(2);
+    expect([...harness.db.segments.sessionId.filter(SESSION)]).toHaveLength(3);
+  });
+
+  test("an identical statement from the same witness under 15 s later is a retry", () => {
+    const first = defaultSegmentId(SESSION, "witness", [{ text: "Yes." }], 1);
+    const io = webhookIo(ok([toolUse("tu_1", "add_event", { ...walkInput, sources: [first] })]));
+    const out = handleCartesia(io, post(plain({ text: "Yes." })));
+    harness.clock.advance(TimeDuration.fromMillis(14_000));
+    expect(handleCartesia(io, post(plain({ text: "Yes." })))).toEqual(out);
+    expect(requests).toHaveLength(1);
+    expect([...harness.db.segments.sessionId.filter(SESSION)]).toHaveLength(2);
+  });
+
+  test("scene context only peeks: its next question is still handed out by record_statement", () => {
+    applyRobberyEvents();
+    const flag = [...harness.db.flags.sessionId.filter(SESSION)].find((f) => f.severity === "hard")!;
+    const peek = () => handleSceneContext(webhookIo(ok([])), ask(JSON.stringify({ sessionId: SESSION })));
+    expect(peek().body).toMatchObject({ nextQuestion: flag.suggestedQuestion });
+    expect(peek().body).toMatchObject({ nextQuestion: flag.suggestedQuestion });
+    const out = handleCartesia(webhookIo(ok([toolUse("tu_1", "add_event", { ...walkInput, sources: [plainId] })])), post(plain()));
+    expect(out.body).toMatchObject({ askNext: { flagId: flag.id, question: flag.suggestedQuestion } });
+    expect(peek().body).toMatchObject({ nextQuestion: null });
+  });
+
+  test("a retried record_statement gets the same askNext as the first response", () => {
+    applyRobberyEvents();
+    const io = webhookIo(ok([toolUse("tu_1", "add_event", { ...walkInput, sources: [plainId] })]));
+    const first = handleCartesia(io, post(plain()));
+    const flag = [...harness.db.flags.sessionId.filter(SESSION)].find((f) => f.severity === "hard")!;
+    expect(first.body).toMatchObject({ askNext: { flagId: flag.id, question: flag.suggestedQuestion } });
+    const retry = handleCartesia(io, post(plain()));
+    expect((retry.body as { askNext: unknown }).askNext).toEqual((first.body as { askNext: unknown }).askNext);
+    expect(requests).toHaveLength(1);
+  });
+
+  test("a host error in scene context or end interview is a generic 500 without the host's message", () => {
+    const hostError = "Unsupported SpacetimeDB host syscall: datastore_table_scan_bsatn";
+    const broken = { ...webhookIo(ok([])), withTx: () => { throw new Error(hostError); } };
+    for (const handle of [handleSceneContext, handleEndInterview]) {
+      const out = handle(broken, ask(JSON.stringify({ sessionId: SESSION })));
+      expect(out).toEqual({ status: 500, body: { error: "the session could not be read" } });
+      expect(JSON.stringify(out)).not.toContain("syscall");
+    }
+  });
+
+  test("text over the character cap is a 413 before anything is stored", () => {
+    const io = webhookIo(ok([]));
+    const over = "a".repeat(MAX_SEGMENT_TEXT_CHARS + 1);
+    expect(handleCartesia(io, post(plain({ text: over })))).toEqual({
+      status: 413,
+      body: { error: `the text must be at most ${MAX_SEGMENT_TEXT_CHARS} characters` },
+    });
+    expect(handleCartesia(io, post(body({ utterances: [{ text: over, tStart: 0, tEnd: 1 }] }))).status).toBe(413);
+    expect([...harness.db.segments.sessionId.filter(SESSION)]).toHaveLength(1);
+    expect(requests).toHaveLength(0);
+  });
+
+  test("the retry window starts when a long extraction finishes, not when the statement was stored", () => {
+    const first = defaultSegmentId(SESSION, "witness", [{ text: "Yes." }], 1);
+    const slow: TestHttpResponder<never> = (test, req, b) => {
+      harness.clock.advance(TimeDuration.fromMillis(20_000));
+      return ok([toolUse("tu_1", "add_event", { ...walkInput, sources: [first] })])(test, req, b);
+    };
+    const out = handleCartesia(webhookIo(slow), post(plain({ text: "Yes." })));
+    expect(out.body).toMatchObject({ segmentId: first, patchCount: 1 });
+    harness.clock.advance(TimeDuration.fromMillis(5_000));
+    const retry = handleCartesia(webhookIo(slow), post(plain({ text: "Yes." })));
+    expect(retry.body).toMatchObject({ segmentId: first, patchCount: 1 });
+    expect(requests).toHaveLength(1);
+    expect([...harness.db.segments.sessionId.filter(SESSION)]).toHaveLength(2);
+  });
+
+  test("a resend of a segment stored by another path keeps the question it was first given", () => {
+    applyRobberyEvents();
+    const flag = [...harness.db.flags.sessionId.filter(SESSION)].find((f) => f.severity === "hard")!;
+    insertWitnessSegment("utt_9");
+    const io = webhookIo(ok([toolUse("tu_1", "add_event", { ...walkInput, sources: ["utt_9"] })]));
+    const resend = () =>
+      handleCartesia(
+        io,
+        post(body({ segmentId: "utt_9", utterances: [{ text: "A guy came in the front door and went straight up to the counter.", tStart: 7.8, tEnd: 16.7 }] })),
+      );
+    const first = resend();
+    expect(first.body).toMatchObject({ askNext: { flagId: flag.id } });
+    expect((resend().body as { askNext: unknown }).askNext).toEqual((first.body as { askNext: unknown }).askNext);
+    expect((resend().body as { askNext: unknown }).askNext).toEqual((first.body as { askNext: unknown }).askNext);
+  });
+
+  test("the record_statement response starts with askNext", () => {
+    applyRobberyEvents();
+    const out = handleCartesia(webhookIo(ok([toolUse("tu_1", "add_event", { ...walkInput, sources: [plainId] })])), post(plain()));
+    expect(out.status).toBe(200);
+    expect(JSON.stringify(out.body).startsWith('{"askNext":{')).toBe(true);
+  });
+
+  test("a response with many events is under 16 KiB, still starts with askNext and says it was truncated", () => {
+    const statuses = Array.from({ length: 2_000 }, (_, i) => ({ eventId: `e${i}`, status: "plausible" }));
+    const hardFlags = Array.from({ length: 40 }, (_, i) => ({
+      id: `sightline:e${i}`,
+      eventId: `e${i}`,
+      check: "sightline",
+      detail: "d".repeat(300),
+      suggestedQuestion: `Where were you for e${i}?`,
+    }));
+    const askNext = { flagId: "sightline:e0", eventId: "e0", question: "Where were you for e0?" };
+    const body = toolResponse({ segmentId: "seg_x", patchCount: 3, statuses, hardFlags, error: undefined }, askNext);
+    const text = JSON.stringify(body);
+    expect(new TextEncoder().encode(text).length).toBeLessThanOrEqual(MAX_TOOL_RESPONSE_BYTES);
+    expect(MAX_TOOL_RESPONSE_BYTES).toBeLessThanOrEqual(16 * 1024);
+    expect(text.startsWith('{"askNext":{"flagId":"sightline:e0"')).toBe(true);
+    expect(body).toMatchObject({ truncated: true, segmentId: "seg_x", patchCount: 3 });
+    expect(body.statuses[0]).toEqual(statuses[0]);
+    const small = toolResponse({ segmentId: "seg_y", patchCount: 1, statuses: statuses.slice(0, 3), hardFlags: [], error: undefined }, null);
+    expect(small).not.toHaveProperty("truncated");
+    expect(small.statuses).toHaveLength(3);
   });
 
   test("the exported scene context and end interview handlers check the module secret first", () => {

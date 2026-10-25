@@ -33,6 +33,16 @@ describe("the interviewer's instructions", () => {
     expect(INSTRUCTIONS).toContain("Ask each follow-up only once. Never repeat a question you have already asked");
   });
 
+  test("follow-up questions come only from askNext", () => {
+    expect(INSTRUCTIONS).toContain("Follow-up questions come only from record_statement's askNext.");
+    expect(INSTRUCTIONS).not.toMatch(/get_scene_context to get the next follow-up question/);
+    expect(INSTRUCTIONS).not.toMatch(/or as nextQuestion from get_scene_context/);
+    expect(INSTRUCTIONS).toContain("nextQuestion from get_scene_context is context only; never ask it.");
+    const scene = toolDefinition(settings, "get_scene_context").description;
+    expect(scene).toContain("context only");
+    expect(scene).not.toMatch(/when you need the next question/);
+  });
+
   test("record the answer to a follow-up as a new statement", () => {
     expect(INSTRUCTIONS).toContain("record the answer with record_statement as a new statement, verbatim");
   });
@@ -136,6 +146,7 @@ describe("setup", () => {
     expect(calls.map((c) => `${c.op}:${c.id}`)).toEqual(["updateTool:tool_1", "updateTool:tool_2", "updateTool:tool_3", "updateAgent:agent_1"]);
     expect(calls[0]!.body).not.toHaveProperty("type");
     expect(calls[3]!.body).toMatchObject({ config: { tools: [{ id: "tool_1" }, { id: "tool_2" }, { id: "tool_3" }] } });
+    expect(calls[3]!.body).not.toHaveProperty("version_description");
   });
 
   test("the log never contains the webhook secret", async () => {

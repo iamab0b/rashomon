@@ -63,7 +63,7 @@ export async function setup(api: Client, s: Settings, store: Store, log: (line: 
   }
   const toolIds = TOOL_NAMES.map((n) => ids.tools[n]!);
   if (ids.agentId) {
-    await api.updateAgent(ids.agentId, { config: agentConfig(s, toolIds), version_description: "setup.ts" });
+    await api.updateAgent(ids.agentId, { config: agentConfig(s, toolIds) });
     log(`updated agent ${ids.agentId} on model ${s.modelId}`);
   } else {
     const agent = await api.createAgent(agentBody(s, toolIds));
