@@ -14,6 +14,7 @@ import {
   buildRows,
   implausibleStarts,
   inferredBlockPath,
+  WAVE_INSET,
   WAVY_MIN_W,
   inferredTimes,
   neighborFlag,
@@ -208,7 +209,7 @@ export function Timeline({ onOpen }: TimelineProps) {
                 const playingNow = b.id !== null && b.tStart <= t && t < b.tEnd;
                 const s = strokeFor(b.status, b.color, playingNow);
                 const h = ROW_H - 10;
-                const wavy = b.inferred && w >= WAVY_MIN_W ? inferredBlockPath(x, y + 5, w, h) : null;
+                const wavy = b.inferred && w >= WAVY_MIN_W ? inferredBlockPath(x + WAVE_INSET, y + 5, w - 2 * WAVE_INSET, h) : null;
                 return (
                   <g
                     key={b.key}
@@ -225,6 +226,7 @@ export function Timeline({ onOpen }: TimelineProps) {
                   >
                     {wavy ? (
                       <>
+                        <rect x={x} y={y + 5} width={w} height={h} fill="transparent" className="rtl-hit" />
                         <path d={wavy} fill={b.color} fillOpacity={fillOpacityFor(b.status, playingNow)} className="rtl-fill" />
                         <path
                           d={wavy}

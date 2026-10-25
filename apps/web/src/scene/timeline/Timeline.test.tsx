@@ -15,6 +15,7 @@ import {
   implausibleStarts,
   inferredBlockPath,
   WAVE_AMPLITUDE,
+  WAVE_INSET,
   LANE_H,
   rowHeight,
   rowTops,
@@ -236,7 +237,7 @@ describe("event state styling (regression)", () => {
     const html = render();
     const e8 = block(html, "e8");
     expect(e8).toContain("data-inferred");
-    expect(e8).not.toContain("<rect");
+    expect(e8.match(/<rect /g)).toHaveLength(1);
     expect(e8).toMatch(new RegExp(`<path d="M[^"]+Q[^"]+Z" fill="${CLERK}" fill-opacity="[0-9.]+" class="rtl-fill"`));
     expect(e8).toMatch(new RegExp(`<path d="M[^"]+" fill="none" stroke="${CLERK}" stroke-opacity="[0-9.]+" stroke-linejoin="round"`));
     expect(e8).not.toContain("stroke-dasharray");
@@ -246,6 +247,22 @@ describe("event state styling (regression)", () => {
     expect(e9).not.toContain("<path");
     expect(border(e9)).not.toContain("stroke-dasharray");
     expect(e9).not.toContain("<title>");
+  });
+
+  test("the waves sit a few units inside the event's box, which still takes the clicks", () => {
+    const { resolved } = snap();
+    const html = render();
+    const e8 = block(html, "e8");
+    const hit = e8.match(/<rect x="([\d.]+)" y="[\d.]+" width="([\d.]+)" height="[\d.]+" fill="transparent" class="rtl-hit"/)!;
+    const x = Number(hit[1]);
+    const w = Number(hit[2]);
+    const e8event = resolved!.events.find((e) => e.id === "e8")!;
+    expect(x).toBeCloseTo(xOf(e8event.tStart, resolved!.durationS), 1);
+    expect(x + w).toBeCloseTo(xOf(e8event.tEnd, resolved!.durationS), 1);
+    const start = Number(fill(e8).match(/d="M([\d.]+),/)![1]);
+    expect(start - x).toBeCloseTo(WAVE_INSET, 1);
+    expect(WAVE_INSET - WAVE_AMPLITUDE).toBeGreaterThan(0);
+    expect(WAVE_INSET).toBeLessThanOrEqual(4);
   });
 
   test("the wavy edges sit only on the start and end; top and bottom stay straight", () => {
