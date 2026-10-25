@@ -1,4 +1,5 @@
 import { useRef, useState, type PointerEvent } from "react";
+import { useGeneratedCheck } from "../characters/generated/generatedState";
 import { useGraph } from "../playback/useGraph";
 import { useSelection } from "../playback/useSelection";
 import { useTimeline } from "../playback/useTimeline";
@@ -15,6 +16,9 @@ import {
   implausibleStarts,
   inferredBlockPath,
   borderFor,
+  cornerPoints,
+  generatedMarkerPoints,
+  GENERATED_MARKER_FILL,
   SELECTION,
   WAVE_INSET,
   WAVY_MIN_W,
@@ -72,6 +76,7 @@ export function Timeline({ onOpen }: TimelineProps) {
   const setSpeed = useSceneStore((s) => s.setSpeed);
   const hiddenWitnesses = useSceneStore((s) => s.hiddenWitnesses);
   const graph = useSceneStore((s) => s.graph);
+  const isGenerated = useGeneratedCheck();
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef(createDrag()).current;
   const [scrubbing, setScrubbing] = useState(false);
@@ -207,7 +212,8 @@ export function Timeline({ onOpen }: TimelineProps) {
                 const selected = b.id !== null && b.id === selectedEventId;
                 const y = rowY + b.lane * LANE_H;
                 const playingNow = b.id !== null && b.tStart <= t && t < b.tEnd;
-                const s = borderFor(b.status, b.color, playingNow, selected, b.actionApproximated === true);
+                const generated = b.id !== null && isGenerated(b);
+                const s = borderFor(b.status, b.color, playingNow, selected, b.actionApproximated === true, generated);
                 const h = ROW_H - 10;
                 const wavy = b.inferred && w >= WAVY_MIN_W ? inferredBlockPath(x + WAVE_INSET, y + 5, w - 2 * WAVE_INSET, h) : null;
                 const g = SELECTION.gap;
@@ -223,6 +229,7 @@ export function Timeline({ onOpen }: TimelineProps) {
                     data-playback-active={playingNow ? "true" : undefined}
                     data-approximated={b.actionApproximated ? "true" : undefined}
                     data-verb={b.verb}
+                    data-generated={generated ? "true" : undefined}
                     className="rtl-block"
                     style={{ cursor: b.id ? "pointer" : "default", ...(b.witnessId !== undefined && hiddenWitnesses.has(b.witnessId) ? { opacity: HIDDEN_BLOCK_OPACITY } : {}) }}
                     onClick={() => b.id && select(b.id)}
@@ -261,7 +268,8 @@ export function Timeline({ onOpen }: TimelineProps) {
                         {s.halo && <rect x={x - g} y={y + 5 - g} width={w + 2 * g} height={h + 2 * g} rx={3 + g} {...halo} />}
                       </>
                     )}
-                    {b.status === "overridden" && <polygon points={`${x + w - 9},${y + 5} ${x + w},${y + 5} ${x + w},${y + 14}`} fill={AMBER} />}
+                    {b.status === "overridden" && <polygon points={cornerPoints(x, y + 5, w)} fill={AMBER} />}
+                    {generated && <polygon points={generatedMarkerPoints(x, y + 5, w, b.status === "overridden")} fill={GENERATED_MARKER_FILL} data-generated-marker="" />}
                     <text x={x + 5} y={y + ROW_H / 2 + 4} fill="#e6ebf5" fontSize={10} pointerEvents="none">
                       {b.label}
                     </text>

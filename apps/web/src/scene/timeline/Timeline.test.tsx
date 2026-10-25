@@ -1,4 +1,6 @@
 import { robberyGraph, storeScene } from "@rashomon/schema/fixtures";
+import { AnimationClip } from "three";
+import { registerClip } from "../characters/clips";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, test, vi } from "vitest";
@@ -17,6 +19,11 @@ import {
   WAVE_AMPLITUDE,
   SELECTION,
   borderFor,
+  cornerPoints,
+  CORNER_GAP,
+  CORNER_SIZE,
+  generatedMarkerPoints,
+  GENERATED_MARKER_FILL,
   APPROXIMATED_DASH,
   IMPLAUSIBLE_STROKE,
   SELECTED_IMPLAUSIBLE_STROKE,
@@ -627,5 +634,83 @@ describe("approximated events", () => {
     expect(blocks.find((b) => b.id === "e1")).not.toHaveProperty("actionApproximated");
     expect(strokeFor("plausible", "#4f9dff", false, true)).toEqual({ dash: "2 3", stroke: "#4f9dff", opacity: 0.55 });
     expect(strokeFor("implausible", "#4f9dff", false, true)).toMatchObject({ dash: "2 3", stroke: "#ff4d4f" });
+  });
+});
+
+describe("generated events", () => {
+  const approximated = (verb: string, status?: "overridden") => {
+    const graph = {
+      ...robberyGraph,
+      events: robberyGraph.events.map((e) => (e.id === "e9" ? { ...e, actionApproximated: true, verb } : e)),
+    };
+    const { resolved, statuses } = gatedSnapshot(graph, storeScene);
+    return { resolved, statuses: status ? { ...statuses, e9: status } : statuses };
+  };
+  const block = (html: string, id: string) => html.match(new RegExp(`<g data-block="${id}"[^>]*>(.*?)</g>`))![0];
+  const border = (markup: string) => markup.match(/<rect [^>]*fill="none" stroke="[^"]*" stroke-opacity[^>]*>/)![0];
+  const render = (state: ReturnType<typeof approximated>) =>
+    renderWith({ resolved: state.resolved, statuses: state.statuses, duration: state.resolved!.durationS, t: 0 });
+
+  test("an approximated event with a registered gen_<verb> clip draws a solid outline, the marker and data-generated", () => {
+    const state = approximated("lunged");
+    const before = block(render(state), "e9");
+    expect(before).not.toContain("data-generated");
+    expect(border(before)).toContain('stroke-dasharray="2 3"');
+
+    registerClip(new AnimationClip("gen_lunged", 1, []));
+    const after = block(render(state), "e9");
+    expect(after).toContain('data-generated="true"');
+    expect(after).toContain('data-approximated="true"');
+    expect(after).toContain('data-verb="lunged"');
+    expect(border(after)).not.toContain("stroke-dasharray");
+    expect(after).toContain("data-generated-marker");
+    expect(after).toContain(`fill="${GENERATED_MARKER_FILL}"`);
+  });
+
+  test("an approximated event before its clip is registered keeps the dash and has no marker", () => {
+    const e9 = block(render(approximated("sidestepped")), "e9");
+    expect(border(e9)).toMatch(/stroke-dasharray="2 3"/);
+    expect(e9).not.toContain("data-generated");
+  });
+
+  test("when generation failed and no clip arrives, the dashed outline stays and there is no marker", () => {
+    registerClip(new AnimationClip("gen_tripped", 1, []));
+    const e9 = block(render(approximated("flinched")), "e9");
+    expect(border(e9)).toMatch(/stroke-dasharray="2 3"/);
+    expect(e9).not.toContain("data-generated");
+  });
+
+  test("an overridden generated event keeps its amber corner and the marker sits beside it", () => {
+    registerClip(new AnimationClip("gen_lurched", 1, []));
+    const e9 = block(render(approximated("lurched", "overridden")), "e9");
+    const polygons = [...e9.matchAll(/<polygon points="([^"]*)" fill="([^"]*)"/g)].map((m) => [m[1], m[2]]);
+    expect(polygons).toHaveLength(2);
+    expect(polygons[0]![1]).toBe("#ffb020");
+    expect(polygons[1]![1]).toBe(GENERATED_MARKER_FILL);
+    expect(polygons[0]![0]).not.toBe(polygons[1]![0]);
+    const xs = (points: string) => points.split(" ").map((p) => Number(p.split(",")[0]));
+    expect(Math.max(...xs(polygons[1]![0]!))).toBeLessThanOrEqual(Math.min(...xs(polygons[0]![0]!)) - CORNER_GAP);
+  });
+
+  test("the marker sits in the top-right corner when the event is not overridden", () => {
+    expect(generatedMarkerPoints(10, 5, 100, false)).toBe(cornerPoints(10, 5, 100));
+    expect(generatedMarkerPoints(10, 5, 100, true)).toBe(cornerPoints(10, 5, 100, CORNER_SIZE + CORNER_GAP));
+  });
+
+  test("selection, proposed and implausible styling stay as they were", () => {
+    expect(borderFor("proposed", "#4f9dff", false, false, true, true)).toMatchObject({ dash: "5 3" });
+    expect(borderFor("implausible", "#4f9dff", false, false, true, true)).toMatchObject({ dash: "5 3", stroke: IMPLAUSIBLE_STROKE });
+    expect(borderFor("plausible", "#4f9dff", false, true, true, true)).toMatchObject({ stroke: SELECTION.stroke, width: SELECTION.width });
+    expect(borderFor("plausible", "#4f9dff", false, true, true, true)).not.toHaveProperty("dash");
+    expect(borderFor("plausible", "#4f9dff", false, true, true, false)).toMatchObject({ dash: APPROXIMATED_DASH });
+  });
+
+  test("the store fixture's timeline is unchanged and has no generated event", () => {
+    const { resolved, statuses } = snap();
+    const html = renderWith({ resolved, statuses, duration: resolved!.durationS, t: 0 });
+    registerClip(new AnimationClip("gen_staggered", 1, []));
+    const after = renderWith({ resolved, statuses, duration: resolved!.durationS, t: 0 });
+    expect(after).toBe(html);
+    expect(html).not.toContain("data-generated");
   });
 });

@@ -1,14 +1,17 @@
 import type { ResolvedGraph } from "@rashomon/engine";
 import { AnimationClip, AnimationMixer, Group, Object3D, Quaternion, QuaternionKeyframeTrack, Vector3, VectorKeyframeTrack, type AnimationAction } from "three";
 import { describe, expect, test, vi } from "vitest";
-import { fixtureGraphSource, type GraphSource } from "../../playback/graphSource";
+import { fixtureGraphSource, robberyGatedSnapshot, type GraphSource } from "../../playback/graphSource";
 import { GENERATED_FIXTURE_EVENT, GENERATED_FIXTURE_MOTIONS, GENERATED_FIXTURE_VERB, GENERATED_SCENARIO } from "../../playback/generatedFixture";
 import { buildClipWindows, createClipSampler } from "../blend";
-import { HIPS_POSITION_TRACK } from "../clips";
 import { poseActorFrame, type FramePoser } from "../procedural/applyProcedural";
 import { swingClip, syntheticSkeleton } from "../procedural/testRig";
 import { HIPS_QUATERNION_TRACK, hipsParentRotation, prepareGeneratedClip, type GltfLike } from "./generatedClip";
-import { isGeneratedEvent } from "./generatedState";
+import { isGeneratedEvent, useIsGeneratedEvent } from "./generatedState";
+import * as sceneExports from "../../index";
+import { useSceneStore } from "../../store";
+import { callHook } from "../../testing/hookHost";
+import { HIPS_POSITION_TRACK, registerClip } from "../clips";
 import { isGlb, loadGeneratedMotion, motionLoadKey, type GeneratedMotion, type MotionLoaderDeps } from "./loadGeneratedMotion";
 import { cacheKey, indexedDbCache, memoryCache } from "./motionCache";
 import { syncGeneratedMotions } from "./useGeneratedMotions";
@@ -427,5 +430,31 @@ describe("generated clips keep scrubbing exact", () => {
 
   test("the generated clip really drives the clerk inside its window", () => {
     expect(posedClerk(true)(14.2)).not.toEqual(posedClerk(false)(14.2));
+  });
+});
+
+describe("useIsGeneratedEvent", () => {
+  test("is true for an event id once its approximated verb has a registered gen_ clip", () => {
+    const initial = useSceneStore.getState();
+    const snapshot = robberyGatedSnapshot();
+    const resolved = snapshot.resolved!;
+    useSceneStore.setState({
+      resolved: { ...resolved, events: resolved.events.map((e) => (e.id === "e9" ? { ...e, actionApproximated: true, verb: "wobbled" } : e)) },
+    });
+    try {
+      expect(callHook(() => useIsGeneratedEvent("e9"))).toBe(false);
+      registerClip(new AnimationClip("gen_wobbled", 1, []));
+      expect(callHook(() => useIsGeneratedEvent("e9"))).toBe(true);
+      expect(callHook(() => useIsGeneratedEvent("e1"))).toBe(false);
+      expect(callHook(() => useIsGeneratedEvent("nope"))).toBe(false);
+      expect(callHook(() => useIsGeneratedEvent(null))).toBe(false);
+    } finally {
+      useSceneStore.setState(initial, true);
+    }
+  });
+
+  test("is exported from the scene's public entry", () => {
+    expect(sceneExports.useIsGeneratedEvent).toBe(useIsGeneratedEvent);
+    expect(sceneExports.isGeneratedEvent).toBe(isGeneratedEvent);
   });
 });

@@ -218,13 +218,28 @@ export function borderFor(
   playing: boolean,
   selected: boolean,
   approximated = false,
+  generated = false,
 ): { dash?: string; stroke: string; opacity: number; width: number; halo: boolean; fillOpacity: number } {
-  const s = strokeFor(status, color, playing, approximated);
+  const dashed = approximated && !generated;
+  const s = strokeFor(status, color, playing, dashed);
   const fillOpacity = Number((fillOpacityFor(status, playing) + (selected ? SELECTION.tint : 0)).toFixed(2));
   if (!selected) return { ...s, width: BORDER_W, halo: false, fillOpacity };
   if (keepsStatusBorder(status)) return { ...s, width: SELECTION.width, halo: true, fillOpacity };
   const stroke = status === "implausible" ? SELECTED_IMPLAUSIBLE_STROKE : SELECTION.stroke;
-  return { ...(approximated ? { dash: APPROXIMATED_DASH } : {}), stroke, opacity: 1, width: SELECTION.width, halo: false, fillOpacity };
+  return { ...(dashed ? { dash: APPROXIMATED_DASH } : {}), stroke, opacity: 1, width: SELECTION.width, halo: false, fillOpacity };
+}
+
+export const CORNER_SIZE = 9;
+export const CORNER_GAP = 2;
+export const GENERATED_MARKER_FILL = SELECTION.stroke;
+
+export function cornerPoints(x: number, y: number, w: number, offset = 0): string {
+  const right = x + w - offset;
+  return `${right - CORNER_SIZE},${y} ${right},${y} ${right},${y + CORNER_SIZE}`;
+}
+
+export function generatedMarkerPoints(x: number, y: number, w: number, overridden: boolean): string {
+  return cornerPoints(x, y, w, overridden ? CORNER_SIZE + CORNER_GAP : 0);
 }
 export const WAVY_MIN_W = 14;
 

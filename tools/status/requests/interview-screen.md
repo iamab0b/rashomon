@@ -34,3 +34,7 @@ Done-check:
 ## Sat 2:25 PM: the hooks are on main
 
 PR #30 merged as ff77d58. `useGraphActions().submitStatement`, `useStatementStatus` and `useLiveIdentity` are all exported from apps/web/src/scene/index.ts now, so drop any local stub and build against them. In fixture mode the robbery correction statement gives 4 patches and every event plausible. Once Sahil republishes Maincloud, submitting from a browser that is not an editor yet shows your identity flow. Send Sahil that identity (docs/demo-laptop.md, section 4).
+
+## Sun 1:45 AM: generated motion on the event card
+
+Event card: show 'Generated motion' when useIsGeneratedEvent(event.id) is true (from ../scene)

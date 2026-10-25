@@ -35,3 +35,5 @@ export type { TimelineProps } from "./timeline";
 export { useSceneSource } from "./loaders/useSceneSource";
 export type { SceneSource } from "./loaders/sceneSource";
 export { localManifestKey } from "./loaders/scanRequest";
+export { isGeneratedEvent, useIsGeneratedEvent } from "./characters/generated/generatedState";
+export type { GeneratedEventFields } from "./characters/generated/generatedState";

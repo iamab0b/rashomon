@@ -347,3 +347,19 @@ describe("base64", () => {
     expect(base64(raw)).toBe(expected);
   });
 });
+
+describe("the pinned Uthana call", () => {
+  test("the request's model is text-to-motion-bucmd and lengths of 0.5, 2.5 and 9 s are sent as 1, 2.5 and 4", () => {
+    extract("seg_pin", [approximated("lunged", 0, 0.5), approximated("lurched", 1, 3.5), approximated("ambled", 4, 13)]);
+
+    for (const verb of ["lunged", "lurched", "ambled"]) runMotionJob(uthanaIo(motionOk()), jobFor(verb));
+
+    const sent = uthanaRequests.map((request) => (JSON.parse(request.body) as { variables: { prompt: string; model: string; length: number } }).variables);
+    expect(sent.map((v) => v.model)).toEqual(["text-to-motion-bucmd", "text-to-motion-bucmd", "text-to-motion-bucmd"]);
+    expect(sent.map((v) => [v.prompt, v.length])).toEqual([
+      ["a person lunged", 1],
+      ["a person lurched", 2.5],
+      ["a person ambled", 4],
+    ]);
+  });
+});
