@@ -1,5 +1,5 @@
 import { base64ToBytes, pcm16ToFloat, SAMPLE_RATE } from "./audio";
-import { agentSocketUrl, audioInput, parseServerEvent, sessionCreate } from "./events";
+import { agentSocketUrl, audioInput, parseServerEvent, relaySocketUrl, sessionCreate } from "./events";
 import { IDLE, voiceReducer, type VoiceAction, type VoiceState } from "./state";
 
 export type SocketLike = {
@@ -18,6 +18,7 @@ export type Player = { enqueue(samples: Float32Array, sampleRate: number): void;
 
 export type VoiceDeps = {
   agentId: string;
+  relay?: boolean;
   fetchToken(): Promise<string>;
   openSocket(url: string): SocketLike;
   openMicrophone(onChunk: (pcm: Uint8Array) => void): Promise<Microphone>;
@@ -61,10 +62,12 @@ export class VoiceSession {
       const mic = await this.deps.openMicrophone((pcm) => this.sendAudio(run, pcm));
       if (run !== this.run) return mic.stop();
       this.mic = mic;
-      const token = await this.deps.fetchToken();
+      const url = this.deps.relay
+        ? relaySocketUrl(this.deps.agentId)
+        : agentSocketUrl(this.deps.agentId, await this.deps.fetchToken());
       if (run !== this.run) return;
       this.player = this.deps.openPlayer(() => run === this.run && this.dispatch({ type: "drained" }));
-      const socket = this.deps.openSocket(agentSocketUrl(this.deps.agentId, token));
+      const socket = this.deps.openSocket(url);
       this.socket = socket;
       socket.onopen = () => socket.send(sessionCreate());
       socket.onmessage = (ev) => run === this.run && this.handle(ev.data);

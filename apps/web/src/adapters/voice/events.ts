@@ -7,6 +7,14 @@ export function agentSocketUrl(agentId: string, accessToken: string): string {
   return `wss://api.cartesia.ai/v1/agents/websocket/${encodeURIComponent(agentId)}?${params}`;
 }
 
+export const RELAY_BASE = "ws://127.0.0.1:8787";
+
+// The local token server holds the API key and relays the socket, so the URL carries no credential.
+export function relaySocketUrl(agentId: string, base = RELAY_BASE): string {
+  const params = new URLSearchParams({ cartesia_version: CARTESIA_VERSION });
+  return `${base}/agent/${encodeURIComponent(agentId)}?${params}`;
+}
+
 export type ServerEvent =
   | { type: "session_ready"; call_id: string }
   | { type: "audio_output"; audio: string }

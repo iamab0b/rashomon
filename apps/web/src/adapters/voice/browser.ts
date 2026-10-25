@@ -6,6 +6,8 @@ declare const __CARTESIA_AGENT_ID__: string | undefined;
 
 export const TOKEN_URL = "http://127.0.0.1:8787/token";
 
+export const relayEnabled = (env: Record<string, unknown> = import.meta.env): boolean => env.VITE_VOICE_RELAY === "1";
+
 const CAPTURE_WORKLET = `registerProcessor("rashomon-capture", class extends AudioWorkletProcessor {
   process(inputs) {
     const channel = inputs[0] && inputs[0][0];
@@ -77,6 +79,7 @@ export function openPlayer(onDrained: () => void): Player {
 export function browserVoiceDeps(): VoiceDeps {
   return {
     agentId: typeof __CARTESIA_AGENT_ID__ === "string" ? __CARTESIA_AGENT_ID__ : "",
+    relay: relayEnabled(),
     fetchToken: () => fetchToken(),
     openSocket: (url) => new WebSocket(url) as unknown as SocketLike,
     openMicrophone,

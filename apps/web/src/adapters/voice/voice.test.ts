@@ -1,7 +1,7 @@
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { base64ToBytes, bytesToBase64, Chunker, floatToPcm16, pcm16ToFloat, Resampler } from "./audio";
-import { fetchToken } from "./browser";
-import { agentSocketUrl, audioInput, parseServerEvent, sessionCreate } from "./events";
+import { browserVoiceDeps, fetchToken, relayEnabled } from "./browser";
+import { agentSocketUrl, audioInput, parseServerEvent, relaySocketUrl, sessionCreate } from "./events";
 import { PlaybackQueue, type Sink } from "./playback";
 import { VoiceSession, type Player, type SocketLike, type VoiceDeps } from "./session";
 import { IDLE, voiceReducer, type VoiceState } from "./state";
@@ -49,6 +49,13 @@ describe("events", () => {
     expect(url.origin + url.pathname).toBe("wss://api.cartesia.ai/v1/agents/websocket/agent_1");
     expect(url.searchParams.get("cartesia_version")).toBe("2026-08-14");
     expect(url.searchParams.get("access_token")).toBe("tok/+=");
+  });
+
+  test("the relay URL points at the local token server and carries no credential", () => {
+    expect(relaySocketUrl("agent_1")).toBe("ws://127.0.0.1:8787/agent/agent_1?cartesia_version=2026-08-14");
+    const url = new URL(relaySocketUrl("agent/../x", "ws://127.0.0.1:1"));
+    expect(url.pathname).toBe("/agent/agent%2F..%2Fx");
+    expect([...url.searchParams.keys()]).toEqual(["cartesia_version"]);
   });
 
   test("session_create declares 16 kHz PCM and audio_input carries base64", () => {
@@ -295,6 +302,22 @@ describe("voice session", () => {
     expect(h.session.current).toEqual(IDLE);
   });
 
+  test("without the relay flag the session fetches a token and dials Cartesia directly", async () => {
+    const h = harness();
+    await h.session.start();
+    expect(h.deps.fetchToken).toHaveBeenCalledTimes(1);
+    expect(h.sockets.map((s) => s.url)).toEqual(["wss://api.cartesia.ai/v1/agents/websocket/agent_1?cartesia_version=2026-08-14&access_token=tok_1"]);
+  });
+
+  test("with the relay flag the session skips the token and dials the local relay", async () => {
+    const h = harness({ relay: true });
+    await h.session.start();
+    expect(h.deps.fetchToken).not.toHaveBeenCalled();
+    expect(h.sockets.map((s) => s.url)).toEqual(["ws://127.0.0.1:8787/agent/agent_1?cartesia_version=2026-08-14"]);
+    h.sockets[0]!.open();
+    expect(JSON.parse(h.sockets[0]!.sent[0]!).type).toBe("session_create");
+  });
+
   test("a missing agent id fails before touching the microphone", async () => {
     const open = vi.fn();
     const h = harness({ agentId: "", openMicrophone: open });
@@ -314,5 +337,24 @@ describe("token fetch", () => {
   test("explains when the token server is down", async () => {
     const f = vi.fn(async () => Promise.reject(new TypeError("Failed to fetch")));
     await expect(fetchToken("http://127.0.0.1:1/token", f as unknown as typeof fetch)).rejects.toThrow(/token-server/);
+  });
+});
+
+describe("relay flag", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  test("only VITE_VOICE_RELAY=1 turns the relay on", () => {
+    expect(relayEnabled({})).toBe(false);
+    expect(relayEnabled({ VITE_VOICE_RELAY: "0" })).toBe(false);
+    expect(relayEnabled({ VITE_VOICE_RELAY: "true" })).toBe(false);
+    expect(relayEnabled({ VITE_VOICE_RELAY: 1 })).toBe(false);
+    expect(relayEnabled({ VITE_VOICE_RELAY: "1" })).toBe(true);
+  });
+
+  test("browser deps follow the env, and leave the relay off when the variable is absent", () => {
+    vi.stubEnv("VITE_VOICE_RELAY", undefined);
+    expect(browserVoiceDeps().relay).toBe(false);
+    vi.stubEnv("VITE_VOICE_RELAY", "1");
+    expect(browserVoiceDeps().relay).toBe(true);
   });
 });

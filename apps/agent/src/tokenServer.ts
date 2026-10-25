@@ -1,12 +1,13 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { pathToFileURL } from "node:url";
 import { API_BASE, CARTESIA_VERSION, type Fetch } from "./cartesia";
+import { relayUpgrade } from "./relay";
 
 export const ALLOWED_ORIGIN = "http://localhost:5173";
 export const TOKEN_TTL_SECS = 300;
 export const DEFAULT_PORT = 8787;
 
-export type TokenServerDeps = { apiKey: string; fetch: Fetch; log?: (line: string) => void };
+export type TokenServerDeps = { apiKey: string; fetch: Fetch; log?: (line: string) => void; upstreamBase?: string };
 
 export async function mintToken(deps: TokenServerDeps): Promise<string> {
   const res = await deps.fetch(`${API_BASE}/access-token`, {
@@ -56,6 +57,7 @@ export function tokenHandler(deps: TokenServerDeps) {
 
 export function startTokenServer(deps: TokenServerDeps, port = DEFAULT_PORT): Promise<Server> {
   const server = createServer((req, res) => void tokenHandler(deps)(req, res));
+  server.on("upgrade", relayUpgrade({ ...deps, allowedOrigin: ALLOWED_ORIGIN }));
   return new Promise((resolve, reject) => {
     server.once("error", reject);
     server.listen(port, "127.0.0.1", () => resolve(server));
@@ -70,7 +72,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   }
   const port = Number(process.env.TOKEN_SERVER_PORT) || DEFAULT_PORT;
   startTokenServer({ apiKey, fetch, log: (line) => console.error(line) }, port).then(
-    () => console.log(`token server on http://127.0.0.1:${port}/token for ${ALLOWED_ORIGIN}`),
+    () => console.log(`token server on http://127.0.0.1:${port}/token and relay on ws://127.0.0.1:${port}/agent/<agentId> for ${ALLOWED_ORIGIN}`),
     (err: unknown) => {
       console.error(`token server failed to start: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
