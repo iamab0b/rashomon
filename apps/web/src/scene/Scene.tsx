@@ -21,6 +21,7 @@ import { isKnownFixture, loadScene, type LoadedScene } from "./loaders/scene";
 import { storeDroppedScan, type LoadedScan } from "./loaders/scan";
 import { useScanAlignStore } from "./loaders/scanAlignStore";
 import { ScanDropHint } from "./loaders/ScanDropHint";
+import { ScanCeilingCut } from "./loaders/ScanCeilingCut";
 import { ScanPanel } from "./loaders/ScanPanel";
 import { scanFailure, scanRequestFromSearch, searchWithScan, type ScanRequest } from "./loaders/scanRequest";
 import type { SceneSource } from "./loaders/sceneSource";
@@ -271,6 +272,7 @@ export function Scene({ fixture, debug, t }: SceneProps) {
         {loaded ? (
           <>
             <primitive object={loaded.model} onClick={scan && aligning ? onAlignClick : undefined} />
+            {scan ? <ScanCeilingCut scan={scan} /> : null}
             {scan ? <FrameObject object={scan.model} frameKey={frameKey} /> : null}
             {loaded.isPlaceholder && fixture === STORE_FIXTURE ? (
               <Dressing manifest={loaded.manifest} placeholder={loaded.model} />
