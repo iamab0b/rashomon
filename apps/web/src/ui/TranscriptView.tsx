@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { scrollWithin } from "./scrollWithin";
 import { NotConnected, words, type PanelContext } from "./shared";
 import { relatedUtterances, sourceLabel, utteranceEvents } from "./transcript";
 import { actorsWithEvents, focusedActor, utteranceSpeaker, visibleUtterances } from "./witnessFilter";
@@ -21,9 +22,7 @@ export function TranscriptView({
 
   useEffect(() => {
     if (!scrollTo) return;
-    listRef.current
-      ?.querySelector<HTMLElement>(`[data-utterance="${CSS.escape(scrollTo)}"]`)
-      ?.scrollIntoView({ block: "nearest" });
+    scrollWithin(listRef.current?.querySelector<HTMLElement>(`[data-utterance="${CSS.escape(scrollTo)}"]`));
   }, [scrollTo]);
 
   if (!transcript) {

@@ -14,6 +14,7 @@ import {
 import { EventsTab } from "./EventsTab";
 import { witnessTagOf } from "./WitnessesTab";
 import { WitnessStrip } from "./WitnessStrip";
+import { scrollWithin } from "./scrollWithin";
 import { useActorFocus } from "./actorFocus";
 import { FlagsTab, openFlagCount } from "./FlagsTab";
 import { ContextDrawer, type ContextView } from "./ContextDrawer";
@@ -88,9 +89,7 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
 
   useEffect(() => {
     if (!selectedEventId) return;
-    panelRef.current
-      ?.querySelector<HTMLElement>(`[data-event-id="${CSS.escape(selectedEventId)}"]`)
-      ?.scrollIntoView({ block: "nearest" });
+    scrollWithin(panelRef.current?.querySelector<HTMLElement>(`[data-event-id="${CSS.escape(selectedEventId)}"]`));
   }, [selectedEventId, activeTab]);
 
   useEffect(() => {
