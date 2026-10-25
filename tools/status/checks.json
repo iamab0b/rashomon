@@ -103,7 +103,7 @@
       "id": "cartesia-agent-fixes",
       "from": "Sahil",
       "due": "15-18",
-      "todo": "PR #41 round 2: agent asks follow-ups only from askNext (nextQuestion is context only); 15 s retry window from extractedAt; insert missing webhook_statements row on retry; note the 413 and snapshot cap in the PR",
+      "todo": "PR #41 round 2: agent asks follow-ups only from askNext (nextQuestion is context only); 15 s retry window from extractedAt; insert missing webhook_statements row on retry; note the 413 and snapshot cap in the PR; askNext first in record_statement and the response under Cartesia's 16 KiB cap",
       "doc": "tools/status/requests/cartesia-agent-fixes.md",
       "grep": "follow-up questions come only from askNext",
       "paths": [
