@@ -15,3 +15,13 @@ From Sahil, Sat 6:25 PM. The UI structure is frozen as your list has it, plus th
 The scene side exports `SceneTools` and `useSceneToolsAvailable` and stops drawing those panels over the canvas. That ships with the labeling-tool PR (#38, round 3). Until it merges, build against a stub with the same two names in a test, and open your PR when #38 is in. If #38 misses the 1:30 AM cutoff, the scene side ships `SceneTools` with the scan panel only, and your rail item still works.
 
 Greptile plus one Opus review; the leader merges.
+
+## Update from the #38 session (Round 4)
+
+Scene now draws `SceneTools` itself, in the top-right of the canvas, unless the host says it mounts them. Your rail PR must pass `sceneToolsHosted` to `<Scene>` in `App.tsx` when the rail mounts `SceneTools`:
+
+```
+<Scene fixture={fixture} debug={debug} t={t} sceneToolsHosted />
+```
+
+Without it the panels would show twice (rail and canvas). The prop is optional and defaults to false; the scene index exports nothing new for it.

@@ -93,7 +93,10 @@ export async function loadGlb(url: string): Promise<Object3D> {
 }
 
 export async function loadScene(fixture: string): Promise<LoadedScene> {
-  const manifest = loadManifest(fixture);
+  return loadSceneFromManifest(loadManifest(fixture));
+}
+
+export async function loadSceneFromManifest(manifest: SceneManifest): Promise<LoadedScene> {
   try {
     const model = await loadGlb(manifest.meshUrl);
     tagCollision(model);

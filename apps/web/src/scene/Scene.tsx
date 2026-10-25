@@ -1,6 +1,8 @@
 import { Canvas } from "@react-three/fiber";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { Box3 } from "three";
 import type { ThreeEvent } from "@react-three/fiber";
+import type { Landmark, SceneManifest } from "@rashomon/schema";
 import { CameraRig } from "./cameras/CameraRig";
 import { FrameObject } from "./cameras/FrameObject";
 import { PovRayLine } from "./cameras/PovRayLine";
@@ -17,14 +19,26 @@ import { FpsProbe } from "./FpsProbe";
 import { LabelLayer } from "./landmarks/LabelLayer";
 import { LabelProjector } from "./landmarks/LabelProjector";
 import { LandmarkMarkers } from "./landmarks/LandmarkMarkers";
-import { isKnownFixture, loadScene, type LoadedScene } from "./loaders/scene";
-import { storeDroppedScan, type LoadedScan } from "./loaders/scan";
+import { EditorLayer } from "./labeling/EditorLayer";
+import { interiorFromBounds } from "./labeling/interior";
+import { sessionAction, useLabelingStore } from "./labeling/labelingStore";
+import { createMeshSwitcher } from "./labeling/meshSwitcher";
+import {
+  isEditorOpen,
+  isGraphlessSearch,
+  manifestSourceFromSearch,
+  scanRequestForSavedManifest,
+  searchWithMesh,
+} from "./labeling/storage";
+import { beginSceneLoad, meshKeyOf } from "./loaders/sceneLoad";
+import { isKnownFixture, loadManifest, loadScene, loadSceneFromManifest, type LoadedScene } from "./loaders/scene";
+import { loadScan, storeDroppedScan, type LoadedScan } from "./loaders/scan";
 import { useScanAlignStore } from "./loaders/scanAlignStore";
 import { ScanDropHint } from "./loaders/ScanDropHint";
-import { ScanPanel } from "./loaders/ScanPanel";
-import { scanFailure, scanRequestFromSearch, searchWithScan, type ScanRequest } from "./loaders/scanRequest";
+import { useScanToolsStore } from "./loaders/scanToolsStore";
+import { idbUrl, scanFailure, scanRequestFromSearch, type ScanRequest } from "./loaders/scanRequest";
 import type { SceneSource } from "./loaders/sceneSource";
-import { failScan, useScanScene } from "./loaders/useScanScene";
+import { failScan, scanErrorMessage, useScanScene } from "./loaders/useScanScene";
 import { fixtureGraphSource, NO_GEOM, scenarioFromSearch, type GateScene } from "./playback/graphSource";
 import { Actors } from "./playback/Actors";
 import { Playhead } from "./playback/Playhead";
@@ -32,7 +46,8 @@ import { Props } from "./props/Props";
 import { selectSource } from "./playback/selectSource";
 import { useGraphSource } from "./playback/useGraph";
 import { SceneErrorCard } from "./SceneErrorCard";
-import { sceneFailure, scanSceneFailure, shouldSignalReady, unknownFixtureMessage } from "./sceneFailure";
+import { SceneTools, useSceneToolsAvailable } from "./SceneTools";
+import { failureSkipped, sceneFailure, scanSceneFailure, shouldSignalReady } from "./sceneFailure";
 import { useSceneStore } from "./store";
 import { useSceneKeys } from "./useSceneKeys";
 
@@ -49,38 +64,64 @@ export type SceneProps = {
   fixture?: string;
   debug?: string;
   t?: number;
+  sceneToolsHosted?: boolean;
 };
+
+const toolsOverlayStyle = {
+  position: "absolute",
+  top: 8,
+  right: 8,
+  width: 280,
+  maxHeight: "calc(100% - 16px)",
+  overflowY: "auto",
+  zIndex: 21,
+} as const;
 
 const RIG_DEBUG = "rig";
 const STORE_FIXTURE = "store";
 
-function useLoadedScene(fixture: string | undefined): LoadedScene | null {
+function useLoadedScene(fixture: string | undefined, manifest: SceneManifest | null, editing: boolean): LoadedScene | null {
   const [loaded, setLoaded] = useState<LoadedScene | null>(null);
   const setStatus = useSceneStore((state) => state.setStatus);
+  const meshKey = meshKeyOf(manifest);
 
   useEffect(() => {
     if (!fixture) return;
-    let cancelled = false;
-    setStatus("loading");
-    loadScene(fixture)
-      .then((result) => {
-        if (!cancelled) setLoaded(result);
-      })
-      .catch((error: unknown) => {
-        console.error("scene load failed", error);
-        if (cancelled) return;
-        const detail = error instanceof Error ? error.message : String(error);
-        setStatus("error", isKnownFixture(fixture) ? `The scene could not be loaded: ${detail}` : unknownFixtureMessage(fixture));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [fixture, setStatus]);
+    return beginSceneLoad(
+      fixture,
+      () =>
+        manifest ? loadSceneFromManifest(editing ? { ...manifest, landmarks: [] } : manifest) : loadScene(fixture),
+      { setLoaded, setStatus },
+    );
+  }, [fixture, meshKey, editing, setStatus]);
 
   return loaded;
 }
 
-function useSceneFailure(
+function uniqueById(landmarks: readonly Landmark[]): Landmark[] {
+  const seen = new Set<string>();
+  return landmarks.filter((landmark) => {
+    if (seen.has(landmark.id)) return false;
+    seen.add(landmark.id);
+    return true;
+  });
+}
+
+function useEditorBounds(loaded: LoadedScene | null, editing: boolean): void {
+  const setInterior = useLabelingStore((state) => state.setInterior);
+  useEffect(() => {
+    if (!editing || !loaded) return;
+    const fallback = useLabelingStore.getState().base?.interior;
+    if (loaded.isPlaceholder) {
+      setInterior(fallback);
+      return;
+    }
+    const box = new Box3().setFromObject(loaded.model);
+    setInterior(interiorFromBounds(box.min.toArray(), box.max.toArray(), fallback));
+  }, [loaded, editing, setInterior]);
+}
+
+export function useSceneFailure(
   fixture: string | undefined,
   skip: boolean,
   hasGraphSource: boolean,
@@ -152,23 +193,82 @@ function useDebugPreset(debug: string | undefined): void {
   }, [debug, setPreset]);
 }
 
-function useScanRequest(): [ScanRequest | null, (file: File) => void] {
+type ScanRequestApi = {
+  request: ScanRequest | null;
+  drop: (file: File) => void;
+  replace: (request: ScanRequest, meshUrl: string) => void;
+};
+
+const DISCARD_PROMPT = "Discard unsaved landmark edits?";
+
+export function useScanRequest(editing: boolean): ScanRequestApi {
   const [request, setRequest] = useState<ScanRequest | null>(() => scanRequestFromSearch(window.location.search));
   const latestDrop = useRef(0);
-  const drop = useCallback((file: File) => {
-    const serial = ++latestDrop.current;
-    storeDroppedScan(file)
-      .then((hash) => {
-        if (serial !== latestDrop.current) return;
-        const search = searchWithScan(window.location.search, hash);
-        window.history.replaceState(window.history.state, "", search);
-        setRequest(scanRequestFromSearch(search));
-      })
-      .catch((error: unknown) => {
-        if (serial === latestDrop.current) failScan(error);
-      });
+  const drop = useCallback(
+    (file: File) => {
+      if (editing && useLabelingStore.getState().isDirty() && !window.confirm(DISCARD_PROMPT)) return;
+      const serial = ++latestDrop.current;
+      storeDroppedScan(file)
+        .then((hash) => {
+          if (serial !== latestDrop.current) return;
+          const search = searchWithMesh(window.location.search, idbUrl(hash));
+          window.history.replaceState(window.history.state, "", search);
+          setRequest(scanRequestFromSearch(search));
+        })
+        .catch((error: unknown) => {
+          if (serial === latestDrop.current) failScan(error);
+        });
+    },
+    [editing],
+  );
+  const replace = useCallback((next: ScanRequest, meshUrl: string) => {
+    latestDrop.current += 1;
+    window.history.replaceState(window.history.state, "", searchWithMesh(window.location.search, meshUrl));
+    setRequest(next);
   }, []);
-  return [request, drop];
+  return { request, drop, replace };
+}
+
+function useScanToolsPublisher(scan: LoadedScan | null): void {
+  const setScan = useScanToolsStore((state) => state.setScan);
+  useEffect(() => {
+    setScan(scan);
+  }, [scan, setScan]);
+  useEffect(() => () => setScan(null), [setScan]);
+}
+
+function useEditorSession(editing: boolean, startManifest: SceneManifest | null, sessionKey: string | null): void {
+  useEffect(() => {
+    if (!editing || !startManifest) return;
+    const state = useLabelingStore.getState();
+    const action = sessionAction(state.base ? state.sessionKey : null, sessionKey);
+    if (action === "begin") state.begin(startManifest, sessionKey);
+    else if (action === "reset") state.load(startManifest, sessionKey);
+  }, [editing, startManifest, sessionKey]);
+}
+
+export function useMeshSwitcher(
+  editing: boolean,
+  scan: LoadedScan | null,
+  replace: ScanRequestApi["replace"],
+): void {
+  const latestScan = useRef(scan);
+  latestScan.current = scan;
+  const setMeshSwitcher = useLabelingStore((state) => state.setMeshSwitcher);
+  useEffect(() => {
+    if (!editing) return;
+    setMeshSwitcher(
+      createMeshSwitcher({
+        getScan: () => latestScan.current,
+        replace,
+        load: (request) => loadScan(request),
+        getStatus: () => useSceneStore.getState().status,
+        setStatus: (status, error) => useSceneStore.getState().setStatus(status, error),
+        describe: scanErrorMessage,
+      }),
+    );
+    return () => setMeshSwitcher(null);
+  }, [editing, replace, setMeshSwitcher]);
 }
 
 function scanLoadedScene(scan: LoadedScan | null): LoadedScene | null {
@@ -212,25 +312,61 @@ function useDropZone(onFile: (file: File) => void) {
   };
 }
 
-export function Scene({ fixture, debug, t }: SceneProps) {
+export function Scene({ fixture, debug, t, sceneToolsHosted = false }: SceneProps) {
   useSceneKeys();
   useDebugPreset(debug);
   useInitialTime(t, debug);
   const isRigDebug = debug === RIG_DEBUG;
-  const [scanRequest, dropScan] = useScanRequest();
+  const editing = !isRigDebug && isEditorOpen(window.location.search);
+  const { request: searchScanRequest, drop: dropScan, replace: replaceScan } = useScanRequest(editing);
+  const manifestSource = useMemo(
+    () => (searchScanRequest ? { kind: "none" as const } : manifestSourceFromSearch(window.location.search)),
+    [searchScanRequest],
+  );
+  const manifestError = manifestSource.kind === "error" ? manifestSource.error : null;
+  const savedManifest = manifestSource.kind === "ok" ? manifestSource.manifest : null;
+  const savedScanRequest = useMemo(() => (savedManifest ? scanRequestForSavedManifest(savedManifest) : null), [savedManifest]);
+  const scanRequest = searchScanRequest ?? savedScanRequest;
+  const graphless = !isRigDebug && isGraphlessSearch(window.location.search);
   const liveScan = useMemo(() => (scanRequest ? scanFailure(window.location.search) : null), [scanRequest]);
-  const fixtureLoaded = useLoadedScene(isRigDebug || scanRequest ? undefined : fixture);
+  const editBase = useLabelingStore((state) => state.base);
+  const fixtureManifest = useMemo(
+    () => (fixture && isKnownFixture(fixture) ? loadManifest(fixture) : null),
+    [fixture],
+  );
+  const fixtureSceneManifest = scanRequest ? null : editing ? (editBase ?? savedManifest ?? fixtureManifest) : savedManifest;
+  const fixtureLoaded = useLoadedScene(
+    isRigDebug || scanRequest || manifestError !== null ? undefined : fixture,
+    fixtureSceneManifest,
+    editing,
+  );
   const { scan, alignAt, frameKey } = useScanScene(isRigDebug || liveScan ? null : scanRequest);
   const loaded = useMemo(() => (scanRequest ? scanLoadedScene(scan) : fixtureLoaded), [scanRequest, scan, fixtureLoaded]);
+  const startManifest = scanRequest ? (scan?.manifest ?? null) : (savedManifest ?? fixtureManifest);
+  const sessionKey = scanRequest
+    ? scan
+      ? `scan:${scan.meshUrl}`
+      : null
+    : `fixture:${fixture ?? ""}:${savedManifest?.sceneId ?? ""}`;
+  useEditorSession(editing, startManifest, sessionKey);
+  useMeshSwitcher(editing, scan, replaceScan);
+  useScanToolsPublisher(scan);
+  useEffect(() => {
+    if (manifestError !== null) useSceneStore.getState().setStatus("error", manifestError);
+  }, [manifestError]);
+  useEditorBounds(loaded, editing);
+  const editEntries = useLabelingStore((state) => state.entries);
+  const editLandmarks = useMemo(() => uniqueById(editEntries.map((entry) => entry.landmark)), [editEntries]);
   const gateScene = useMemo<GateScene | null>(() => (scan ? { manifest: scan.manifest, geom: scan.geom } : null), [scan]);
   const graphSource = useMemo(() => {
-    if (isRigDebug || !fixture) return null;
+    if (isRigDebug || !fixture || graphless) return null;
     if (!scanRequest) return selectSource(window.location.search, fixture);
     return gateScene && !liveScan ? fixtureGraphSource(fixture, scenarioFromSearch(window.location.search), gateScene) : null;
-  }, [isRigDebug, fixture, scanRequest, gateScene, liveScan]);
+  }, [isRigDebug, graphless, fixture, scanRequest, gateScene, liveScan]);
   useGraphSource(graphSource);
   useSceneSourcePublisher(loaded, scan);
-  const failure = useSceneFailure(fixture, isRigDebug, graphSource !== null, { request: scanRequest, loaded: scan !== null });
+  const failure = useSceneFailure(fixture, failureSkipped({ isRigDebug, graphless, liveScan }), graphSource !== null, { request: scanRequest, loaded: scan !== null });
+  const shownLandmarks = editing ? editLandmarks : (loaded?.manifest.landmarks ?? []);
   const aligning = useScanAlignStore((state) => state.aligning);
   const onAlignClick = useCallback(
     (event: ThreeEvent<MouseEvent>) => {
@@ -246,6 +382,7 @@ export function Scene({ fixture, debug, t }: SceneProps) {
     [alignAt],
   );
   const drop = useDropZone(dropScan);
+  const toolsAvailable = useSceneToolsAvailable();
   const hasGraph = useSceneStore((state) => state.resolved !== null);
   const actorsReady = useSceneStore((state) => state.actorsReady);
   const status = useSceneStore((state) => state.status);
@@ -266,30 +403,35 @@ export function Scene({ fixture, debug, t }: SceneProps) {
         <Lights />
         <CameraRig />
         <FpsProbe />
-        <Playhead />
+        {editing ? null : <Playhead />}
         {isRigDebug ? <RigDebug /> : null}
         {loaded ? (
           <>
             <primitive object={loaded.model} onClick={scan && aligning ? onAlignClick : undefined} />
             {scan ? <FrameObject object={scan.model} frameKey={frameKey} /> : null}
-            {loaded.isPlaceholder && fixture === STORE_FIXTURE ? (
+            {loaded.isPlaceholder && fixture === STORE_FIXTURE && !editing && savedManifest === null ? (
               <Dressing manifest={loaded.manifest} placeholder={loaded.model} />
             ) : null}
-            <LandmarkMarkers landmarks={loaded.manifest.landmarks} />
-            <LabelProjector landmarks={loaded.manifest.landmarks} occluders={loaded.model} />
+            <LandmarkMarkers landmarks={shownLandmarks} />
+            <LabelProjector landmarks={shownLandmarks} occluders={loaded.model} />
             <FloorProbe interior={loaded.manifest.interior} />
             <WitnessView model={loaded.model} manifest={loaded.manifest} />
             <PovRayLine />
             {hasGraph ? <Actors manifest={loaded.manifest} /> : null}
             {hasGraph ? <Props manifest={loaded.manifest} /> : null}
             {hasGraph ? <AnchorGizmo manifest={loaded.manifest} /> : null}
+            {editing ? <EditorLayer /> : null}
             {shouldSignalReady({ hasGraph, actorsReady, failure }) ? <ReadySignal /> : null}
           </>
         ) : null}
       </Canvas>
-      {loaded ? <LabelLayer landmarks={loaded.manifest.landmarks} /> : null}
+      {loaded ? <LabelLayer landmarks={shownLandmarks} /> : null}
       {isRigDebug ? <RigReportPanel /> : null}
-      {scan ? <ScanPanel scan={scan} /> : null}
+      {!sceneToolsHosted && toolsAvailable ? (
+        <div style={toolsOverlayStyle} data-scene-tools-overlay="">
+          <SceneTools />
+        </div>
+      ) : null}
       {drop.dragging ? <ScanDropHint /> : null}
       <SceneErrorCard />
       <DebugOverlay />
