@@ -14,3 +14,15 @@ Done-check:
 - `pnpm -F web typecheck` and `pnpm -F web test` pass.
 - `git grep -nE "^\s*//|/\*" -- apps/web/src/ui/StatementSection.tsx apps/web/src/ui/statement.ts apps/web/src/ui/RightPanel.tsx` prints nothing.
 - Greptile reviews the push; the leader reviews and merges.
+
+## Round 3 (Sat 5:20 PM): one fix before merge
+
+522507a: an Opus review is clean (no comments left, live freeze on version only, the earlier behaviour holds). Greptile (3/5) still holds the merge on one finding, which the review confirms as MEDIUM. Its second finding (finished results absorb other users' edits) is not valid: a set result is frozen (statement.ts line 150). Push to `interview-screen`; no force-push.
+
+1. **A fresh live result is mistaken for a resubmit** (StatementSection.tsx line 198).
+   - `resent` is set from the first status seen. In live mode, if another editor's change bumps the version before this statement's row arrives, the status reads done, the fresh statement is marked resent, and it shows "Already added: no events found" for good.
+   - Count a submission as resent only when a result was already saved for that segment id in this tab, or the segment row already existed before this submit (useStatementStatus had a patchCount for it before you called submitStatement). Otherwise go through resultOf as usual.
+   - Test: a fresh submit whose status is done on its first reading, with no saved result, shows its own result, not "Already added".
+2. **LOW:** with patchCount 0, show an empty outcome, never "Added N events" from another editor's change (statement.ts lines 121 to 136).
+
+Greptile reviews the push; the leader reviews and merges.
