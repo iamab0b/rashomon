@@ -26,3 +26,13 @@ Done-check:
 2. **LOW:** with patchCount 0, show an empty outcome, never "Added N events" from another editor's change (statement.ts lines 121 to 136).
 
 Greptile reviews the push; the leader reviews and merges.
+
+## Round 4 (Sat 6:10 PM): two small fixes, then merge
+
+6dce3f9: a fresh Opus review is clean. Both round 3 items are in, the revert checks fail their tests, earlier rounds hold, and the branch merges cleanly. Greptile (3/5) still holds the merge on two findings. The review rates one of them LOW and the other is new; both are small. Push to `interview-screen`; no force-push.
+
+1. **A fresh live result can still read as a resubmit** (StatementSection.tsx lines 195-201, statement.ts line 109). "First reading is done with a patchCount" stands in for "the row existed before submit". When extraction finishes before the first render that sees the segment, the statement shows "Already added". Fix: compute the segment id when Submit is pressed, read the store's status for that id at that moment, and keep it. A submission is resent only if that saved status already had a patchCount, or if this tab saved a result for the id. Test: a fresh submit that is done on its first reading, and had no status before submit, shows its own result.
+2. **Old results survive a scene change** (statement.ts lines 108-109). The saved results are keyed by segmentId only. After a dropped scan replaces the graph in the same tab, submitting the same witness and text shows the previous graph's result. Fix: key the saved results by graph source (scene id plus mode) and segmentId, or clear them when the graph source changes. Test it.
+3. **LOW, optional:** one mounted test of StatementSection's wiring, if happy-dom is already set up for the web tests. Skip it otherwise.
+
+Greptile re-reviews the push; the leader reviews and merges.

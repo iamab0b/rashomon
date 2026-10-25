@@ -205,7 +205,7 @@
       "id": "interview-screen",
       "from": "Sahil",
       "due": "16-19",
-      "todo": "Statement box in the right panel: submitStatement(text, witnessName), 'Extracting\u2026' until done, then new events and flags; not-an-editor shows the browser identity; voice button behind a flag until Eric's agent; branch interview-screen, PR to main",
+      "todo": "PR #35 round 4: resent only from the status saved at Submit (or a saved result); saved results keyed by graph source plus segmentId; then merge",
       "doc": "tools/status/requests/interview-screen.md",
       "grep": "submitStatement",
       "paths": [
