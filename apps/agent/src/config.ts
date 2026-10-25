@@ -1,5 +1,6 @@
-import { storeScene } from "@rashomon/schema/fixtures";
-import { INITIAL_MESSAGE, INSTRUCTIONS } from "./instructions";
+import type { SceneManifest } from "@rashomon/schema";
+import { roomScene, storeScene } from "@rashomon/schema/fixtures";
+import { INITIAL_MESSAGE, STORE_EXAMPLES, instructionsFor, type Examples } from "./instructions";
 
 export const SECRET_HEADER = "X-Rashomon-Webhook-Secret";
 export const TOOL_NAMES = ["record_statement", "get_scene_context", "end_interview"] as const;
@@ -13,7 +14,41 @@ export type Settings = {
   webhookSecret: string;
   modelId: string;
   voiceId: string | undefined;
+  sceneId?: string;
 };
+
+export const DEFAULT_SCENE_ID = "store_v1";
+
+type Scene = { manifest: SceneManifest; examples: (label: (id: string) => string) => Examples };
+
+const SCENES: Readonly<Record<string, Scene>> = {
+  store_v1: { manifest: storeScene, examples: () => STORE_EXAMPLES },
+  room_v1: {
+    manifest: roomScene,
+    examples: (label) => ({
+      anchor: `Were you closer to the ${label("ladder")} or the ${label("window_s")}?`,
+      time: `Was that before or after he reached the ${label("window_s")}?`,
+    }),
+  },
+};
+
+export const SCENE_IDS = Object.keys(SCENES);
+
+export function sceneFor(sceneId: string = DEFAULT_SCENE_ID): Scene {
+  const scene = Object.hasOwn(SCENES, sceneId) ? SCENES[sceneId] : undefined;
+  if (!scene) throw new Error(`RASHOMON_SCENE_ID ${sceneId} is not a known scene; known scenes: ${SCENE_IDS.join(", ")}`);
+  return scene;
+}
+
+export function instructions(sceneId: string = DEFAULT_SCENE_ID): string {
+  const { manifest, examples } = sceneFor(sceneId);
+  const label = (id: string): string => {
+    const landmark = manifest.landmarks.find((l) => l.id === id);
+    if (!landmark) throw new Error(`scene ${manifest.sceneId} has no landmark ${id}`);
+    return landmark.label;
+  };
+  return instructionsFor(examples(label));
+}
 
 type Secret = { type: "secret"; secret_value: string; secret_description: string };
 type BodyParam =
@@ -88,19 +123,19 @@ export function toolDefinition(s: Settings, name: ToolName): WebhookTool {
   };
 }
 
-export function keyterms(): string[] {
-  return [...new Set(storeScene.landmarks.map((l) => l.label))];
+export function keyterms(sceneId: string = DEFAULT_SCENE_ID): string[] {
+  return [...new Set(sceneFor(sceneId).manifest.landmarks.map((l) => l.label))];
 }
 
 export function agentConfig(s: Settings, toolIds: string[]) {
   return {
-    instructions: INSTRUCTIONS,
+    instructions: instructions(s.sceneId),
     initial_message: INITIAL_MESSAGE,
     model: { id: s.modelId },
     tools: toolIds.map((id) => ({ id })),
     system_tools: { end_call: {} },
     audio: {
-      input: { keyterms: keyterms() },
+      input: { keyterms: keyterms(s.sceneId) },
       ...(s.voiceId ? { output: { voice_id: s.voiceId } } : {}),
     },
   };
