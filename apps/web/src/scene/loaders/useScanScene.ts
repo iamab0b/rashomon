@@ -36,7 +36,7 @@ export function useScanScene(request: ScanRequest | null, deps: ScanDeps = {}): 
       .then((loaded) => {
         if (cancelled) return;
         if (loaded.aligned) useScanAlignStore.getState().setMetresPerUnit(loaded.alignment.scale);
-        else setFrameKey((key) => key + 1);
+        setFrameKey((key) => key + 1);
         setScan(loaded);
       })
       .catch((error: unknown) => {

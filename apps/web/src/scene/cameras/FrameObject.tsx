@@ -12,7 +12,7 @@ export function FrameObject({ object, frameKey }: { object: Object3D; frameKey: 
     if (frameKey === 0 || !(camera instanceof PerspectiveCamera)) return;
     const box = new Box3().setFromObject(object);
     if (box.isEmpty()) return;
-    const pose = framePose({ min: box.min.toArray(), max: box.max.toArray() }, camera.fov);
+    const pose = framePose({ min: box.min.toArray(), max: box.max.toArray() }, camera.fov, camera.aspect);
     camera.far = pose.far;
     camera.updateProjectionMatrix();
     camera.position.set(...pose.position);
