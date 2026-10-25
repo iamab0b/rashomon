@@ -1,4 +1,5 @@
-import { ACTIONS, ACTION_STYLES, MAX_VERB_CHARS } from "@rashomon/schema";
+import { ACTIONS, ACTION_STYLES, ACTOR_BODIES, MAX_HEIGHT_M, MAX_VERB_CHARS, MIN_HEIGHT_M } from "@rashomon/schema";
+import { CLOTHING_COLOR_NAMES } from "./colors";
 import type { ToolDef } from "./types";
 
 export const STRICT_TOOLS = true;
@@ -194,6 +195,22 @@ export const EXTRACTOR_TOOLS: ToolDef[] = [
       },
       label: { type: "string" },
       role: { type: "string", enum: ["witness", "suspect", "victim", "other"] },
+      body: nullable({
+        type: "string",
+        enum: [...ACTOR_BODIES],
+        description:
+          "Only when the witness described the person's build or height: the nearest build (slim, average, heavy) and height class (short, tall). Else null.",
+      }),
+      heightM: nullable({
+        type: "number",
+        description: `Only when the witness described the person's height: your estimate in meters, ${MIN_HEIGHT_M} to ${MAX_HEIGHT_M}. For a man, short is about 1.65, average 1.76, tall 1.88; for a woman, short is about 1.52, average 1.63, tall 1.75. A stated height is used as given. Else null.`,
+      }),
+      tint: nullable({
+        type: "string",
+        enum: [...CLOTHING_COLOR_NAMES],
+        description:
+          "Only when the witness said a colour for the person's clothing: the nearest colour word. Else null.",
+      }),
     },
   ),
   tool(
