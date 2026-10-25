@@ -26,4 +26,10 @@ describe("drawer scrolling never moves the rail", () => {
       .filter((f) => readFileSync(join(here, f), "utf8").includes("scrollIntoView("));
     expect(offenders).toEqual([]);
   });
+
+  test("the Add statement group is pushed to the bottom of the rail, outside the scrolling drawer", () => {
+    const css = readFileSync(join(here, "context-drawer.css"), "utf8");
+    expect(/\.rui \.context-rail \{([^}]*)\}/.exec(css)![1]).toMatch(/position: absolute;.*inset: 0 0 0 auto;.*flex-direction: column;/s);
+    expect(/\.rui \.context-rail__group--input \{([^}]*)\}/.exec(css)![1]).toMatch(/margin-top: auto;/);
+  });
 });

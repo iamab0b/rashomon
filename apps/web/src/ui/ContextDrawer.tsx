@@ -18,7 +18,7 @@ const REVIEW: readonly RailItem[] = [
 ];
 
 const INPUT: readonly RailItem[] = [
-  { id: "statement", label: "Add statement", title: "Add a witness statement", heading: "Add witness statement", icon: "addStatement" },
+  { id: "statement", label: "Add statement", title: "Add witness statement", heading: "Add witness statement", icon: "plus" },
 ];
 
 const VIEWS: readonly RailItem[] = [...REVIEW, ...INPUT];

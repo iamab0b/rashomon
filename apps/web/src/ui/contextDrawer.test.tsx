@@ -73,12 +73,13 @@ describe("context drawer", () => {
     expect(header(null)).toContain("None selected");
   });
 
-  test("the rail reviews first (Transcript, History), then a separate Add statement action", () => {
+  test("the rail reviews first (Transcript, History), then a separate Add statement action at the bottom", () => {
     const html = drawer(null);
     const rail = [...html.matchAll(/class="context-rail__button"[^>]*aria-expanded="false"[^>]*>.*?<span>([A-Za-z ]+)<\/span>/g)].map((m) => m[1]);
     expect(rail).toEqual(["Transcript", "History", "Add statement"]);
     expect(html).toMatch(/role="group" aria-label="Review">.*Transcript.*History.*<\/div><div class="context-rail__group context-rail__group--input" role="group" aria-label="Add source">.*Add statement/s);
-    expect(html).toMatch(/aria-label="Add a witness statement"[^>]*title="Add a witness statement"/);
+    expect(html).toMatch(/aria-label="Add witness statement"[^>]*title="Add witness statement"/);
+    expect(html).toMatch(/aria-label="Add witness statement"[^>]*><svg[^>]*><path d="M10 4.5v11M4.5 10h11"><\/path><\/svg><span>Add statement<\/span>/);
     expect(html).not.toMatch(/Testimony|Re-interview/);
     expect(html).toMatch(/<div id="context-drawer" class="context-inner" inert=""/);
   });
