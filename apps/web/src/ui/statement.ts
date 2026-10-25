@@ -105,6 +105,12 @@ export function rememberResult(segmentId: string, result: StatementResult): void
   finished.set(segmentId, result);
 }
 
+export function isResend(segmentId: string, firstStatus: StatementStatus | null): boolean {
+  return finished.has(segmentId) || (firstStatus?.state === "done" && firstStatus.patchCount !== undefined);
+}
+
+const NO_OUTCOME: StatementOutcome = { added: [], changed: [], props: [], flags: [] };
+
 export function alreadyAddedResult(segmentId: string, status: StatementStatus | null): StatementResult {
   const saved = finished.get(segmentId);
   if (saved) {
@@ -114,7 +120,7 @@ export function alreadyAddedResult(segmentId: string, status: StatementStatus | 
   const count = status?.patchCount ?? 0;
   return {
     label: count > 0 ? `Already added: ${plural(count, "change")}` : "Already added: no events found",
-    outcome: { added: [], changed: [], props: [], flags: [] },
+    outcome: NO_OUTCOME,
   };
 }
 
@@ -125,16 +131,14 @@ export function resultOf(
   live = false,
 ): StatementResult | null {
   if (status?.state !== "done") return null;
+  if (live && status.patchCount === undefined) return null;
+  const notes = { ...(status.note ? { note: status.note } : {}), ...(status.error ? { error: status.error } : {}) };
+  if (!status.patchCount) return { label: addedLabel(0, NO_OUTCOME), outcome: NO_OUTCOME, ...notes };
   const outcome = outcomeSince(baseline, graph);
   const advanced = (graph?.version ?? 0) > baseline.version;
   const changed = outcome.added.length + outcome.changed.length + outcome.props.length > 0;
-  if (status.patchCount && !advanced && (live || !changed)) return null;
-  return {
-    label: addedLabel(status.patchCount, outcome),
-    outcome,
-    ...(status.note ? { note: status.note } : {}),
-    ...(status.error ? { error: status.error } : {}),
-  };
+  if (!advanced && (live || !changed)) return null;
+  return { label: addedLabel(status.patchCount, outcome), outcome, ...notes };
 }
 
 export function statementView(

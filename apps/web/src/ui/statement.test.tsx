@@ -10,6 +10,7 @@ import {
   noteStatementRejection,
   outcomeSince,
   alreadyAddedResult,
+  isResend,
   rememberResult,
   resultOf,
   statementView,
@@ -271,5 +272,43 @@ describe("statement section", () => {
     expect(html).toMatch(/<button[^>]*class="button button--primary"(?![^>]*disabled)[^>]*>Submit/);
 
     expect(alreadyAddedResult("never-seen", { state: "done", patchCount: 3 }).label).toBe("Already added: 3 changes");
+  });
+
+  test("a fresh live submit whose first status is already done is not a resubmit, and shows its own result", () => {
+    const graph = gatedRobbery();
+    const baseline = baselineOf(graph);
+    const [first, ...rest] = graph.events;
+    const otherEditor = { ...graph, version: graph.version + 1, events: [{ ...first!, facing: [0, 0, 1] as [number, number, number] }, ...rest] };
+    const firstReading = { state: "done" } as const;
+    expect(isResend("fresh-seg", firstReading)).toBe(false);
+
+    const run: StatementRun = { sent: "x", baseline, segmentId: "fresh-seg", error: null, result: null, resent: false };
+    expect(statementView(run, firstReading, otherEditor, null, false, true).kind).toBe("extracting");
+
+    const mine = { ...otherEditor, version: graph.version + 2, events: [...otherEditor.events, { ...first!, id: "e99" }] };
+    const view = statementView(run, { state: "done", patchCount: 1 }, mine, null, false, true);
+    expect(view.kind).toBe("done");
+    expect(view.kind === "done" && view.label).not.toMatch(/^Already added/);
+    expect(view.kind === "done" && view.outcome.added.map((e) => e.id)).toEqual(["e99"]);
+  });
+
+  test("a resubmit is a segment with a result saved in this tab, or whose row was already extracted when first seen", () => {
+    expect(isResend("never-seen", { state: "extracting" })).toBe(false);
+    expect(isResend("never-seen", { state: "done", patchCount: 2 })).toBe(true);
+    expect(isResend("never-seen", { state: "done", patchCount: 0 })).toBe(true);
+    rememberResult("saved-seg", { label: "Added 1 event", outcome: { added: [], changed: [], props: [], flags: [] } });
+    expect(isResend("saved-seg", { state: "extracting" })).toBe(true);
+  });
+
+  test("zero patches show an empty outcome, never another editor's change", () => {
+    const graph = gatedRobbery();
+    const baseline = baselineOf(graph);
+    const [first, ...rest] = graph.events;
+    const otherEditor = { ...graph, version: graph.version + 1, events: [{ ...first!, facing: [0, 0, 1] as [number, number, number] }, ...rest] };
+    const run: StatementRun = { sent: "x", baseline, segmentId: "seg0", error: null, result: null, resent: false };
+    for (const live of [true, false]) {
+      const view = statementView(run, { state: "done", patchCount: 0 }, otherEditor, null, false, live);
+      expect(view).toMatchObject({ kind: "done", label: "No events found in that statement", outcome: { added: [], changed: [], props: [], flags: [] } });
+    }
   });
 });

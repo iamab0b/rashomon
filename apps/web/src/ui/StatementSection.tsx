@@ -6,6 +6,7 @@ import { actorLabel, StatusToken, words } from "./shared";
 import {
   baselineOf,
   DEFAULT_WITNESS_NAME,
+  isResend,
   noteStatementRejection,
   rememberResult,
   resultOf,
@@ -192,11 +193,12 @@ export function StatementSection({ graph, onSelect }: { graph: ResolvedGraph | n
   const live = typeof window !== "undefined" && modeFromSearch(window.location.search) === "live";
   const view = statementView(run, status, graph, identity, slow, live);
 
-  const firstState = run?.segmentId && run.resent === null ? (status?.state ?? null) : null;
+  const firstStatus = run?.segmentId && run.resent === null ? status : null;
   useEffect(() => {
-    if (!firstState) return;
-    setRun((current) => (current && current.resent === null ? { ...current, resent: firstState === "done" } : current));
-  }, [firstState]);
+    if (!firstStatus || !run?.segmentId) return;
+    const resent = isResend(run.segmentId, firstStatus);
+    setRun((current) => (current && current.resent === null ? { ...current, resent } : current));
+  }, [firstStatus, run?.segmentId]);
 
   const ready = run && !run.result && !run.error && run.segmentId && run.resent === false ? resultOf(run.baseline, status, graph, live) : null;
   useEffect(() => {
