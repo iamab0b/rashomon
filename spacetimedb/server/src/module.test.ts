@@ -55,6 +55,14 @@ const graph = () =>
     mod.graphForScene(h.anonymousViewContext(), { sessionId: SESSION }) as never,
   );
 
+const asEditor = (who: TestAuth, fn: (ctx: never) => unknown) =>
+  h.withReducerTx(who, ((ctx: { sender: { toHexString(): string } }) =>
+    fn(
+      new Proxy(ctx, {
+        get: (target, prop) => (prop === "env" ? { EDITOR_IDENTITIES: target.sender.toHexString() } : Reflect.get(target, prop, target)),
+      }) as never,
+    )) as never);
+
 const eventRow = (id: string) =>
   h.db.events.rowKey.find(`${SESSION}/${id}`);
 
@@ -727,8 +735,8 @@ describe("identity", () => {
 
   test("an override records the sender's identity beside the display name", () => {
     apply(eventPatches(), 0);
-    h.withReducerTx(stranger, ((ctx: never) =>
-      mod.override(ctx, { sessionId: SESSION, eventId: "e5", reason: "written reason here", by: "Investigator Ruiz" })) as never);
+    asEditor(stranger, (ctx) =>
+      mod.override(ctx, { sessionId: SESSION, eventId: "e5", reason: "written reason here", by: "Investigator Ruiz" }));
     const row = h.db.overrides.rowKey.find(`${SESSION}/e5`)!;
     expect(row.by).toBe("Investigator Ruiz");
     expect(row.sender).toMatch(/^[0-9a-f]{64}$/);
@@ -740,8 +748,7 @@ describe("identity", () => {
 describe("the module judges its own writes", () => {
   const robbery = () => apply(eventPatches(), 0);
   const doOverride = (reason: string, by = "Investigator Ruiz", who: TestAuth = auth) =>
-    h.withReducerTx(who, ((ctx: never) =>
-      mod.override(ctx, { sessionId: SESSION, eventId: "e5", reason, by })) as never);
+    asEditor(who, (ctx) => mod.override(ctx, { sessionId: SESSION, eventId: "e5", reason, by }));
 
   test("applyPatches alone makes e5 implausible with one sightline flag and the rest plausible", () => {
     robbery();
