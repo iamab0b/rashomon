@@ -15,6 +15,7 @@ import {
   implausibleStarts,
   inferredBlockPath,
   WAVE_AMPLITUDE,
+  SELECTION,
   WAVE_INSET,
   LANE_H,
   rowHeight,
@@ -226,11 +227,11 @@ describe("event state styling (regression)", () => {
     expect(block(html, "e3")).not.toContain('stroke="#fff"');
   });
 
-  test("implausible keeps its red dashed border while playing, with only a restrained tint", () => {
+  test("implausible keeps its red dashed border while playing and selected, with only a restrained tint", () => {
     const e5 = block(render(), "e5");
     expect(e5).toContain('data-status="implausible"');
     expect(border(e5)).toMatch(/stroke="#ff4d4f" stroke-opacity="1" stroke-dasharray="5 3"/);
-    expect(fill(e5)).toMatch(new RegExp(`fill="${WITNESS}" fill-opacity="0.24"`));
+    expect(fill(e5)).toMatch(new RegExp(`fill="${WITNESS}" fill-opacity="0.32"`));
   });
 
   test("an inferred time has wavy start and end edges with its actor's fill and a solid border; stated times stay rectangles", () => {
@@ -304,14 +305,33 @@ describe("event state styling (regression)", () => {
   test("a selected estimated implausible event keeps its red dashes, with a thin white wave outside as the selection", () => {
     const e5 = block(selectedRender("e5", ["e5"]), "e5");
     expect(e5).toMatch(/<path d="M[^"]+" fill="none" stroke="#ff4d4f" stroke-opacity="1" stroke-dasharray="5 3"/);
-    expect(e5).toMatch(/<path d="M[^"]+" fill="none" stroke="#fff" stroke-opacity="0.8" stroke-linejoin="round" stroke-width="1" data-selection=""/);
+    const halo = e5.match(/<path [^>]*data-selection=""[^>]*>/)![0];
+    expect(halo).toMatch(/fill="none" stroke="#fff" stroke-opacity="0.8" stroke-width="1"/);
     expect(e5).not.toMatch(/<rect [^>]*stroke="#fff"/);
   });
 
-  test("a selected stated event still gets the white rectangle outline", () => {
-    const e9 = block(selectedRender("e9"), "e9");
-    expect(e9).toMatch(/<rect [^>]*fill="none" stroke="#fff"/);
+  test("a selected stated event gets the same white border, width and tint as a selected estimated one, as a rectangle", () => {
+    const html = selectedRender("e9");
+    const e9 = block(html, "e9");
+    expect(border(e9)).toMatch(/<rect [^>]*fill="none" stroke="#fff" stroke-opacity="1" stroke-width="2"/);
+    expect(e9.match(/stroke="#fff"/g)).toHaveLength(1);
     expect(e9).not.toContain("<path");
+    const e8 = block(selectedRender("e8"), "e8");
+    const width = (m: string) => border(m).match(/stroke-width="([\d.]+)"/)![1];
+    expect(width(e9)).toBe(width(e8));
+    expect(fill(e9).match(/fill-opacity="([\d.]+)"/)![1]).toBe(fill(e8).match(/fill-opacity="([\d.]+)"/)![1]);
+  });
+
+  test("a selected stated implausible event keeps red dashes, with the same thin white halo two units outside", () => {
+    const e5 = block(selectedRender("e5"), "e5");
+    expect(border(e5)).toMatch(/stroke="#ff4d4f" stroke-opacity="1" stroke-dasharray="5 3" stroke-width="2"/);
+    const halo = e5.match(/<rect [^>]*data-selection=""[^>]*>/)![0];
+    const box = e5.match(/<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)"[^>]*class="rtl-fill"/)!;
+    const hx = halo.match(/x="([\d.]+)" y="([\d.]+)" width="([\d.]+)"/)!;
+    expect(Number(box[1]) - Number(hx[1])).toBeCloseTo(SELECTION.gap, 5);
+    expect(Number(box[2]) - Number(hx[2])).toBeCloseTo(SELECTION.gap, 5);
+    expect(Number(hx[3]) - Number(box[3])).toBeCloseTo(2 * SELECTION.gap, 5);
+    expect(halo).toMatch(/fill="none" stroke="#fff" stroke-opacity="0.8" stroke-width="1"/);
   });
 
   test("an inferred implausible event keeps its red dashes on the wavy shape", () => {

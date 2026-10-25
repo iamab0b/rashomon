@@ -187,11 +187,24 @@ export function strokeFor(
 export const WAVE_AMPLITUDE = 1.6;
 export const WAVE_STEP = 4;
 export const WAVE_INSET = 3;
-export const SELECTED_WAVE_TINT = 0.08;
-export const SELECTED_WAVE_GAP = 2;
+export const SELECTION = { stroke: "#fff", width: 2, gap: 2, haloWidth: 1, haloOpacity: 0.8, tint: 0.08 } as const;
+export const BORDER_W = 1.5;
 
 export function keepsStatusBorder(status?: Status): boolean {
   return status === "implausible" || status === "proposed";
+}
+
+export function borderFor(
+  status: Status | undefined,
+  color: string,
+  playing: boolean,
+  selected: boolean,
+): { dash?: string; stroke: string; opacity: number; width: number; halo: boolean; fillOpacity: number } {
+  const s = strokeFor(status, color, playing);
+  const fillOpacity = Number((fillOpacityFor(status, playing) + (selected ? SELECTION.tint : 0)).toFixed(2));
+  if (!selected) return { ...s, width: BORDER_W, halo: false, fillOpacity };
+  if (keepsStatusBorder(status)) return { ...s, width: SELECTION.width, halo: true, fillOpacity };
+  return { ...(s.dash ? { dash: s.dash } : {}), stroke: SELECTION.stroke, opacity: 1, width: SELECTION.width, halo: false, fillOpacity };
 }
 export const WAVY_MIN_W = 14;
 
