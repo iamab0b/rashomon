@@ -12,15 +12,36 @@ export type LandmarkEntry = {
   landmark: Landmark;
 };
 
+export type MeshSwitch = { ok: true; key: string | null } | { ok: false; error: string };
+
+export type MeshSwitcher = (manifest: SceneManifest) => Promise<MeshSwitch>;
+
+export type SessionAction = "begin" | "reset" | "keep";
+
+export function sessionAction(current: string | null, key: string | null): SessionAction {
+  if (key === null) return "keep";
+  if (current === null) return "begin";
+  return current === key ? "keep" : "reset";
+}
+
+export function snapshotOf(landmarks: readonly Landmark[]): string {
+  return JSON.stringify(landmarks);
+}
+
 export type LabelingState = {
   base: SceneManifest | null;
+  sessionKey: string | null;
+  snapshot: string;
+  meshSwitcher: MeshSwitcher | null;
   interior: Interior | undefined;
   entries: LandmarkEntry[];
   nextKey: number;
   selectedKey: number | null;
   message: string | null;
-  begin: (manifest: SceneManifest) => void;
-  load: (manifest: SceneManifest) => void;
+  begin: (manifest: SceneManifest, key?: string | null) => void;
+  load: (manifest: SceneManifest, key?: string | null) => void;
+  setMeshSwitcher: (switcher: MeshSwitcher | null) => void;
+  isDirty: () => boolean;
   setInterior: (interior: Interior | undefined) => void;
   addAt: (point: readonly [number, number, number]) => void;
   select: (key: number | null) => void;
@@ -66,31 +87,43 @@ function sameMesh(a: SceneManifest | null, b: SceneManifest): boolean {
 
 export const useLabelingStore = create<LabelingState>((set, get) => ({
   base: null,
+  sessionKey: null,
+  snapshot: snapshotOf([]),
+  meshSwitcher: null,
   interior: undefined,
   entries: [],
   nextKey: 1,
   selectedKey: null,
   message: null,
-  begin: (manifest) =>
-    set((state) =>
-      state.base
-        ? state
-        : {
-            base: manifest,
-            interior: manifest.interior,
-            entries: entriesOf(manifest.landmarks, state.nextKey),
-            nextKey: state.nextKey + manifest.landmarks.length,
-          },
-    ),
-  load: (manifest) =>
-    set((state) => ({
-      base: manifest,
-      interior: manifest.interior ?? (sameMesh(state.base, manifest) ? state.interior : undefined),
-      entries: entriesOf(manifest.landmarks, state.nextKey),
-      nextKey: state.nextKey + manifest.landmarks.length,
-      selectedKey: null,
-      message: null,
-    })),
+  begin: (manifest, key = null) =>
+    set((state) => {
+      if (state.base) return state;
+      const entries = entriesOf(manifest.landmarks, state.nextKey);
+      return {
+        base: manifest,
+        sessionKey: key,
+        snapshot: snapshotOf(entries.map((entry) => entry.landmark)),
+        interior: manifest.interior,
+        entries,
+        nextKey: state.nextKey + manifest.landmarks.length,
+      };
+    }),
+  load: (manifest, key) =>
+    set((state) => {
+      const entries = entriesOf(manifest.landmarks, state.nextKey);
+      return {
+        base: manifest,
+        sessionKey: key === undefined ? state.sessionKey : key,
+        snapshot: snapshotOf(entries.map((entry) => entry.landmark)),
+        interior: manifest.interior ?? (sameMesh(state.base, manifest) ? state.interior : undefined),
+        entries,
+        nextKey: state.nextKey + manifest.landmarks.length,
+        selectedKey: null,
+        message: null,
+      };
+    }),
+  setMeshSwitcher: (meshSwitcher) => set({ meshSwitcher }),
+  isDirty: () => snapshotOf(get().landmarks()) !== get().snapshot,
   setInterior: (interior) => set({ interior }),
   addAt: (point) =>
     set((state) => {
@@ -161,7 +194,10 @@ export const useLabelingStore = create<LabelingState>((set, get) => ({
       return false;
     }
     const result = storage === undefined ? saveManifest(manifest) : saveManifest(manifest, storage);
-    set({ message: result.ok ? `Saved ${manifest.sceneId}` : result.error });
+    set({
+      message: result.ok ? `Saved ${manifest.sceneId}` : result.error,
+      ...(result.ok ? { snapshot: snapshotOf(manifest.landmarks) } : {}),
+    });
     return result.ok;
   },
 }));

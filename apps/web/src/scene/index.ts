@@ -36,3 +36,4 @@ export { isGraphlessSearch, isLandmarkEditing } from "./labeling/storage";
 export { useSceneSource } from "./loaders/useSceneSource";
 export type { SceneSource } from "./loaders/sceneSource";
 export { localManifestKey } from "./loaders/scanRequest";
+export { SceneTools, useSceneToolsAvailable } from "./SceneTools";

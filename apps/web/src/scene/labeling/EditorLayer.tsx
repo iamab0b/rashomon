@@ -3,6 +3,7 @@ import type { ThreeEvent } from "@react-three/fiber";
 import type { Interior } from "@rashomon/schema";
 import { useMemo } from "react";
 import { Matrix4, Vector3 } from "three";
+import { useScanAlignStore } from "../loaders/scanAlignStore";
 import { boxOfLandmark } from "./boxes";
 import { useLabelingStore, type LandmarkEntry } from "./labelingStore";
 
@@ -16,16 +17,21 @@ const IDLE_COLOR = "#4fb3ff";
 function EditBox({ entry, selected }: { entry: LandmarkEntry; selected: boolean }) {
   const { landmark } = entry;
   const select = useLabelingStore((state) => state.select);
+  const aligning = useScanAlignStore((state) => state.aligning);
   const box = boxOfLandmark(landmark);
   const color = selected ? SELECTED_COLOR : IDLE_COLOR;
   return (
     <mesh
       position={[box.cx, box.floorY + box.height / 2, box.cz]}
-      onClick={(event: ThreeEvent<MouseEvent>) => {
-        if (event.delta > CLICK_SLOP_PX) return;
-        event.stopPropagation();
-        select(entry.key);
-      }}
+      onClick={
+        aligning
+          ? undefined
+          : (event: ThreeEvent<MouseEvent>) => {
+              if (event.delta > CLICK_SLOP_PX) return;
+              event.stopPropagation();
+              select(entry.key);
+            }
+      }
     >
       <boxGeometry args={[box.width, box.height, box.depth]} />
       <meshBasicMaterial color={color} transparent opacity={selected ? 0.22 : 0.1} depthWrite={false} />
@@ -55,7 +61,7 @@ function SelectedGizmo({ entry }: { entry: LandmarkEntry }) {
   );
 }
 
-function FloorPlane({ interior }: { interior: Interior | undefined }) {
+export function FloorPlane({ interior }: { interior: Interior | undefined }) {
   const addAt = useLabelingStore((state) => state.addAt);
   const width = interior ? interior.max[0] - interior.min[0] : FALLBACK_SPAN;
   const depth = interior ? interior.max[2] - interior.min[2] : FALLBACK_SPAN;
@@ -81,10 +87,11 @@ export function EditorLayer() {
   const entries = useLabelingStore((state) => state.entries);
   const selectedKey = useLabelingStore((state) => state.selectedKey);
   const interior = useLabelingStore((state) => state.interior);
+  const aligning = useScanAlignStore((state) => state.aligning);
   const selected = entries.find((entry) => entry.key === selectedKey) ?? null;
   return (
     <>
-      <FloorPlane interior={interior} />
+      {aligning ? null : <FloorPlane interior={interior} />}
       {entries.map((entry) => (
         <EditBox key={entry.key} entry={entry} selected={entry.key === selectedKey} />
       ))}

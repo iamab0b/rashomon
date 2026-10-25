@@ -1,4 +1,5 @@
 import type { Interior, Landmark, SceneManifest } from "@rashomon/schema";
+import { IDB_PREFIX, type ScanRequest } from "../loaders/scanRequest";
 import { parseManifestText, type ManifestResult } from "./validate";
 
 export const MANIFEST_KEY_PREFIX = "rashomon.manifest.";
@@ -79,4 +80,23 @@ export function isLandmarkEditing(search: string): boolean {
 export function isGraphlessSearch(search: string): boolean {
   const params = new URLSearchParams(search);
   return isLandmarkEditing(search) || (params.has("manifest") && !params.get("scene"));
+}
+
+export function isEditorOpen(search: string): boolean {
+  return isLandmarkEditing(search) && new URLSearchParams(search).get("debug") !== "rig";
+}
+
+export function scanRequestForSavedManifest(manifest: SceneManifest): ScanRequest | null {
+  if (!manifest.meshUrl.startsWith(IDB_PREFIX)) return null;
+  return {
+    scan: { kind: "idb", hash: manifest.meshUrl.slice(IDB_PREFIX.length) },
+    manifest: { kind: "local", sceneId: manifest.sceneId },
+  };
+}
+
+export function searchWithMesh(search: string, meshUrl: string): string {
+  const params = new URLSearchParams(search);
+  params.set("scene", meshUrl);
+  params.delete("manifest");
+  return `?${params.toString()}`;
 }

@@ -1,3 +1,4 @@
+import type { SceneManifest } from "@rashomon/schema";
 import type { SceneStatus } from "../store";
 import { isKnownFixture, type LoadedScene } from "./scene";
 import { unknownFixtureMessage } from "../sceneFailure";
@@ -24,4 +25,8 @@ export function beginSceneLoad(fixture: string, load: () => Promise<LoadedScene>
   return () => {
     cancelled = true;
   };
+}
+
+export function meshKeyOf(manifest: SceneManifest | null): string | null {
+  return manifest ? `${manifest.sceneId}|${manifest.meshUrl}|${JSON.stringify(manifest.interior ?? null)}` : null;
 }

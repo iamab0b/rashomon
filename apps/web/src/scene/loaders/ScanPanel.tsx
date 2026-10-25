@@ -4,17 +4,14 @@ import { useScanAlignStore } from "./scanAlignStore";
 import { triangleCount } from "./scanGeom";
 
 const panelStyle = {
-  position: "absolute",
-  top: 8,
-  left: 8,
-  width: 260,
+  width: "100%",
+  boxSizing: "border-box",
   padding: "10px 12px",
   background: "rgba(11, 13, 16, 0.88)",
   color: "#c9d1d9",
   font: "12px/1.5 system-ui, sans-serif",
   borderRadius: 6,
   border: "1px solid #2a3039",
-  zIndex: 21,
 } as const;
 
 const rowStyle = { display: "flex", alignItems: "center", gap: 6, marginTop: 6 } as const;

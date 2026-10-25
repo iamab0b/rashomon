@@ -3,16 +3,12 @@ import { boxOfLandmark } from "./boxes";
 import { useLabelingStore } from "./labelingStore";
 import { LANDMARK_KINDS, type LandmarkKind } from "./kinds";
 import { idErrorFor, labelErrorFor, landmarkErrors } from "./landmarkErrors";
+import { applyManifest } from "./importFlow";
 import { seedManifest } from "./seeds";
 import { parseManifestText } from "./validate";
 
 const panelStyle: CSSProperties = {
-  position: "absolute",
-  top: 8,
-  right: 8,
-  bottom: 8,
-  width: 280,
-  overflowY: "auto",
+  width: "100%",
   boxSizing: "border-box",
   padding: 10,
   color: "#f2f5f8",
@@ -67,8 +63,7 @@ export function LabelingPanel() {
   const importFile = async (file: File) => {
     const result = parseManifestText(await file.text());
     if (result.ok) {
-      store.load(result.manifest);
-      store.setMessage(`Imported ${result.manifest.sceneId}`);
+      if (await applyManifest(result.manifest)) useLabelingStore.getState().setMessage(`Imported ${result.manifest.sceneId}`);
     } else {
       store.setMessage(result.error);
     }
@@ -93,7 +88,7 @@ export function LabelingPanel() {
         <button onClick={() => store.save()}>Save</button>
         <button onClick={exportManifest}>Download</button>
         <button onClick={() => fileInput.current?.click()}>Import</button>
-        <button onClick={() => store.load(seedManifest())}>Load seed</button>
+        <button onClick={() => void applyManifest(seedManifest())}>Load seed</button>
         <input
           ref={fileInput}
           type="file"
