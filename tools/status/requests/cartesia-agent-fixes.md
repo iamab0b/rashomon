@@ -72,5 +72,6 @@ All six items are in and verified, and the bindings equal a fresh generate. webh
 2. **MEDIUM (Opus): the 15 s window starts before a long extraction** (cartesia.ts line 104). If a 20 s extraction's response is lost, Cartesia's retry counts as a new statement and the events are extracted twice. Fix: measure the window from the segment's extractedAt, falling back to storedAt, with a faked-clock test.
 3. **LOW (Greptile, both reviews): a retry of a segment with no webhook_statements row gets a new question each time** (cartesia.ts lines 172 and 251). This covers segments stored before this publish or by another path. Fix: in the early return, insert the missing webhook_statements row with the flag chosen, so later retries return it.
 4. Say in the PR description that it also carries the 413 for over-cap text (cartesia.ts:164) and the snapshot cap (run.ts:129).
+5. **Put askNext first in the record_statement response** (Sahil, Sat 7:40 PM). Cartesia cuts tool responses over 16 KiB, so a long response can lose the question. Make askNext the first key of the JSON body, before the events and flags, and keep the whole response under 16 KiB: trim the event and flag lists from the end when needed and add `truncated: true`. Test: a response with many events is under 16 KiB and still starts with askNext.
 
 The leader re-runs Greptile, Opus and Sonnet on the push.

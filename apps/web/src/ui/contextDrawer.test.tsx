@@ -18,6 +18,7 @@ function context(): PanelContext {
     selectedEventId: "e5",
     playbackActive: new Set(),
     placeOf: () => null,
+    timeBasisOf: () => "stated",
     playing: false,
     jumpTo: () => {},
     openOverride: () => {},
@@ -66,10 +67,10 @@ describe("context drawer", () => {
     expect(header(null)).toContain("None selected");
   });
 
-  test("Transcript and History sit on the drawer rail", () => {
+  test("Statement, Transcript and History sit on the drawer rail", () => {
     const html = drawer(null);
     const rail = [...html.matchAll(/class="context-rail__button"[^>]*aria-expanded="false"[^>]*>.*?<span>([A-Za-z]+)<\/span>/g)].map((m) => m[1]);
-    expect(rail).toEqual(["Transcript", "History"]);
+    expect(rail).toEqual(["Statement", "Transcript", "History"]);
     expect(html).toMatch(/<div id="context-drawer" class="context-inner" inert=""/);
   });
 

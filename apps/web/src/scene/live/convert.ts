@@ -1,6 +1,7 @@
 import {
   ACTIONS,
   ACTION_STYLES,
+  ACTOR_BODIES,
   type Actor,
   type Anchor,
   type Event,
@@ -150,6 +151,9 @@ function convertActor(row: ActorRow): Actor {
     label: row.label,
     role: oneOf(row.role, ROLES, `actor ${row.id}.role`),
     rig: oneOf(row.rig, RIGS, `actor ${row.id}.rig`),
+    ...(present(row.body) ? { body: oneOf(row.body, ACTOR_BODIES, `actor ${row.id}.body`) } : {}),
+    ...(present(row.heightM) ? { heightM: row.heightM } : {}),
+    ...(present(row.tint) ? { tint: row.tint } : {}),
   };
 }
 

@@ -2,6 +2,7 @@ import type { ReducerCtx } from "spacetimedb/server";
 import type { ModuleSchema } from "./graph";
 
 export const NOT_AN_EDITOR = "only editors can add statements";
+export const NOT_AN_EDITOR_EDIT = "only editors can change the event graph";
 
 const normalize = (identity: string): string => identity.trim().toLowerCase().replace(/^0x/, "");
 

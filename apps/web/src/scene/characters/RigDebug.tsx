@@ -1,12 +1,12 @@
 import { Line } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSceneStore } from "../store";
 import { AnimatedCharacter } from "./AnimatedCharacter";
 import type { CharacterHandle } from "./Character";
 import { getClip, loadClips, loadOptionalClips } from "./clips";
 import { measureRig } from "./measureRig";
-import { RIG_DEBUG_ACTORS, RIG_DEBUG_GRAPH, rigDebugClipLines } from "./rigDebugGraph";
+import { rigDebugActors, rigDebugBodies, rigDebugClipLines, rigDebugGraph, type DebugActor } from "./rigDebugGraph";
 import { useRigReportStore } from "./rigReportStore";
 
 const MEASURE_AFTER_FRAMES = 10;
@@ -44,9 +44,17 @@ function DebugFloor() {
   );
 }
 
+function reportName(actor: DebugActor, handle: CharacterHandle): string {
+  if (actor.body === undefined || handle.body === actor.body) return handle.name;
+  return `${actor.body} (refused, drawn as ${handle.rig})`;
+}
+
 export function RigDebug() {
+  const { bodies, unknown } = useMemo(() => rigDebugBodies(window.location.search), []);
+  const actors = useMemo(() => rigDebugActors(bodies), [bodies]);
+  const graph = useMemo(() => rigDebugGraph(bodies), [bodies]);
   const [clipsLoaded, setClipsLoaded] = useState(false);
-  const [handles, setHandles] = useState<readonly CharacterHandle[]>([]);
+  const [handles, setHandles] = useState<ReadonlyMap<string, CharacterHandle>>(() => new Map());
   const frames = useRef(0);
   const addReport = useRigReportStore((state) => state.addReport);
   const setClipLines = useRigReportStore((state) => state.setClipLines);
@@ -54,9 +62,13 @@ export function RigDebug() {
   const setResolved = useSceneStore((state) => state.setResolved);
 
   useEffect(() => {
-    setResolved(RIG_DEBUG_GRAPH);
+    if (unknown !== undefined) console.warn(`debug=rig: body ${unknown} is not one of the six bodies`);
+  }, [unknown]);
+
+  useEffect(() => {
+    setResolved(graph);
     return () => setResolved(null);
-  }, [setResolved]);
+  }, [setResolved, graph]);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,19 +84,28 @@ export function RigDebug() {
     };
   }, [setClipLines]);
 
-  const onReady = useCallback((handle: CharacterHandle) => {
-    setHandles((current) => [...current.filter((existing) => existing.rig !== handle.rig), handle]);
-  }, []);
+  const onReady = useMemo(
+    () =>
+      new Map(
+        actors.map((actor) => [
+          actor.id,
+          (handle: CharacterHandle) => setHandles((current) => new Map([...current, [actor.id, handle]])),
+        ]),
+      ),
+    [actors],
+  );
 
   useFrame(() => {
-    if (!clipsLoaded || handles.length !== RIG_DEBUG_ACTORS.length) return;
+    if (!clipsLoaded || handles.size !== actors.length) return;
     frames.current += 1;
     if (frames.current !== MEASURE_AFTER_FRAMES) return;
-    for (const handle of handles) {
-      const report = measureRig(handle);
+    for (const actor of actors) {
+      const handle = handles.get(actor.id);
+      if (!handle) continue;
+      const report = measureRig(handle, reportName(actor, handle));
       addReport(report);
       console.info(
-        `rig ${report.rig}: hip bone ${report.hipBone}, hip y ${report.hipY.toFixed(3)} m, height ${report.height.toFixed(3)} m`,
+        `rig ${report.name}: ${report.bones} bones, hip bone ${report.hipBone}, hip y ${report.hipY.toFixed(3)} m, eye y ${report.eyeY.toFixed(3)} m${report.eyeEstimated ? " (est.)" : ""}, height ${report.height.toFixed(3)} m`,
       );
     }
     setStatus("ready");
@@ -94,13 +115,13 @@ export function RigDebug() {
     <>
       <DebugFloor />
       <Ruler />
-      {RIG_DEBUG_ACTORS.map((actor) => (
+      {actors.map((actor) => (
         <AnimatedCharacter
           key={actor.id}
           actorId={actor.id}
-          rig={actor.rig}
+          look={actor.body === undefined ? { rig: actor.rig } : { rig: actor.rig, body: actor.body }}
           position={actor.position}
-          onReady={onReady}
+          onReady={onReady.get(actor.id)}
         />
       ))}
     </>

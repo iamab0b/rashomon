@@ -1,5 +1,7 @@
 import { AnimationClip, VectorKeyframeTrack, type KeyframeTrack } from "three";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
+import { measureCycleDistance } from "./procedural/locomotion";
+import { MIXAMO_UNIT_SCALE } from "./rigs";
 
 export const CLIP_NAMES = [
   "clip_idle",
@@ -43,6 +45,7 @@ export const HIPS_POSITION_TRACK = "mixamorigHips.position";
 const VECTOR3_STRIDE = 3;
 
 const clipCache = new Map<string, AnimationClip>();
+const cycleDistances = new Map<string, number>();
 let loadingAll: Promise<ReadonlyMap<string, AnimationClip>> | null = null;
 let loadingOptional: Promise<ReadonlyMap<string, AnimationClip>> | null = null;
 
@@ -66,6 +69,11 @@ async function loadClip(name: string): Promise<AnimationClip> {
   const source = await new FBXLoader().loadAsync(clipUrl(name));
   const first = source.animations[0];
   if (!first) throw new Error(`${clipUrl(name)} has no animations`);
+  const cycleDistance = measureCycleDistance(
+    first.tracks.find((track) => track.name === HIPS_POSITION_TRACK),
+    MIXAMO_UNIT_SCALE,
+  );
+  if (cycleDistance !== undefined) cycleDistances.set(name, cycleDistance);
   return prepareClip(name, first);
 }
 
@@ -112,4 +120,8 @@ export function loadClips(): Promise<ReadonlyMap<string, AnimationClip>> {
 
 export function getClip(name: string): AnimationClip | undefined {
   return clipCache.get(name);
+}
+
+export function cycleDistanceOf(name: string): number | undefined {
+  return cycleDistances.get(name);
 }

@@ -61,7 +61,7 @@ function robberyRow(e5Status: Status, version: number): LiveGraphRow {
   const graph: EventGraph = robberyGraph;
   return {
     sceneId: graph.sceneId,
-    actors: graph.actors.map((actor) => ({ ...actor })),
+    actors: graph.actors.map((actor) => ({ ...actor, body: actor.body, heightM: actor.heightM, tint: actor.tint })),
     props: graph.props.map((prop) => ({
       id: prop.id,
       type: prop.type,
@@ -279,6 +279,20 @@ describe("live GraphSource applying patches", () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
+  it("a refused edit from a non-editor says this browser can't edit the event graph", async () => {
+    const fake = fakeConnector();
+    fake.applyPatches.mockRejectedValueOnce(new Error("only editors can change the event graph"));
+    const source = liveGraphSource(DEFAULT_LIVE_OPTIONS, fake.connect);
+    source.subscribe(vi.fn());
+    fake.current().onRow(robberyRow("implausible", 1));
+
+    source.apply([MOVE_E5]);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(source.actionError).toBe("This browser can't edit the event graph");
+  });
+
   it("an updated row replaces the snapshot and clears the action error", async () => {
     const fake = fakeConnector();
     fake.applyPatches.mockRejectedValueOnce(new Error("stale baseVersion 1; the graph is at version 2"));
@@ -444,5 +458,20 @@ describe("live rows carry the action vocabulary", () => {
     expect(graph.events[1]).toMatchObject({ style: "sneak" });
     expect(convertGraphRow(row).events.some((e) => "style" in e || "verb" in e || "actionApproximated" in e)).toBe(false);
     expect(() => convertGraphRow({ ...row, events: [{ ...e1, style: "limping" }] })).toThrow(/style/);
+  });
+});
+
+describe("live rows carry actor bodies", () => {
+  it("body, heightM and tint convert, actors without them keep four fields, and an unknown body is refused", () => {
+    const row = robberyRow("implausible", 1);
+    const suspect = row.actors[0]!;
+    const described: LiveGraphRow = {
+      ...row,
+      actors: [{ ...suspect, body: "heavy_tall", heightM: 1.88, tint: "#b22222" }, ...row.actors.slice(1)],
+    };
+    const graph = convertGraphRow(described);
+    expect(graph.actors[0]).toMatchObject({ body: "heavy_tall", heightM: 1.88, tint: "#b22222" });
+    for (const actor of convertGraphRow(row).actors) expect(Object.keys(actor).sort()).toEqual(["id", "label", "rig", "role"]);
+    expect(() => convertGraphRow({ ...row, actors: [{ ...suspect, body: "muscular" }] })).toThrow(/body/);
   });
 });

@@ -1,5 +1,5 @@
 import type { ResolvedGraph } from "@rashomon/engine";
-import type { Status } from "@rashomon/schema";
+import type { EventGraph, Status } from "@rashomon/schema";
 import { statusOf } from "../playback/useGraph";
 
 export const W = 1000;
@@ -34,6 +34,7 @@ export type Block = {
   label: string;
   lane: number;
   witnessId?: string;
+  inferred?: boolean;
   actionApproximated?: boolean;
   verb?: string;
 };
@@ -88,7 +89,14 @@ export function rowTops(rows: Row[]): number[] {
   });
 }
 
-export function buildRows(resolved: ResolvedGraph | null, statuses: StatusMap): Row[] {
+const NO_IDS: ReadonlySet<string> = new Set();
+
+export function inferredTimes(graph: Pick<EventGraph, "events"> | null): ReadonlySet<string> {
+  if (!graph) return NO_IDS;
+  return new Set(graph.events.filter((event) => event.tConfidence === "inferred").map((event) => event.id));
+}
+
+export function buildRows(resolved: ResolvedGraph | null, statuses: StatusMap, inferred: ReadonlySet<string> = NO_IDS): Row[] {
   if (!resolved) return [];
   const rows: Row[] = resolved.actors.map((actor, index) => {
     const color = actorColor(actor.id, actor.role, index);
@@ -112,6 +120,7 @@ export function buildRows(resolved: ResolvedGraph | null, statuses: StatusMap): 
           color,
           label: event.id,
           witnessId: event.witnessId,
+          inferred: event.tInferred || inferred.has(event.id),
           ...(event.actionApproximated ? { actionApproximated: true } : {}),
           ...(event.actionApproximated && event.verb ? { verb: event.verb } : {}),
         })),
@@ -185,8 +194,53 @@ function statusStroke(
 ): { dash?: string; stroke: string; opacity: number } {
   if (status === undefined) return { stroke: PROP_COLOR, opacity: 1 };
   if (status === "proposed") return { dash: "5 3", stroke: "#ffffff", opacity: 0.4 };
-  if (status === "implausible") return { dash: "5 3", stroke: "#ff4d4f", opacity: 1 };
+  if (status === "implausible") return { dash: "5 3", stroke: IMPLAUSIBLE_STROKE, opacity: 1 };
   const opacity = playing ? ACTIVE_STROKE_OPACITY : ACTOR_STROKE_OPACITY;
-  if (status === "overridden") return { stroke: color, opacity };
   return { stroke: color, opacity };
+}
+
+export const WAVE_AMPLITUDE = 1.6;
+export const WAVE_STEP = 4;
+export const WAVE_INSET = 3;
+export const SELECTION = { stroke: "#fff", width: 2, gap: 2, haloWidth: 1, haloOpacity: 0.8, tint: 0.08 } as const;
+export const BORDER_W = 1.5;
+
+export const IMPLAUSIBLE_STROKE = "#ff4d4f";
+export const SELECTED_IMPLAUSIBLE_STROKE = "#ff999a";
+
+export function keepsStatusBorder(status?: Status): boolean {
+  return status === "proposed";
+}
+
+export function borderFor(
+  status: Status | undefined,
+  color: string,
+  playing: boolean,
+  selected: boolean,
+  approximated = false,
+): { dash?: string; stroke: string; opacity: number; width: number; halo: boolean; fillOpacity: number } {
+  const s = strokeFor(status, color, playing, approximated);
+  const fillOpacity = Number((fillOpacityFor(status, playing) + (selected ? SELECTION.tint : 0)).toFixed(2));
+  if (!selected) return { ...s, width: BORDER_W, halo: false, fillOpacity };
+  if (keepsStatusBorder(status)) return { ...s, width: SELECTION.width, halo: true, fillOpacity };
+  const stroke = status === "implausible" ? SELECTED_IMPLAUSIBLE_STROKE : SELECTION.stroke;
+  return { ...(approximated ? { dash: APPROXIMATED_DASH } : {}), stroke, opacity: 1, width: SELECTION.width, halo: false, fillOpacity };
+}
+export const WAVY_MIN_W = 14;
+
+const r1 = (n: number) => Number(n.toFixed(1));
+
+function wavyEdge(x: number, yFrom: number, yTo: number): string {
+  const n = Math.max(2, Math.round(Math.abs(yTo - yFrom) / WAVE_STEP));
+  const seg = (yTo - yFrom) / n;
+  let d = "";
+  for (let i = 0; i < n; i++) {
+    const cx = x + (i % 2 === 0 ? WAVE_AMPLITUDE : -WAVE_AMPLITUDE);
+    d += ` Q${r1(cx)},${r1(yFrom + seg * (i + 0.5))} ${r1(x)},${r1(yFrom + seg * (i + 1))}`;
+  }
+  return d;
+}
+
+export function inferredBlockPath(x: number, y: number, w: number, h: number): string {
+  return `M${r1(x)},${r1(y)} L${r1(x + w)},${r1(y)}${wavyEdge(x + w, y, y + h)} L${r1(x)},${r1(y + h)}${wavyEdge(x, y + h, y)} Z`;
 }
