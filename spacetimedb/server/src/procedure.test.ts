@@ -165,6 +165,14 @@ describe("extractSegment", () => {
     expect(JSON.stringify(segmentRow(), (_k, v) => (typeof v === "bigint" ? v.toString() : v))).not.toContain(SECRET);
   });
 
+  test("the request names the speaking witness, who has no actor link in the module yet", () => {
+    runExtraction(ioFor(ok([toolUse("tu_1", "add_event", walkInput)])), SESSION, "utt_2");
+    const body = JSON.parse(requests[0]!.body) as { messages: { content: { text: string }[] }[] };
+    expect(body.messages[0]?.content[0]?.text).toContain(
+      "SPEAKING WITNESS\nThe witness speaking is w1. This witness has no actor yet. If the actor list already has an actor for w1 by name",
+    );
+  });
+
   test("a new prop and an event using it apply together and stay resolvable", () => {
     const prop = toolUse("tu_p", "add_prop", { type: "knife_chef", anchor: at("counter"), held_by: "suspect", notes: "maybe eight inches", sources: [] });
     const event = toolUse("tu_e", "add_event", { ...walkInput, action: "pick_up", from: null, to: null, at: at("counter"), prop: "knife_chef" });

@@ -51,6 +51,7 @@ describe("submitStatement on the fixture source", () => {
     }
     expect(events.find((e) => e.id === "e3")?.tEnd).toBe(9);
     expect(events.find((e) => e.id === "e5")?.at).toEqual(corrected.find((e) => e.id === "e5")?.at);
+    expect(source.getSnapshot().graph?.events.find((e) => e.id === "e9")?.at).toEqual({ kind: "at", landmark: "window_front" });
   });
 
   it("matches the statement ignoring case, punctuation and spacing", async () => {

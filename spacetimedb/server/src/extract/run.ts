@@ -137,6 +137,7 @@ function snapshot(io: Io, sessionId: string, segmentId: string): Snapshot {
         events: graph.events,
         props: graph.props,
         recentSegments: recent,
+        witnesses: graph.witnesses,
       },
     };
   });

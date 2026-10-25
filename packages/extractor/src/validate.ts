@@ -9,6 +9,7 @@ import type {
   Landmark,
   Patch,
   Segment,
+  Witness,
 } from "@rashomon/schema";
 import { CLOTHING_COLORS, colorStatedIn, isClothingColor } from "./colors";
 import { CONFIDENCE_MAP } from "./tools";
@@ -140,6 +141,32 @@ const requireActor = (id: string, ctx: ExtractContext, field: string) => {
   return id;
 };
 
+const FIRST_PERSON = /\b(i|me|my|myself)\b/i;
+
+const namesFor = (actor: Actor | undefined, witness: Witness): string[] => {
+  const label = actor?.label ?? "";
+  const inner = /\(([^)]*)\)/.exec(label)?.[1] ?? "";
+  return [actor?.id.replace(/_/g, " ") ?? "", label, label.replace(/\([^)]*\)/g, ""), inner, witness.label]
+    .map((n) => n.trim().toLowerCase())
+    .filter((n) => n.length > 0);
+};
+
+const mentions = (text: string, name: string): boolean =>
+  new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(text);
+
+const checkNotOtherWitness = (actor: string, segment: Segment, ctx: ExtractContext): string => {
+  const speaker = ctx.witnesses?.find((w) => w.id === segment.witnessId);
+  if (speaker?.actorId === actor) return actor;
+  const other = ctx.witnesses?.find((w) => w.id !== segment.witnessId && w.actorId === actor);
+  if (!other || !FIRST_PERSON.test(segment.text)) return actor;
+  const names = namesFor(ctx.actors.find((a) => a.id === actor), other);
+  if (names.some((n) => mentions(segment.text, n))) return actor;
+  const mine = speaker?.actorId !== undefined ? ` Use ${speaker.actorId} for I and me.` : "";
+  throw new Invalid(
+    `actor: "${actor}" is witness ${other.id}'s actor, but this statement is from witness ${segment.witnessId} and only speaks in first person.${mine}`,
+  );
+};
+
 const checkPropRef = (id: string, ctx: ExtractContext, pendingTypes: string[]) => {
   const ok =
     ctx.props.some((p) => p.id === id) ||
@@ -205,7 +232,7 @@ const addEvent = (
     throw new Invalid("t_confidence must be stated or inferred");
   const event: Omit<Event, "id" | "status" | "flags"> = {
     witnessId: segment.witnessId,
-    actor: requireActor(reqString(input, "actor"), ctx, "actor"),
+    actor: checkNotOtherWitness(requireActor(reqString(input, "actor"), ctx, "actor"), segment, ctx),
     action: checkAction(reqString(input, "action")),
     t: buildInterval(optNumber(input, "t_start"), optNumber(input, "t_end"), "t"),
     tConfidence,
