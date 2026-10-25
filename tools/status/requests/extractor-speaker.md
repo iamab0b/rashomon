@@ -37,3 +37,16 @@ Live, the model gave the first three and skipped e9, so the witness is back at a
 - Live check (Hazel, after the publish): the correction on a fresh scratch session gives 4 patches, including CHANGED e9.
 
 Coordinate with the strict-schema fix in #48 (extractor-union-limit). Branch from main after it merges, or rebase onto it. Branch extractor-speaker, PR to main, Greptile plus Opus and Sonnet.
+
+
+## PR #58 round 2 (Sahil, from clip2): a correction that moves a placed event emits the walk and shortens the stand
+
+#58 (49007df) carries the speaker section, rule 3, the validator check and rule 8's carry-forward sentence; the leader's reviews are running on it. Sahil's clip2 shows one more gap: after the correction, e5 is at window_front and plausible, but **no walk was added and e3 wasn't shortened**. e3 and e5 then carry the same soft contradiction (the witness is in two places 3.9 m apart at t=10.5): that's the teleport and the double flag. Hazel's run got the walk and Sahil's didn't, so the extractor is inconsistent on relocation. New commits on extractor-speaker; no force-push.
+
+1. **The rule:** when the witness says they moved ("I came to the front", "I went over to"), a correction that moves an event they had placed must also:
+   - **add the walk** from the old place to the new one (add_event walk, from the earlier event's place to the new place, timed between them);
+   - **shorten the earlier stand** (update_event on e3) so it ends when the walk starts.
+   Rule 8's current wording ("add or adjust the movement events around it only if the witness described that movement") covers this, because "I came to the front by the window" describes the movement. Make it explicit and not optional: "If the witness describes moving to the new place, add that walk and end their earlier event where the walk starts."
+2. **Recorded tool-use test:** a recorded correction tool-use set without the walk or the e3 update is flagged as incomplete by a validator check: a relocation update with no connecting movement for the same actor. It should be a soft warning in `unparsed` or a returned note, not a drop.
+3. **The full recorded set:** add_event walk, e3 shortened, e5 moved and e9 moved. It validates to the fixture's 4 patches, and after applying them e3 and e5 carry no contradiction flag.
+4. Live check (Hazel and Sahil, after the publish): the correction on two fresh scratch sessions, twice each, gives the walk and the shortened e3 every time.
