@@ -38,3 +38,8 @@
 .rui .statement-refused p { margin: 0; }
 .rui .statement-identity { display: flex; align-items: center; gap: 8px; }
 .rui .statement-identity code { flex: 1; min-width: 0; overflow: hidden; padding: 4px 6px; color: var(--text-secondary); border: 1px solid var(--border); border-radius: 3px; background: var(--surface); font: var(--fs-2xs) var(--mono); text-overflow: ellipsis; white-space: nowrap; user-select: all; cursor: text; }
+.rui .voice-control { display: grid; gap: 6px; }
+.rui .voice-control__row { display: flex; align-items: center; gap: 10px; }
+.rui .voice-control__button { height: 38px; padding: 0 16px; gap: 8px; font-size: var(--fs-base); }
+.rui .voice-control__button:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+.rui .voice-control__pill.is-error { color: var(--status-implausible); border-color: color-mix(in srgb, var(--status-implausible) 60%, transparent); }

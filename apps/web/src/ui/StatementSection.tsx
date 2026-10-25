@@ -31,6 +31,7 @@ import {
   type WitnessOption,
 } from "./statement";
 import "./statement-section.css";
+import { useVoiceInterview } from "../adapters/voice";
 
 export type { StatementView } from "./statement";
 export type CopyState = "idle" | "copied" | "manual";
@@ -45,6 +46,7 @@ export type StatementSectionViewProps = {
   text: string;
   view: StatementView;
   voiceEnabled: boolean;
+  voice?: { status: string; error: string | null; active: boolean; toggle: () => void };
   onWitness: (value: string) => void;
   onText: (value: string) => void;
   onSubmit: () => void;
@@ -81,6 +83,7 @@ export function StatementSectionView({
   text,
   view,
   voiceEnabled,
+  voice,
   onWitness,
   onText,
   onSubmit,
@@ -140,6 +143,26 @@ export function StatementSectionView({
         </label>
       )}
 
+      {voiceEnabled && voice && (
+        <div className="voice-control">
+          <div className="voice-control__row">
+            <button type="button" className="button button--primary voice-control__button" aria-pressed={voice.active} onClick={voice.toggle}>
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <rect x="7.5" y="2.5" width="5" height="9" rx="2.5" />
+                <path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v2.5" />
+              </svg>
+              {voice.active ? "Stop talking" : "Talk to the interviewer"}
+            </button>
+            <span aria-live="polite">
+              {voice.status !== "idle" && (
+                <span className={`check-chip voice-control__pill${voice.status === "error" ? " is-error" : ""}`}>{voice.status}</span>
+              )}
+            </span>
+          </div>
+          {voice.error && <p className="statement-error" role="alert">{voice.error}</p>}
+        </div>
+      )}
+
       <label className="statement-field">
         <span className="field-label">Statement</span>
         <textarea
@@ -158,7 +181,7 @@ export function StatementSectionView({
       </label>
 
       <div className="statement-actions">
-        {voiceEnabled && (
+        {voiceEnabled && !voice && (
           <button type="button" className="button button--quiet" title="Voice interview coming soon" aria-disabled="true">
             Start voice interview
           </button>
@@ -167,7 +190,7 @@ export function StatementSectionView({
           Submit
         </button>
       </div>
-      {voiceEnabled && <p className="statement-note">Voice interview coming soon.</p>}
+      {voiceEnabled && !voice && <p className="statement-note">Voice interview coming soon.</p>}
 
       <div className="statement-status" aria-live="polite">
         {view.kind === "extracting" && (
@@ -263,6 +286,7 @@ export function StatementSection({
   const [run, setRun] = useState<StatementRun | null>(null);
   const [slow, setSlow] = useState(false);
   const [copyState, setCopyState] = useState<CopyState>("idle");
+  const voice = useVoiceInterview();
   const status = useStatementStatus(run?.segmentId ?? null);
   const statuses = useStatementStatuses();
   const view = statementView(run, status, graph, identity, slow, live);
@@ -337,6 +361,7 @@ export function StatementSection({
       text={text}
       view={view}
       voiceEnabled={voiceInterviewEnabled(typeof window === "undefined" ? "" : window.location.search)}
+      voice={voice}
       onWitness={setChoice}
       onText={setText}
       onSubmit={onSubmit}
