@@ -167,12 +167,13 @@ describe("extractSegment", () => {
     expect(JSON.stringify(segmentRow(), (_k, v) => (typeof v === "bigint" ? v.toString() : v))).not.toContain(SECRET);
   });
 
-  test("the request names the speaking witness, who has no actor link in the module yet", () => {
+  test("a speaking witness with no actor link in the module gets no speaker section and is never told to add an actor", () => {
     runExtraction(ioFor(ok([toolUse("tu_1", "add_event", walkInput)])), SESSION, "utt_2");
     const body = JSON.parse(requests[0]!.body) as { messages: { content: { text: string }[] }[] };
-    expect(body.messages[0]?.content[0]?.text).toContain(
-      "SPEAKING WITNESS\nThe witness speaking is w1. This witness has no actor yet. If the actor list already has an actor for w1 by name",
-    );
+    const text = body.messages[0]?.content[0]?.text;
+    expect(text).not.toContain("SPEAKING WITNESS");
+    expect(text).not.toContain("no actor yet");
+    expect(text).not.toContain("call add_actor first");
   });
 
   test("a new prop and an event using it apply together and stay resolvable", () => {

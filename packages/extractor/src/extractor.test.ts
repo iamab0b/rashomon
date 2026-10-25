@@ -926,23 +926,13 @@ describe("the speaking witness", () => {
   const standInput = (actor: string, landmark: string) =>
     walkInput({ actor, action: "stand", from: null, to: null, at: at(landmark), t_start: 0, t_end: 5, sources: [] });
 
-  const firstPersonActor = (prompt: string): { actor: string; add?: ToolUseBlock } => {
-    const linked = /I, me, my and myself refer to actor (\w+)\./.exec(prompt)?.[1];
-    if (linked) return { actor: linked };
-    const label = /This witness has no actor yet\. If the actor list already has an actor for (.+?) by name/.exec(prompt)?.[1];
-    if (label === undefined) return { actor: "witness" };
-    const actors = prompt.split("ACTORS\n")[1]?.split("\n\n")[0] ?? "";
-    const named = new RegExp(`^- (\\w+): ${label}\\b`, "im").exec(actors)?.[1];
-    if (named) return { actor: named };
-    const id = label.toLowerCase().replace(/\W+/g, "_");
-    return { actor: id, add: use("add_actor", { id, label, role: "witness", body: null, heightM: null, tint: null }, "speaker") };
-  };
+  const firstPersonActor = (prompt: string): string =>
+    /I, me, my and myself refer to actor (\w+)\./.exec(prompt)?.[1] ?? "witness";
 
   const followsSpeaker: CallModel = async (req) => {
     const prompt = promptOf(req);
     const place = /behind the counter/.test(prompt.split("NEW STATEMENT")[1] ?? "") ? "behind_counter" : "aisle_chips";
-    const { actor, add } = firstPersonActor(prompt);
-    return { content: [...(add ? [add] : []), use("add_event", standInput(actor, place), "stand")], stop_reason: "tool_use" };
+    return { content: [use("add_event", standInput(firstPersonActor(prompt), place), "stand")], stop_reason: "tool_use" };
   };
 
   const eventsOf = (patches: Patch[]) => patches.flatMap((p) => (p.op === "add_event" ? [p.event] : []));
@@ -951,7 +941,7 @@ describe("the speaking witness", () => {
     const text = promptOf(buildRequest(spoken("w2", clerkStatement), twoWitnesses()));
     expect(text).toContain("SPEAKING WITNESS\nThe witness speaking is w2 (Clerk). In this statement, I, me, my and myself refer to actor clerk.");
     expect(SYSTEM_PROMPT).toContain("I, me, my and myself are that witness's actor, never another witness's actor");
-    expect(SYSTEM_PROMPT).not.toContain('"I" and "me" are the witness actor');
+    expect(SYSTEM_PROMPT).toContain('"I" and "me" are the witness actor');
   });
 
   test("the clerk's I is the clerk, never the customer", async () => {
@@ -970,23 +960,16 @@ describe("the speaking witness", () => {
     );
   });
 
-  test("a witness without an actorId uses the actor named for them, or is added as a new witness actor", async () => {
+  test("a witness without an actorId gets no speaker section, so I and me stay the witness actor", async () => {
     const unlinked: Witness = { id: "w2", label: "Clerk" };
-    const named = buildRequest(spoken("w2", clerkStatement), twoWitnesses([customer, unlinked]));
-    expect(promptOf(named)).toContain(
-      "The witness speaking is w2 (Clerk). This witness has no actor yet. If the actor list already has an actor for Clerk by name, I, me, my and myself refer to that actor. Otherwise call add_actor first with role witness and label Clerk, and use that actor for I, me, my and myself.",
-    );
-    const byName = await extractSegment(spoken("w2", clerkStatement), twoWitnesses([customer, unlinked]), followsSpeaker);
-    expect(byName.patches.map((p) => p.op)).toEqual(["add_event"]);
-    expect(eventsOf(byName.patches)[0]?.actor).toBe("clerk");
+    const text = promptOf(buildRequest(spoken("w2", clerkStatement), twoWitnesses([customer, unlinked])));
+    expect(text).not.toContain("SPEAKING WITNESS");
+    expect(text).not.toContain("The witness speaking is");
 
-    const fresh = await extractSegment(spoken("Maria", "I was in the chips aisle when he came in"), twoWitnesses(), followsSpeaker);
+    const fresh = await extractSegment(spoken("Maria", "I was in the chips aisle when he came in"), twoWitnesses([{ id: "w1", label: "w1" }]), followsSpeaker);
     expect(fresh.unparsed).toEqual([]);
-    expect(fresh.patches.map((p) => p.op)).toEqual(["add_actor", "add_event"]);
-    const added = fresh.patches[0];
-    if (added?.op !== "add_actor") throw new Error("expected add_actor");
-    expect(added.actor).toMatchObject({ id: "maria", label: "Maria", role: "witness" });
-    expect(eventsOf(fresh.patches)[0]).toMatchObject({ actor: "maria", witnessId: "Maria" });
+    expect(fresh.patches.map((p) => p.op)).toEqual(["add_event"]);
+    expect(eventsOf(fresh.patches)[0]).toMatchObject({ actor: "witness", witnessId: "Maria" });
   });
 
   test("the validator drops another witness's actor for a first-person statement, counted like other drops", async () => {
@@ -1103,6 +1086,24 @@ describe("a corrected place carries forward", () => {
     ]);
     expect(byId(r.patches, "e3")?.changes).toEqual({ t: [0, 9] });
     expect(r.patches).toHaveLength(4);
+  });
+
+  const live = (): ExtractContext => ({ ...ctx(), witnesses: [{ id: "w1", label: "w1" }] });
+
+  test("on a live session, where witnesses have no actorId, the prompt never asks for a new witness actor", () => {
+    expect(robberyGraph.actors.find((a) => a.id === "witness")?.label).toBe("Witness (customer)");
+    for (const witnessId of ["Maria", "w1", "Witness"]) {
+      const text = ((buildRequest({ ...utt("utt_12"), witnessId }, live()).messages[0]?.content as { text: string }[])[0]?.text ?? "");
+      expect(text, witnessId).not.toContain("no actor yet");
+      expect(text, witnessId).not.toContain("call add_actor first");
+    }
+  });
+
+  test("on a live session, a reply that only moves e5 still yields the 4 patches", async () => {
+    const r = await extractSegment(utt("utt_12"), live(), replyWith("c1"));
+    expect(r.unparsed).toEqual([]);
+    expect(r.patches).toHaveLength(4);
+    expect(byId(r.patches, "e9")?.changes).toEqual({ at: { kind: "at", landmark: "window_front" } });
   });
 
   test("no walk is added when the witness describes no move, and other actors' moves are left alone", async () => {

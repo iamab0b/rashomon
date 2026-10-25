@@ -13,7 +13,7 @@ Rules, in priority order:
 
 1. Record only what the witness actually said. Never add a detail they did not say. Never guess a motive, a name, a face, clothing or anything you would have to imagine. If something is unclear, record less, not more.
 2. Never output coordinates or numbers for positions. Place everything by landmark id from the landmark list. Match the witness's words to landmarks through the labels and aliases, so "the snack aisle on the left" is the landmark whose aliases include it, not a new place. If the witness gives no location for something, leave the anchor null.
-3. Use actor ids from the actor list. SPEAKING WITNESS says who is talking: I, me, my and myself are that witness's actor, never another witness's actor. If that witness has no actor yet, do what SPEAKING WITNESS says. If a new person is mentioned, call add_actor first.
+3. Use actor ids from the actor list. "I" and "me" are the witness actor. When SPEAKING WITNESS names an actor, I, me, my and myself are that witness's actor, never another witness's actor. If a new person is mentioned, call add_actor first.
 4. Time is seconds from the start of the incident, as the witness narrates it. The first thing described happens at 0. Keep times consistent with the existing events listed below. Give an interval, never a point: if the witness says "about ten seconds", use a range around it. If they gave no timing, estimate from the order of events and ordinary durations, and set t_confidence to inferred. If they gave a timing, set it to stated.
 5. A statement about the length of the whole incident ("twenty, thirty seconds") is not an event. Do not add it. Use it only to keep your own estimates in proportion.
 6. Appearance (age, build, clothing, hair) is not an event. Do not add events or props for it. When the witness describes a person's build or height, choose the nearest body and estimate heightM. Map clothing colour words to tint. Only use what the witness said; leave a field out when it was not described. These go on add_actor when you add the person. If a statement contains only appearance of people already in the actor list, call no_events.
@@ -81,11 +81,10 @@ export function speakerOf(segment: Segment, ctx: ExtractContext): Witness {
   return ctx.witnesses?.find((w) => w.id === segment.witnessId) ?? { id: segment.witnessId, label: segment.witnessId };
 }
 
-export function speakerText(speaker: Witness): string {
+export function speakerText(speaker: Witness): string | undefined {
+  if (speaker.actorId === undefined) return undefined;
   const name = speaker.label === speaker.id ? speaker.id : `${speaker.id} (${speaker.label})`;
-  if (speaker.actorId !== undefined)
-    return `The witness speaking is ${name}. In this statement, I, me, my and myself refer to actor ${speaker.actorId}.`;
-  return `The witness speaking is ${name}. This witness has no actor yet. If the actor list already has an actor for ${speaker.label} by name, I, me, my and myself refer to that actor. Otherwise call add_actor first with role witness and label ${speaker.label}, and use that actor for I, me, my and myself.`;
+  return `The witness speaking is ${name}. In this statement, I, me, my and myself refer to actor ${speaker.actorId}.`;
 }
 
 export function buildUserMessage(
@@ -97,7 +96,8 @@ export function buildUserMessage(
     .slice(-5)
     .map((s) => `${s.id}: ${s.text}`)
     .join("\n");
-  const text = `${buildContextText(ctx)}\n\nSPEAKING WITNESS\n${speakerText(speakerOf(segment, ctx))}\n\nEARLIER WITNESS STATEMENTS\n${earlier || "(none)"}\n\nNEW STATEMENT ${segment.id}\n${segment.text}`;
+  const speaker = speakerText(speakerOf(segment, ctx));
+  const text = `${buildContextText(ctx)}${speaker ? `\n\nSPEAKING WITNESS\n${speaker}` : ""}\n\nEARLIER WITNESS STATEMENTS\n${earlier || "(none)"}\n\nNEW STATEMENT ${segment.id}\n${segment.text}`;
   return { role: "user", content: [{ type: "text", text }] };
 }
 
