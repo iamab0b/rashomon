@@ -26,11 +26,9 @@ export type InterviewSummary = { ended: true; statements: number; events: number
 
 export type AskBack = { flagId: string; eventId: string; question: string };
 
-export type StatementResult = Extraction & { askNext: AskBack | null };
-
 export type WebhookOutcome = {
   status: number;
-  body: StatementResult | Extraction | SceneContext | InterviewSummary | { error: string };
+  body: ToolResponse | Extraction | SceneContext | InterviewSummary | { error: string };
 };
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -102,9 +100,74 @@ export function plainSegmentId(ctx: ReducerCtx<ModuleSchema>, sessionId: string,
     if (w.sessionId !== sessionId || w.witnessId !== witnessId) continue;
     if (!latest || w.seq > latest.seq) latest = w;
   }
-  if (latest && latest.text === text && ctx.timestamp.microsSinceUnixEpoch - latest.storedAt.microsSinceUnixEpoch < RETRY_WINDOW_MICROS)
-    return latest.segmentId;
+  if (latest && latest.text === text) {
+    const since = ctx.db.segments.rowKey.find(key(sessionId, latest.segmentId))?.extractedAt ?? latest.storedAt;
+    if (ctx.timestamp.microsSinceUnixEpoch - since.microsSinceUnixEpoch < RETRY_WINDOW_MICROS) return latest.segmentId;
+  }
   return defaultSegmentId(sessionId, witnessId, [{ text }], segmentCount(ctx.db, sessionId));
+}
+
+function recordStatement(ctx: ReducerCtx<ModuleSchema>, sessionId: string, segmentId: string, witnessId: string, text: string): void {
+  ctx.db.webhookStatements.insert({
+    rowKey: key(sessionId, segmentId),
+    sessionId,
+    segmentId,
+    seq: segmentCount(ctx.db, sessionId),
+    witnessId,
+    text,
+    storedAt: ctx.timestamp,
+    askFlagId: undefined,
+  });
+}
+
+export const MAX_TOOL_RESPONSE_BYTES = 16 * 1024;
+
+const utf8Length = (text: string): number => new TextEncoder().encode(text).length;
+
+export type ToolResponse = {
+  askNext: AskBack | null;
+  segmentId: string;
+  patchCount: number;
+  error: string | undefined;
+  statuses: Extraction["statuses"];
+  hardFlags: Extraction["hardFlags"];
+  truncated?: true;
+};
+
+export function toolResponse(result: Extraction, askNext: AskBack | null): ToolResponse {
+  const body: ToolResponse = {
+    askNext,
+    segmentId: result.segmentId,
+    patchCount: result.patchCount,
+    error: result.error,
+    statuses: [...result.statuses],
+    hardFlags: [...result.hardFlags],
+  };
+  if (utf8Length(JSON.stringify(body)) <= MAX_TOOL_RESPONSE_BYTES) return body;
+  body.truncated = true;
+  const itemBytes = (item: unknown): number => utf8Length(JSON.stringify(item)) + 1;
+  const statusBytes = body.statuses.map(itemBytes);
+  const flagBytes = body.hardFlags.map(itemBytes);
+  let total = utf8Length(JSON.stringify(body));
+  let statusTotal = statusBytes.reduce((a, b) => a + b, 0);
+  let flagTotal = flagBytes.reduce((a, b) => a + b, 0);
+  while (total > MAX_TOOL_RESPONSE_BYTES && (body.statuses.length > 0 || body.hardFlags.length > 0)) {
+    const fromFlags = body.statuses.length === 0 || (body.hardFlags.length > 0 && flagTotal >= statusTotal);
+    const removed = fromFlags ? flagBytes.pop()! : statusBytes.pop()!;
+    if (fromFlags) {
+      body.hardFlags.pop();
+      flagTotal -= removed;
+    } else {
+      body.statuses.pop();
+      statusTotal -= removed;
+    }
+    total -= removed;
+  }
+  while (utf8Length(JSON.stringify(body)) > MAX_TOOL_RESPONSE_BYTES && (body.statuses.length > 0 || body.hardFlags.length > 0)) {
+    if (body.hardFlags.length > 0) body.hardFlags.pop();
+    else body.statuses.pop();
+  }
+  return body;
 }
 
 type Authorized = { body: Record<string, unknown>; sessionId: string };
@@ -169,7 +232,10 @@ export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
     segmentId = io.withTx((ctx) => {
       const id = givenId ?? (parsed ? resolveSegmentId(ctx.db, sessionId, witnessId, parsed) : plainSegmentId(ctx, sessionId, witnessId, text));
       const existing = ctx.db.segments.rowKey.find(key(sessionId, id));
-      if (existing && existing.sessionId === sessionId && existing.text === text) return id;
+      if (existing && existing.sessionId === sessionId && existing.text === text) {
+        if (!ctx.db.webhookStatements.rowKey.find(key(sessionId, id))) recordStatement(ctx, sessionId, id, witnessId, text);
+        return id;
+      }
       let lines: { id: string; text: string; tStart: number; tEnd: number }[];
       if (parsed) {
         lines = parsed.map((u, i) => ({ ...u, id: u.id ?? `${id}_u${i + 1}` }));
@@ -198,16 +264,7 @@ export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
         supersedes: undefined,
         utterances: lines,
       });
-      ctx.db.webhookStatements.insert({
-        rowKey: key(sessionId, id),
-        sessionId,
-        segmentId: id,
-        seq: segmentCount(ctx.db, sessionId),
-        witnessId,
-        text,
-        storedAt: ctx.timestamp,
-        askFlagId: undefined,
-      });
+      recordStatement(ctx, sessionId, id, witnessId, text);
       return id;
     });
   } catch {
@@ -221,7 +278,7 @@ export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
   } catch {
     askNext = null;
   }
-  return { status: 200, body: { ...result, askNext } };
+  return { status: 200, body: toolResponse(result, askNext) };
 }
 
 const toAskBack = (f: { id: string; eventId: string; suggestedQuestion: string }): AskBack => ({

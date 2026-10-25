@@ -66,7 +66,7 @@ export function toolDefinition(s: Settings, name: ToolName): WebhookTool {
     timeout = 120;
   } else if (name === "get_scene_context") {
     description =
-      "Get the scene's landmark names, the last five recorded events and nextQuestion, a follow-up not asked before (null when there is none). Call it when you need the next question.";
+      "Get the scene's landmark names and the last five recorded events, for context. Its nextQuestion is context only: do not ask it. Follow-up questions come only from record_statement's askNext.";
   } else {
     description = "Close the interview record. Call it once, when the witness says they are finished, before ending the call.";
   }

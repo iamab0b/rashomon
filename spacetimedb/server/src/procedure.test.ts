@@ -14,8 +14,10 @@ import {
   handleCartesia,
   handleEndInterview,
   handleSceneContext,
+  MAX_TOOL_RESPONSE_BYTES,
   secretsMatch,
   takeNextQuestion,
+  toolResponse,
 } from "./http/cartesia";
 import { MAX_BODY_BYTES, MAX_SEGMENT_TEXT_CHARS, MAX_UTTERANCES } from "./limits";
 import {
@@ -885,6 +887,66 @@ describe("the Cartesia webhook", () => {
     expect(handleCartesia(io, post(body({ utterances: [{ text: over, tStart: 0, tEnd: 1 }] }))).status).toBe(413);
     expect([...harness.db.segments.sessionId.filter(SESSION)]).toHaveLength(1);
     expect(requests).toHaveLength(0);
+  });
+
+  test("the retry window starts when a long extraction finishes, not when the statement was stored", () => {
+    const first = defaultSegmentId(SESSION, "witness", [{ text: "Yes." }], 1);
+    const slow: TestHttpResponder<never> = (test, req, b) => {
+      harness.clock.advance(TimeDuration.fromMillis(20_000));
+      return ok([toolUse("tu_1", "add_event", { ...walkInput, sources: [first] })])(test, req, b);
+    };
+    const out = handleCartesia(webhookIo(slow), post(plain({ text: "Yes." })));
+    expect(out.body).toMatchObject({ segmentId: first, patchCount: 1 });
+    harness.clock.advance(TimeDuration.fromMillis(5_000));
+    const retry = handleCartesia(webhookIo(slow), post(plain({ text: "Yes." })));
+    expect(retry.body).toMatchObject({ segmentId: first, patchCount: 1 });
+    expect(requests).toHaveLength(1);
+    expect([...harness.db.segments.sessionId.filter(SESSION)]).toHaveLength(2);
+  });
+
+  test("a resend of a segment stored by another path keeps the question it was first given", () => {
+    applyRobberyEvents();
+    const flag = [...harness.db.flags.sessionId.filter(SESSION)].find((f) => f.severity === "hard")!;
+    insertWitnessSegment("utt_9");
+    const io = webhookIo(ok([toolUse("tu_1", "add_event", { ...walkInput, sources: ["utt_9"] })]));
+    const resend = () =>
+      handleCartesia(
+        io,
+        post(body({ segmentId: "utt_9", utterances: [{ text: "A guy came in the front door and went straight up to the counter.", tStart: 7.8, tEnd: 16.7 }] })),
+      );
+    const first = resend();
+    expect(first.body).toMatchObject({ askNext: { flagId: flag.id } });
+    expect((resend().body as { askNext: unknown }).askNext).toEqual((first.body as { askNext: unknown }).askNext);
+    expect((resend().body as { askNext: unknown }).askNext).toEqual((first.body as { askNext: unknown }).askNext);
+  });
+
+  test("the record_statement response starts with askNext", () => {
+    applyRobberyEvents();
+    const out = handleCartesia(webhookIo(ok([toolUse("tu_1", "add_event", { ...walkInput, sources: [plainId] })])), post(plain()));
+    expect(out.status).toBe(200);
+    expect(JSON.stringify(out.body).startsWith('{"askNext":{')).toBe(true);
+  });
+
+  test("a response with many events is under 16 KiB, still starts with askNext and says it was truncated", () => {
+    const statuses = Array.from({ length: 2_000 }, (_, i) => ({ eventId: `e${i}`, status: "plausible" }));
+    const hardFlags = Array.from({ length: 40 }, (_, i) => ({
+      id: `sightline:e${i}`,
+      eventId: `e${i}`,
+      check: "sightline",
+      detail: "d".repeat(300),
+      suggestedQuestion: `Where were you for e${i}?`,
+    }));
+    const askNext = { flagId: "sightline:e0", eventId: "e0", question: "Where were you for e0?" };
+    const body = toolResponse({ segmentId: "seg_x", patchCount: 3, statuses, hardFlags, error: undefined }, askNext);
+    const text = JSON.stringify(body);
+    expect(new TextEncoder().encode(text).length).toBeLessThanOrEqual(MAX_TOOL_RESPONSE_BYTES);
+    expect(MAX_TOOL_RESPONSE_BYTES).toBeLessThanOrEqual(16 * 1024);
+    expect(text.startsWith('{"askNext":{"flagId":"sightline:e0"')).toBe(true);
+    expect(body).toMatchObject({ truncated: true, segmentId: "seg_x", patchCount: 3 });
+    expect(body.statuses[0]).toEqual(statuses[0]);
+    const small = toolResponse({ segmentId: "seg_y", patchCount: 1, statuses: statuses.slice(0, 3), hardFlags: [], error: undefined }, null);
+    expect(small).not.toHaveProperty("truncated");
+    expect(small.statuses).toHaveLength(3);
   });
 
   test("the exported scene context and end interview handlers check the module secret first", () => {
