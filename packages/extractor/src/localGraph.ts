@@ -1,4 +1,14 @@
+import { STYLE_ACTION } from "@rashomon/schema";
 import type { Event, EventGraph, Patch, PropInstance } from "@rashomon/schema";
+
+const withoutNulls = <T extends object>(o: T): T =>
+  Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null)) as T;
+
+const withFittingStyle = (e: Event): Event => {
+  if (e.style === undefined || STYLE_ACTION[e.style] === e.action) return e;
+  const { style: _style, ...rest } = e;
+  return rest;
+};
 
 const nextNumber = (ids: string[], prefix: string): number =>
   ids.reduce((max, id) => {
@@ -56,11 +66,13 @@ export function applyPatchesLocal(
         const changes = { ...p.changes };
         const prop = resolveProp(changes.prop);
         if (prop !== undefined) changes.prop = prop;
-        events[i] = {
-          ...cur,
-          ...changes,
-          sources: [...new Set([...cur.sources, ...p.sources])],
-        };
+        events[i] = withFittingStyle(
+          withoutNulls({
+            ...cur,
+            ...changes,
+            sources: [...new Set([...cur.sources, ...p.sources])],
+          }),
+        );
       }
     }
     if (p.op === "retract_event") {

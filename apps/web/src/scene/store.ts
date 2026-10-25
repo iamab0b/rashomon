@@ -3,6 +3,7 @@ import type { EventGraph, Status } from "@rashomon/schema";
 import { create } from "zustand";
 import type { CameraPreset } from "./cameras/presets";
 import type { CharacterHandle } from "./characters/Character";
+import type { SceneSource } from "./loaders/sceneSource";
 import type { GraphSource } from "./playback/graphSource";
 import { NO_STATEMENTS, type StatementStatuses } from "./playback/statementStatus";
 
@@ -53,6 +54,7 @@ export type SceneState = {
   dimmedActors: ReadonlySet<string>;
   hiddenWitnesses: ReadonlySet<string>;
   dimmedMeshes: ReadonlySet<string>;
+  sceneSource: SceneSource | null;
   setPreset: (preset: CameraPreset) => void;
   toggleDebug: () => void;
   setFps: (fps: number) => void;
@@ -79,6 +81,7 @@ export type SceneState = {
   setPovActor: (actorId: string | null) => void;
   setDimmedActors: (actorIds: ReadonlySet<string>) => void;
   setDimmedMeshes: (names: ReadonlySet<string>) => void;
+  setSceneSource: (source: SceneSource | null) => void;
   toggleWitness: (id: string) => void;
   onlyWitness: (id: string, allIds: readonly string[]) => void;
   showAllWitnesses: () => void;
@@ -136,6 +139,7 @@ export const useSceneStore = create<SceneState>((set) => ({
   dimmedActors: NO_ACTORS,
   hiddenWitnesses: NO_ACTORS,
   dimmedMeshes: NO_ACTORS,
+  sceneSource: null,
   setPreset: (preset) => set((state) => ({ preset, povFollow: false, poseResetCount: state.poseResetCount + 1 })),
   toggleDebug: () => set((state) => ({ debugVisible: !state.debugVisible })),
   setFps: (fps) => set({ fps }),
@@ -205,4 +209,5 @@ export const useSceneStore = create<SceneState>((set) => ({
     set((state) => (sameMembers(state.dimmedActors, actorIds) ? state : { dimmedActors: new Set(actorIds) })),
   setDimmedMeshes: (names) =>
     set((state) => (sameMembers(state.dimmedMeshes, names) ? state : { dimmedMeshes: new Set(names) })),
+  setSceneSource: (sceneSource) => set((state) => (state.sceneSource === sceneSource ? state : { sceneSource })),
 }));

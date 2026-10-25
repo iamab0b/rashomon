@@ -75,3 +75,8 @@ export function manifestSourceFromSearch(search: string, storage: ManifestStorag
 export function isLandmarkEditing(search: string): boolean {
   return new URLSearchParams(search).get("edit") === "landmarks";
 }
+
+export function isGraphlessSearch(search: string): boolean {
+  const params = new URLSearchParams(search);
+  return isLandmarkEditing(search) || (params.has("manifest") && !params.get("scene"));
+}

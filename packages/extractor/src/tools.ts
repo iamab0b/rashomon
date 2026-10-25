@@ -1,4 +1,4 @@
-import { ACTIONS } from "@rashomon/schema";
+import { ACTIONS, ACTION_STYLES, MAX_VERB_CHARS } from "@rashomon/schema";
 import type { ToolDef } from "./types";
 
 export const STRICT_TOOLS = true;
@@ -58,6 +58,28 @@ const tConfidence = {
     "stated if the witness gave the timing, inferred if you estimated it from order.",
 };
 
+const style = nullable({
+  type: "string",
+  enum: [...ACTION_STYLES],
+  description:
+    "How the action was done, only when the witness said so: sneak with walk, scared with run, forward with fall, outward with open_door, behind with look. Else null.",
+});
+
+const changeStyle = nullable({
+  type: "string",
+  enum: [...ACTION_STYLES, "none"],
+  description:
+    "A new style for the event's action, as for add_event; none removes a style the witness took back (\"he was just walking\"). Else null for no change.",
+});
+
+const verb = nullable({
+  type: "string",
+  description: `When actionApproximated is true, the witness's own verb as they said it, at most ${MAX_VERB_CHARS} characters, e.g. ducked. Else null.`,
+});
+
+const actionApproximatedDescription =
+  "true only when the witness's verb is not one of the actions and you chose the nearest action.";
+
 const eventProps = {
   actor: { type: "string", description: "Actor id from the actor list." },
   action: { type: "string", enum: [...ACTIONS] },
@@ -77,6 +99,9 @@ const eventProps = {
     description:
       "Prop id, or a prop type from the library if the prop was just added, or null.",
   }),
+  style,
+  actionApproximated: { type: "boolean", description: actionApproximatedDescription },
+  verb,
   t_start: { type: "number", description: "Seconds from incident start." },
   t_end: { type: "number", description: "Seconds from incident start." },
   t_confidence: tConfidence,
@@ -92,6 +117,9 @@ const changeProps = {
   facing: nullable({ type: "string" }),
   target: nullable({ type: "string" }),
   prop: nullable({ type: "string" }),
+  style: changeStyle,
+  actionApproximated: nullable({ type: "boolean", description: actionApproximatedDescription }),
+  verb,
   t_start: nullable({ type: "number" }),
   t_end: nullable({ type: "number" }),
 };

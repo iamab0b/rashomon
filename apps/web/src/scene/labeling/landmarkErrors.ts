@@ -11,3 +11,18 @@ export function landmarkErrors(landmarks: readonly Landmark[]): string[] {
   }
   return errors;
 }
+
+type Keyed = { key: number; landmark: Landmark };
+
+export function idErrorFor(entries: readonly Keyed[], key: number): string | null {
+  const entry = entries.find((candidate) => candidate.key === key);
+  if (!entry) return null;
+  if (entry.landmark.id.trim() === "") return "Id is required";
+  const clash = entries.some((other) => other.key !== key && other.landmark.id === entry.landmark.id);
+  return clash ? "Id is already used" : null;
+}
+
+export function labelErrorFor(entries: readonly Keyed[], key: number): string | null {
+  const entry = entries.find((candidate) => candidate.key === key);
+  return entry && entry.landmark.label.trim() === "" ? "Label is required" : null;
+}

@@ -1,8 +1,10 @@
 import { Canvas } from "@react-three/fiber";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Box3 } from "three";
-import type { SceneManifest } from "@rashomon/schema";
+import type { ThreeEvent } from "@react-three/fiber";
+import type { Landmark, SceneManifest } from "@rashomon/schema";
 import { CameraRig } from "./cameras/CameraRig";
+import { FrameObject } from "./cameras/FrameObject";
 import { PovRayLine } from "./cameras/PovRayLine";
 import { WitnessView } from "./cameras/WitnessView";
 import { CAMERA_PRESETS } from "./cameras/presets";
@@ -21,15 +23,24 @@ import { EditorLayer } from "./labeling/EditorLayer";
 import { LabelingPanel } from "./labeling/LabelingPanel";
 import { interiorFromBounds } from "./labeling/interior";
 import { useLabelingStore } from "./labeling/labelingStore";
-import { isLandmarkEditing, manifestSourceFromSearch } from "./labeling/storage";
+import { isGraphlessSearch, isLandmarkEditing, manifestSourceFromSearch } from "./labeling/storage";
+import { beginSceneLoad } from "./loaders/sceneLoad";
 import { isKnownFixture, loadManifest, loadScene, loadSceneFromManifest, type LoadedScene } from "./loaders/scene";
+import { storeDroppedScan, type LoadedScan } from "./loaders/scan";
+import { useScanAlignStore } from "./loaders/scanAlignStore";
+import { ScanDropHint } from "./loaders/ScanDropHint";
+import { ScanPanel } from "./loaders/ScanPanel";
+import { scanFailure, scanRequestFromSearch, searchWithScan, type ScanRequest } from "./loaders/scanRequest";
+import type { SceneSource } from "./loaders/sceneSource";
+import { failScan, useScanScene } from "./loaders/useScanScene";
+import { fixtureGraphSource, NO_GEOM, scenarioFromSearch, type GateScene } from "./playback/graphSource";
 import { Actors } from "./playback/Actors";
 import { Playhead } from "./playback/Playhead";
 import { Props } from "./props/Props";
 import { selectSource } from "./playback/selectSource";
 import { useGraphSource } from "./playback/useGraph";
 import { SceneErrorCard } from "./SceneErrorCard";
-import { sceneFailure, shouldSignalReady, unknownFixtureMessage } from "./sceneFailure";
+import { sceneFailure, scanSceneFailure, shouldSignalReady } from "./sceneFailure";
 import { useSceneStore } from "./store";
 import { useSceneKeys } from "./useSceneKeys";
 
@@ -58,27 +69,24 @@ function useLoadedScene(fixture: string | undefined, manifest: SceneManifest | n
 
   useEffect(() => {
     if (!fixture) return;
-    let cancelled = false;
-    setStatus("loading");
-    const source = manifest
-      ? loadSceneFromManifest(editing ? { ...manifest, landmarks: [] } : manifest)
-      : loadScene(fixture);
-    source
-      .then((result) => {
-        if (!cancelled) setLoaded(result);
-      })
-      .catch((error: unknown) => {
-        console.error("scene load failed", error);
-        if (cancelled) return;
-        const detail = error instanceof Error ? error.message : String(error);
-        setStatus("error", isKnownFixture(fixture) ? `The scene could not be loaded: ${detail}` : unknownFixtureMessage(fixture));
-      });
-    return () => {
-      cancelled = true;
-    };
+    return beginSceneLoad(
+      fixture,
+      () =>
+        manifest ? loadSceneFromManifest(editing ? { ...manifest, landmarks: [] } : manifest) : loadScene(fixture),
+      { setLoaded, setStatus },
+    );
   }, [fixture, meshKey, editing, setStatus]);
 
   return loaded;
+}
+
+function uniqueById(landmarks: readonly Landmark[]): Landmark[] {
+  const seen = new Set<string>();
+  return landmarks.filter((landmark) => {
+    if (seen.has(landmark.id)) return false;
+    seen.add(landmark.id);
+    return true;
+  });
 }
 
 function useEditorBounds(loaded: LoadedScene | null, editing: boolean): void {
@@ -95,11 +103,21 @@ function useEditorBounds(loaded: LoadedScene | null, editing: boolean): void {
   }, [loaded, editing, setInterior]);
 }
 
-function useSceneFailure(fixture: string | undefined, skip: boolean, hasGraphSource: boolean): string | null {
+function useSceneFailure(
+  fixture: string | undefined,
+  skip: boolean,
+  hasGraphSource: boolean,
+  scan: { request: ScanRequest | null; loaded: boolean },
+): string | null {
   const setStatus = useSceneStore((state) => state.setStatus);
   const failure = useMemo(
-    () => (!fixture || skip ? null : sceneFailure(fixture, window.location.search, hasGraphSource)),
-    [fixture, skip, hasGraphSource],
+    () =>
+      !fixture || skip
+        ? null
+        : scan.request
+          ? scanSceneFailure(window.location.search, scan.loaded, hasGraphSource)
+          : sceneFailure(fixture, window.location.search, hasGraphSource),
+    [fixture, skip, hasGraphSource, scan.request, scan.loaded],
   );
   useEffect(() => {
     if (failure) setStatus("error", failure);
@@ -157,27 +175,95 @@ function useDebugPreset(debug: string | undefined): void {
   }, [debug, setPreset]);
 }
 
+function useScanRequest(): [ScanRequest | null, (file: File) => void] {
+  const [request, setRequest] = useState<ScanRequest | null>(() => scanRequestFromSearch(window.location.search));
+  const latestDrop = useRef(0);
+  const drop = useCallback((file: File) => {
+    const serial = ++latestDrop.current;
+    storeDroppedScan(file)
+      .then((hash) => {
+        if (serial !== latestDrop.current) return;
+        const search = searchWithScan(window.location.search, hash);
+        window.history.replaceState(window.history.state, "", search);
+        setRequest(scanRequestFromSearch(search));
+      })
+      .catch((error: unknown) => {
+        if (serial === latestDrop.current) failScan(error);
+      });
+  }, []);
+  return [request, drop];
+}
+
+function scanLoadedScene(scan: LoadedScan | null): LoadedScene | null {
+  return scan ? { manifest: scan.manifest, model: scan.model, isPlaceholder: false } : null;
+}
+
+function useSceneSourcePublisher(loaded: LoadedScene | null, scan: LoadedScan | null): void {
+  const setSceneSource = useSceneStore((state) => state.setSceneSource);
+  useEffect(() => {
+    const source: SceneSource | null = scan
+      ? { kind: "scan", manifest: scan.manifest, model: scan.model, geom: scan.geom }
+      : loaded
+        ? { kind: "fixture", manifest: loaded.manifest, model: loaded.model, geom: NO_GEOM }
+        : null;
+    setSceneSource(source);
+  }, [loaded, scan, setSceneSource]);
+  useEffect(() => () => setSceneSource(null), [setSceneSource]);
+}
+
+function useDropZone(onFile: (file: File) => void) {
+  const [dragging, setDragging] = useState(false);
+  return {
+    dragging,
+    handlers: {
+      onDragOver: (event: DragEvent<HTMLDivElement>) => {
+        if (!event.dataTransfer.types.includes("Files")) return;
+        event.preventDefault();
+        setDragging(true);
+      },
+      onDragLeave: (event: DragEvent<HTMLDivElement>) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        setDragging(false);
+      },
+      onDrop: (event: DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        setDragging(false);
+        const file = event.dataTransfer.files[0];
+        if (file) onFile(file);
+      },
+    },
+  };
+}
+
 export function Scene({ fixture, debug, t }: SceneProps) {
   useSceneKeys();
   useDebugPreset(debug);
   useInitialTime(t, debug);
   const isRigDebug = debug === RIG_DEBUG;
   const editing = !isRigDebug && isLandmarkEditing(window.location.search);
-  const manifestSource = useMemo(() => manifestSourceFromSearch(window.location.search), []);
+  const [scanRequest, dropScan] = useScanRequest();
+  const manifestSource = useMemo(
+    () => (scanRequest ? { kind: "none" as const } : manifestSourceFromSearch(window.location.search)),
+    [scanRequest],
+  );
   const manifestError = manifestSource.kind === "error" ? manifestSource.error : null;
   const savedManifest = manifestSource.kind === "ok" ? manifestSource.manifest : null;
+  const graphless = !isRigDebug && isGraphlessSearch(window.location.search);
+  const liveScan = useMemo(() => (scanRequest ? scanFailure(window.location.search) : null), [scanRequest]);
   const editBase = useLabelingStore((state) => state.base);
-  const startManifest = useMemo(
-    () => savedManifest ?? (fixture && isKnownFixture(fixture) ? loadManifest(fixture) : null),
-    [savedManifest, fixture],
+  const fixtureManifest = useMemo(
+    () => (fixture && isKnownFixture(fixture) ? loadManifest(fixture) : null),
+    [fixture],
   );
-  const sceneManifest = editing ? (editBase ?? startManifest) : savedManifest;
-  const graphless = editing || manifestSource.kind !== "none";
-  const loaded = useLoadedScene(
-    isRigDebug || manifestError !== null ? undefined : fixture,
-    sceneManifest,
+  const fixtureSceneManifest = scanRequest ? null : editing ? (editBase ?? savedManifest ?? fixtureManifest) : savedManifest;
+  const fixtureLoaded = useLoadedScene(
+    isRigDebug || scanRequest || manifestError !== null ? undefined : fixture,
+    fixtureSceneManifest,
     editing,
   );
+  const { scan, alignAt, frameKey } = useScanScene(isRigDebug || liveScan ? null : scanRequest);
+  const loaded = useMemo(() => (scanRequest ? scanLoadedScene(scan) : fixtureLoaded), [scanRequest, scan, fixtureLoaded]);
+  const startManifest = scanRequest ? (scan?.manifest ?? null) : (savedManifest ?? fixtureManifest);
   useEffect(() => {
     if (editing && startManifest) useLabelingStore.getState().begin(startManifest);
   }, [editing, startManifest]);
@@ -185,14 +271,33 @@ export function Scene({ fixture, debug, t }: SceneProps) {
     if (manifestError !== null) useSceneStore.getState().setStatus("error", manifestError);
   }, [manifestError]);
   useEditorBounds(loaded, editing);
-  const editLandmarks = useLabelingStore((state) => state.landmarks);
-  const graphSource = useMemo(
-    () => (!isRigDebug && !graphless && fixture ? selectSource(window.location.search, fixture) : null),
-    [isRigDebug, graphless, fixture],
-  );
+  const editEntries = useLabelingStore((state) => state.entries);
+  const editLandmarks = useMemo(() => uniqueById(editEntries.map((entry) => entry.landmark)), [editEntries]);
+  const gateScene = useMemo<GateScene | null>(() => (scan ? { manifest: scan.manifest, geom: scan.geom } : null), [scan]);
+  const graphSource = useMemo(() => {
+    if (isRigDebug || !fixture || graphless) return null;
+    if (!scanRequest) return selectSource(window.location.search, fixture);
+    return gateScene && !liveScan ? fixtureGraphSource(fixture, scenarioFromSearch(window.location.search), gateScene) : null;
+  }, [isRigDebug, graphless, fixture, scanRequest, gateScene, liveScan]);
   useGraphSource(graphSource);
-  const failure = useSceneFailure(fixture, isRigDebug || graphless, graphSource !== null);
+  useSceneSourcePublisher(loaded, scan);
+  const failure = useSceneFailure(fixture, isRigDebug || graphless, graphSource !== null, { request: scanRequest, loaded: scan !== null });
   const shownLandmarks = editing ? editLandmarks : (loaded?.manifest.landmarks ?? []);
+  const aligning = useScanAlignStore((state) => state.aligning);
+  const onAlignClick = useCallback(
+    (event: ThreeEvent<MouseEvent>) => {
+      if (event.faceIndex === undefined || event.faceIndex === null) return;
+      event.stopPropagation();
+      alignAt({
+        object: event.object,
+        faceIndex: event.faceIndex,
+        point: [event.point.x, event.point.y, event.point.z],
+        direction: [event.ray.direction.x, event.ray.direction.y, event.ray.direction.z],
+      });
+    },
+    [alignAt],
+  );
+  const drop = useDropZone(dropScan);
   const hasGraph = useSceneStore((state) => state.resolved !== null);
   const actorsReady = useSceneStore((state) => state.actorsReady);
   const status = useSceneStore((state) => state.status);
@@ -202,6 +307,7 @@ export function Scene({ fixture, debug, t }: SceneProps) {
     <div
       style={{ position: "relative", width: "100%", height: "100%" }}
       data-scene-ready={status === "ready" ? "true" : status === "error" ? "error" : "false"}
+      {...(isRigDebug ? {} : drop.handlers)}
     >
       <Canvas
         shadows="percentage"
@@ -216,7 +322,8 @@ export function Scene({ fixture, debug, t }: SceneProps) {
         {isRigDebug ? <RigDebug /> : null}
         {loaded ? (
           <>
-            <primitive object={loaded.model} />
+            <primitive object={loaded.model} onClick={scan && aligning ? onAlignClick : undefined} />
+            {scan ? <FrameObject object={scan.model} frameKey={frameKey} /> : null}
             {loaded.isPlaceholder && fixture === STORE_FIXTURE && !editing && savedManifest === null ? (
               <Dressing manifest={loaded.manifest} placeholder={loaded.model} />
             ) : null}
@@ -236,6 +343,8 @@ export function Scene({ fixture, debug, t }: SceneProps) {
       {loaded ? <LabelLayer landmarks={shownLandmarks} /> : null}
       {editing ? <LabelingPanel /> : null}
       {isRigDebug ? <RigReportPanel /> : null}
+      {scan ? <ScanPanel scan={scan} /> : null}
+      {drop.dragging ? <ScanDropHint /> : null}
       <SceneErrorCard />
       <DebugOverlay />
       {import.meta.env.DEV && !isRigDebug ? <ShotButton /> : null}

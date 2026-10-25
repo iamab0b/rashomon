@@ -2,9 +2,11 @@ import { storeScene } from "@rashomon/schema/fixtures";
 import type { SceneManifest } from "@rashomon/schema";
 import { beforeEach, describe, expect, test } from "vitest";
 import { useLabelingStore } from "./labelingStore";
+import { idErrorFor, labelErrorFor } from "./landmarkErrors";
 import { seedManifest } from "./seeds";
 import {
   buildManifest,
+  isGraphlessSearch,
   isLandmarkEditing,
   manifestKey,
   manifestSourceFromSearch,
@@ -49,6 +51,7 @@ describe("manifest validation", () => {
     ["duplicate ids", { ...storeScene, landmarks: [storeScene.landmarks[0], storeScene.landmarks[0]] }],
     ["empty label", { ...storeScene, landmarks: [{ ...storeScene.landmarks[0], label: " " }] }],
     ["bad interior", { ...storeScene, interior: { min: [0, 0], max: [1, 1, 1] } }],
+    ["reversed interior", { ...storeScene, interior: { min: [9, 0, 0], max: [0, 3, 7] } }],
     ["bad portals", { ...storeScene, portals: { waypoints: [{ id: "a" }], edges: [] } }],
   ])("rejects %s", (_name, value) => {
     expect(parseManifest(value).ok).toBe(false);
@@ -69,9 +72,23 @@ describe("landmark errors", () => {
   });
 });
 
+function state() {
+  return useLabelingStore.getState();
+}
+
+function entryOf(id: string) {
+  const entry = state().entries.find((candidate) => candidate.landmark.id === id);
+  if (!entry) throw new Error(`no landmark ${id}`);
+  return entry;
+}
+
+function ids(): string[] {
+  return state().entries.map((entry) => entry.landmark.id);
+}
+
 describe("save, reload and validate", () => {
   beforeEach(() => {
-    useLabelingStore.getState().load(seedManifest());
+    state().load(seedManifest());
   });
 
   test("a saved manifest reads back identically", () => {
@@ -92,12 +109,11 @@ describe("save, reload and validate", () => {
     expect(parseManifest(manifest).ok).toBe(true);
   });
 
-  test("placing a landmark in the store and saving it survives a reload through ?manifest=local:", () => {
+  test("placing a landmark and saving it survives a reload through ?manifest=local:", () => {
     const storage = memoryStorage();
-    const store = useLabelingStore.getState();
-    store.addAt([2, 0, 3]);
-    store.setLabel(useLabelingStore.getState().selectedId!, "Ice Bin");
-    expect(useLabelingStore.getState().save(storage)).toBe(true);
+    state().addAt([2, 0, 3]);
+    state().setLabel(state().selectedKey!, "Ice Bin");
+    expect(state().save(storage)).toBe(true);
 
     const source = manifestSourceFromSearch("?manifest=local:scan_demo", storage);
 
@@ -108,10 +124,9 @@ describe("save, reload and validate", () => {
 
   test("saving is refused while an id is duplicated", () => {
     const storage = memoryStorage();
-    const state = useLabelingStore.getState();
-    state.setId("counter", "door");
+    state().setId(entryOf("counter").key, "door");
 
-    expect(useLabelingStore.getState().save(storage)).toBe(false);
+    expect(state().save(storage)).toBe(false);
     expect(storage.data.size).toBe(0);
   });
 
@@ -147,37 +162,154 @@ describe("edit mode", () => {
     expect(isLandmarkEditing("?edit=anchors")).toBe(false);
     expect(isLandmarkEditing("?edit=landmarks")).toBe(true);
   });
+
+  test("graphless views are edit mode and a saved manifest without a scan", () => {
+    expect(isGraphlessSearch("")).toBe(false);
+    expect(isGraphlessSearch("?fixture=store")).toBe(false);
+    expect(isGraphlessSearch("?edit=landmarks")).toBe(true);
+    expect(isGraphlessSearch("?manifest=local:scan_demo")).toBe(true);
+    expect(isGraphlessSearch("?scene=/a.glb&manifest=local:scan_demo")).toBe(false);
+  });
 });
 
 describe("labeling store", () => {
   beforeEach(() => {
-    useLabelingStore.getState().load(seedManifest());
+    state().load(seedManifest());
   });
 
   test("placing adds a 1 x 1 x 1 furniture box with occludes on", () => {
-    useLabelingStore.getState().addAt([4, 0, 2]);
-    const placed = useLabelingStore.getState().landmarks.at(-1)!;
+    state().addAt([4, 0, 2]);
+    const placed = state().entries.at(-1)!.landmark;
 
     expect(placed).toMatchObject({ kind: "furniture", occludes: true, position: [4, 0, 1.5] });
     expect(placed.bounds).toEqual({ min: [3.5, 0, 1.5], max: [4.5, 1, 2.5] });
-    expect(useLabelingStore.getState().selectedId).toBe(placed.id);
+    expect(state().selectedKey).toBe(state().entries.at(-1)!.key);
   });
 
   test("changing the kind resets occludes to the kind default", () => {
-    const store = useLabelingStore.getState();
-    store.setKind("counter", "zone");
-    expect(useLabelingStore.getState().landmarks.find((l) => l.id === "counter")?.occludes).toBe(false);
-    store.setKind("counter", "appliance");
-    expect(useLabelingStore.getState().landmarks.find((l) => l.id === "counter")?.occludes).toBe(true);
+    const key = entryOf("counter").key;
+    state().setKind(key, "zone");
+    expect(entryOf("counter").landmark.occludes).toBe(false);
+    state().setKind(key, "appliance");
+    expect(entryOf("counter").landmark.occludes).toBe(true);
   });
 
   test("sizing and moving rewrite position and bounds", () => {
-    const store = useLabelingStore.getState();
-    store.setSize("counter", { width: 2, height: 1.2 });
-    store.moveTo("counter", 6, 4);
-    const counter = useLabelingStore.getState().landmarks.find((l) => l.id === "counter")!;
+    const key = entryOf("counter").key;
+    state().setSize(key, { width: 2, height: 1.2 });
+    state().moveTo(key, 6, 4);
+    const counter = entryOf("counter").landmark;
 
     expect(counter.bounds).toEqual({ min: [5, 0, 2.5], max: [7, 1.2, 5.5] });
     expect(counter.position).toEqual([6, 0, 2.5]);
+  });
+
+  test("renaming one landmark to a clashing id leaves the other untouched by edits and delete", () => {
+    const counterKey = entryOf("counter").key;
+    const doorBefore = structuredClone(entryOf("door").landmark);
+    state().select(counterKey);
+    state().setId(counterKey, "door");
+
+    expect(state().selectedKey).toBe(counterKey);
+    expect(idErrorFor(state().entries, counterKey)).toBe("Id is already used");
+    expect(idErrorFor(state().entries, entryOf("shelf_a").key)).toBeNull();
+
+    state().setLabel(counterKey, "Till");
+    state().setKind(counterKey, "zone");
+    state().setSize(counterKey, { width: 3 });
+    state().moveTo(counterKey, 1, 1);
+    state().setAliases(counterKey, "a, b");
+    expect(state().entries.find((entry) => entry.landmark.id === "door" && entry.key !== counterKey)?.landmark).toEqual(doorBefore);
+
+    state().remove(counterKey);
+    expect(ids()).toEqual(["door", "shelf_a", "shelf_b", "cooler"]);
+    expect(entryOf("door").landmark).toEqual(doorBefore);
+    expect(state().selectedKey).toBeNull();
+  });
+
+  test("backspacing an auto id into a clash does not fuse the two landmarks", () => {
+    state().addAt([1, 0, 1]);
+    state().addAt([2, 0, 2]);
+    const [first, second] = state().entries.slice(-2);
+    state().setLabel(first!.key, "Shelf");
+    state().setLabel(second!.key, "Shelf");
+    expect(second!.landmark.id).not.toBe("shelf");
+    expect(state().entries.find((entry) => entry.key === second!.key)?.landmark.id).toBe("shelf_2");
+
+    state().setId(second!.key, "shelf");
+    state().setSize(second!.key, { height: 2 });
+
+    const firstAfter = state().entries.find((entry) => entry.key === first!.key)!.landmark;
+    expect(firstAfter.bounds.max[1]).toBe(1);
+    expect(state().save(memoryStorage())).toBe(false);
+  });
+
+  test("empty ids and labels are inline errors", () => {
+    const key = entryOf("door").key;
+    state().setId(key, "");
+    state().setLabel(key, "");
+
+    expect(idErrorFor(state().entries, key)).toBe("Id is required");
+    expect(labelErrorFor(state().entries, key)).toBe("Label is required");
+  });
+
+  test("clearing a label then typing a new one still regenerates an untouched id", () => {
+    state().addAt([1, 0, 1]);
+    const key = state().selectedKey!;
+    state().setLabel(key, "Cooler");
+    state().setLabel(key, "");
+    expect(state().entries.find((entry) => entry.key === key)!.landmark.id).toBe("cooler_2");
+    state().setLabel(key, "Ice Bin");
+
+    expect(state().entries.find((entry) => entry.key === key)!.landmark.id).toBe("ice_bin");
+  });
+
+  test("a hand-edited id stops following the label", () => {
+    state().addAt([1, 0, 1]);
+    const key = state().selectedKey!;
+    state().setId(key, "mine");
+    state().setLabel(key, "Fridge");
+
+    expect(state().entries.find((entry) => entry.key === key)!.landmark.id).toBe("mine");
+  });
+
+  test("loaded landmarks whose id matches their label keep following it", () => {
+    const key = entryOf("cooler").key;
+    state().setLabel(key, "Back Fridge");
+
+    expect(ids()).toContain("back_fridge");
+  });
+});
+
+describe("interior on import", () => {
+  test("importing a manifest without interior over the same mesh keeps the room bounds", () => {
+    const loaded = seedManifest();
+    state().load(loaded);
+    const measured = { min: [0, 0, 0] as [number, number, number], max: [10, 3.2, 8] as [number, number, number] };
+    state().setInterior(measured);
+    const { interior: _drop, ...withoutInterior } = seedManifest();
+
+    state().load(withoutInterior);
+
+    expect(state().toManifest()?.interior).toEqual(measured);
+  });
+
+  test("a different mesh without interior starts with none until the scene measures it", () => {
+    state().load(seedManifest());
+    const { interior: _drop, ...withoutInterior } = seedManifest();
+
+    state().load({ ...withoutInterior, meshUrl: "/other.glb" });
+
+    expect(state().toManifest()?.interior).toBeUndefined();
+  });
+
+  test("an imported interior wins over the current one", () => {
+    state().load(seedManifest());
+    state().setInterior({ min: [0, 0, 0], max: [1, 1, 1] });
+    const imported = { ...seedManifest(), interior: { min: [0, 0, 0] as [number, number, number], max: [5, 3, 5] as [number, number, number] } };
+
+    state().load(imported);
+
+    expect(state().toManifest()?.interior).toEqual(imported.interior);
   });
 });

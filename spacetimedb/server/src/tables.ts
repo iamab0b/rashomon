@@ -53,6 +53,9 @@ export const EventT = t.object("Event", {
   flags: t.array(FlagT),
   override: t.option(OverrideT),
   supersededBy: t.option(t.string()),
+  style: t.option(t.string()),
+  actionApproximated: t.option(t.bool()),
+  verb: t.option(t.string()),
 });
 
 export const PropT = t.object("PropInstance", {
@@ -173,6 +176,9 @@ const events = table(
     sources: t.array(t.string()),
     status: t.string(),
     supersededBy: t.option(t.string()),
+    style: t.option(t.string()).default(undefined),
+    actionApproximated: t.option(t.bool()).default(undefined),
+    verb: t.option(t.string()).default(undefined),
   },
 );
 
@@ -254,6 +260,16 @@ export const extractionQueue = table(
   },
 );
 
+const askedFlags = table(
+  { name: "asked_flags" },
+  {
+    rowKey: t.string().primaryKey(),
+    sessionId: t.string().index(),
+    flagId: t.string(),
+    askedAt: t.timestamp(),
+  },
+);
+
 export const ExtractionT = t.object("Extraction", {
   segmentId: t.string(),
   patchCount: t.u32(),
@@ -273,6 +289,7 @@ export const spacetimedb = schema({
   flags,
   overrides,
   extractionQueue,
+  askedFlags,
 }, {
   env: { ANTHROPIC_API_KEY: t.string(), CARTESIA_WEBHOOK_SECRET: t.string(), EDITOR_IDENTITIES: t.string() },
 });

@@ -68,7 +68,16 @@ export type Action =
   | "throw"
   | "open_door"
   | "look"
-  | "speak";
+  | "speak"
+  | "hands_up"
+  | "point"
+  | "reach"
+  | "kneel"
+  | "stumble"
+  | "jump"
+  | "phone"
+  | "drink"
+  | "dodge";
 
 export const ACTIONS: readonly Action[] = [
   "stand",
@@ -84,7 +93,36 @@ export const ACTIONS: readonly Action[] = [
   "open_door",
   "look",
   "speak",
+  "hands_up",
+  "point",
+  "reach",
+  "kneel",
+  "stumble",
+  "jump",
+  "phone",
+  "drink",
+  "dodge",
 ];
+
+export type ActionStyle = "sneak" | "scared" | "forward" | "outward" | "behind";
+
+export const STYLE_ACTION: Readonly<Record<ActionStyle, Action>> = {
+  sneak: "walk",
+  scared: "run",
+  forward: "fall",
+  outward: "open_door",
+  behind: "look",
+};
+
+export const ACTION_STYLES: readonly ActionStyle[] = [
+  "sneak",
+  "scared",
+  "forward",
+  "outward",
+  "behind",
+];
+
+export const MAX_VERB_CHARS = 40;
 
 export type Status =
   | "proposed"
@@ -128,6 +166,9 @@ export type Event = {
   facing?: string;
   target?: string;
   prop?: string;
+  style?: ActionStyle;
+  actionApproximated?: boolean;
+  verb?: string;
   t: [number, number];
   tConfidence: "stated" | "inferred";
   confidence: number;

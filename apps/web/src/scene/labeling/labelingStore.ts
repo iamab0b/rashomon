@@ -1,68 +1,103 @@
 import type { Interior, Landmark, SceneManifest } from "@rashomon/schema";
 import { create } from "zustand";
 import { boxFromClick, boxOfLandmark, moveBox, resizeBox, withBox, type BoxSize } from "./boxes";
-import { idForLabel, nextIdForLabel, parseAliases } from "./ids";
+import { idForLabel, parseAliases } from "./ids";
 import { DEFAULT_KIND, defaultOccludes, type LandmarkKind } from "./kinds";
 import { landmarkErrors } from "./landmarkErrors";
 import { buildManifest, saveManifest, type ManifestStorage } from "./storage";
 
+export type LandmarkEntry = {
+  key: number;
+  idAuto: boolean;
+  landmark: Landmark;
+};
+
 export type LabelingState = {
   base: SceneManifest | null;
   interior: Interior | undefined;
-  landmarks: Landmark[];
-  selectedId: string | null;
+  entries: LandmarkEntry[];
+  nextKey: number;
+  selectedKey: number | null;
   message: string | null;
   begin: (manifest: SceneManifest) => void;
   load: (manifest: SceneManifest) => void;
   setInterior: (interior: Interior | undefined) => void;
   addAt: (point: readonly [number, number, number]) => void;
-  select: (id: string | null) => void;
-  setLabel: (id: string, label: string) => void;
-  setId: (id: string, nextId: string) => void;
-  setAliases: (id: string, text: string) => void;
-  setKind: (id: string, kind: LandmarkKind) => void;
-  setOccludes: (id: string, occludes: boolean) => void;
-  setSize: (id: string, size: Partial<BoxSize>) => void;
-  moveTo: (id: string, cx: number, cz: number) => void;
-  remove: (id: string) => void;
+  select: (key: number | null) => void;
+  setLabel: (key: number, label: string) => void;
+  setId: (key: number, id: string) => void;
+  setAliases: (key: number, text: string) => void;
+  setKind: (key: number, kind: LandmarkKind) => void;
+  setOccludes: (key: number, occludes: boolean) => void;
+  setSize: (key: number, size: Partial<BoxSize>) => void;
+  moveTo: (key: number, cx: number, cz: number) => void;
+  remove: (key: number) => void;
   setMessage: (message: string | null) => void;
+  landmarks: () => Landmark[];
   toManifest: () => SceneManifest | null;
   save: (storage?: ManifestStorage | null) => boolean;
 };
 
-function patchLandmark(landmarks: Landmark[], id: string, change: (landmark: Landmark) => Landmark): Landmark[] {
-  return landmarks.map((landmark) => (landmark.id === id ? change(landmark) : landmark));
+function patchEntry(entries: LandmarkEntry[], key: number, change: (entry: LandmarkEntry) => LandmarkEntry): LandmarkEntry[] {
+  return entries.map((entry) => (entry.key === key ? change(entry) : entry));
 }
 
-function nextNumber(landmarks: readonly Landmark[]): number {
-  let n = landmarks.length + 1;
-  while (landmarks.some((landmark) => landmark.id === `landmark_${n}`)) n += 1;
+function patchLandmark(entries: LandmarkEntry[], key: number, change: (landmark: Landmark) => Landmark): LandmarkEntry[] {
+  return patchEntry(entries, key, (entry) => ({ ...entry, landmark: change(entry.landmark) }));
+}
+
+function entriesOf(landmarks: readonly Landmark[], firstKey: number): LandmarkEntry[] {
+  return landmarks.map((source, index) => {
+    const landmark = structuredClone(source);
+    const others = landmarks.filter((_, other) => other !== index).map((other) => other.id);
+    return { key: firstKey + index, idAuto: landmark.id === idForLabel(landmark.label, others), landmark };
+  });
+}
+
+function nextNumber(entries: readonly LandmarkEntry[]): number {
+  let n = entries.length + 1;
+  while (entries.some((entry) => entry.landmark.id === `landmark_${n}`)) n += 1;
   return n;
+}
+
+function sameMesh(a: SceneManifest | null, b: SceneManifest): boolean {
+  return a !== null && a.sceneId === b.sceneId && a.meshUrl === b.meshUrl;
 }
 
 export const useLabelingStore = create<LabelingState>((set, get) => ({
   base: null,
   interior: undefined,
-  landmarks: [],
-  selectedId: null,
+  entries: [],
+  nextKey: 1,
+  selectedKey: null,
   message: null,
   begin: (manifest) =>
-    set((state) => (state.base ? state : { base: manifest, interior: manifest.interior, landmarks: structuredClone(manifest.landmarks) })),
+    set((state) =>
+      state.base
+        ? state
+        : {
+            base: manifest,
+            interior: manifest.interior,
+            entries: entriesOf(manifest.landmarks, state.nextKey),
+            nextKey: state.nextKey + manifest.landmarks.length,
+          },
+    ),
   load: (manifest) =>
-    set({
+    set((state) => ({
       base: manifest,
-      interior: manifest.interior,
-      landmarks: structuredClone(manifest.landmarks),
-      selectedId: null,
+      interior: manifest.interior ?? (sameMesh(state.base, manifest) ? state.interior : undefined),
+      entries: entriesOf(manifest.landmarks, state.nextKey),
+      nextKey: state.nextKey + manifest.landmarks.length,
+      selectedKey: null,
       message: null,
-    }),
+    })),
   setInterior: (interior) => set({ interior }),
   addAt: (point) =>
     set((state) => {
-      const n = nextNumber(state.landmarks);
+      const n = nextNumber(state.entries);
       const label = `Landmark ${n}`;
-      const base: Landmark = {
-        id: idForLabel(label, state.landmarks.map((landmark) => landmark.id)),
+      const blank: Landmark = {
+        id: idForLabel(label, state.entries.map((entry) => entry.landmark.id)),
         label,
         aliases: [],
         position: [0, 0, 0],
@@ -70,51 +105,52 @@ export const useLabelingStore = create<LabelingState>((set, get) => ({
         kind: DEFAULT_KIND,
         occludes: defaultOccludes(DEFAULT_KIND),
       };
-      const landmark = withBox(base, boxFromClick(point));
-      return { landmarks: [...state.landmarks, landmark], selectedId: landmark.id, message: null };
+      const entry: LandmarkEntry = { key: state.nextKey, idAuto: true, landmark: withBox(blank, boxFromClick(point)) };
+      return { entries: [...state.entries, entry], nextKey: state.nextKey + 1, selectedKey: entry.key, message: null };
     }),
-  select: (selectedId) => set({ selectedId }),
-  setLabel: (id, label) =>
+  select: (selectedKey) => set({ selectedKey }),
+  setLabel: (key, label) =>
     set((state) => {
-      const target = state.landmarks.find((landmark) => landmark.id === id);
-      if (!target) return state;
-      const taken = state.landmarks.filter((landmark) => landmark.id !== id).map((landmark) => landmark.id);
-      const nextId = nextIdForLabel(id, target.label, label, taken);
+      const taken = state.entries.filter((entry) => entry.key !== key).map((entry) => entry.landmark.id);
       return {
-        landmarks: patchLandmark(state.landmarks, id, (landmark) => ({ ...landmark, id: nextId, label })),
-        selectedId: state.selectedId === id ? nextId : state.selectedId,
+        entries: patchEntry(state.entries, key, (entry) => ({
+          ...entry,
+          landmark: {
+            ...entry.landmark,
+            label,
+            id: entry.idAuto && label.trim() !== "" ? idForLabel(label, taken) : entry.landmark.id,
+          },
+        })),
       };
     }),
-  setId: (id, nextId) =>
+  setId: (key, id) =>
+    set((state) => ({ entries: patchEntry(state.entries, key, (entry) => ({ ...entry, idAuto: false, landmark: { ...entry.landmark, id } })) })),
+  setAliases: (key, text) =>
+    set((state) => ({ entries: patchLandmark(state.entries, key, (landmark) => ({ ...landmark, aliases: parseAliases(text) })) })),
+  setKind: (key, kind) =>
     set((state) => ({
-      landmarks: patchLandmark(state.landmarks, id, (landmark) => ({ ...landmark, id: nextId })),
-      selectedId: state.selectedId === id ? nextId : state.selectedId,
+      entries: patchLandmark(state.entries, key, (landmark) => ({ ...landmark, kind, occludes: defaultOccludes(kind) })),
     })),
-  setAliases: (id, text) =>
-    set((state) => ({ landmarks: patchLandmark(state.landmarks, id, (landmark) => ({ ...landmark, aliases: parseAliases(text) })) })),
-  setKind: (id, kind) =>
+  setOccludes: (key, occludes) =>
+    set((state) => ({ entries: patchLandmark(state.entries, key, (landmark) => ({ ...landmark, occludes })) })),
+  setSize: (key, size) =>
     set((state) => ({
-      landmarks: patchLandmark(state.landmarks, id, (landmark) => ({ ...landmark, kind, occludes: defaultOccludes(kind) })),
+      entries: patchLandmark(state.entries, key, (landmark) => withBox(landmark, resizeBox(boxOfLandmark(landmark), size))),
     })),
-  setOccludes: (id, occludes) =>
-    set((state) => ({ landmarks: patchLandmark(state.landmarks, id, (landmark) => ({ ...landmark, occludes })) })),
-  setSize: (id, size) =>
+  moveTo: (key, cx, cz) =>
     set((state) => ({
-      landmarks: patchLandmark(state.landmarks, id, (landmark) => withBox(landmark, resizeBox(boxOfLandmark(landmark), size))),
+      entries: patchLandmark(state.entries, key, (landmark) => withBox(landmark, moveBox(boxOfLandmark(landmark), cx, cz))),
     })),
-  moveTo: (id, cx, cz) =>
+  remove: (key) =>
     set((state) => ({
-      landmarks: patchLandmark(state.landmarks, id, (landmark) => withBox(landmark, moveBox(boxOfLandmark(landmark), cx, cz))),
-    })),
-  remove: (id) =>
-    set((state) => ({
-      landmarks: state.landmarks.filter((landmark) => landmark.id !== id),
-      selectedId: state.selectedId === id ? null : state.selectedId,
+      entries: state.entries.filter((entry) => entry.key !== key),
+      selectedKey: state.selectedKey === key ? null : state.selectedKey,
     })),
   setMessage: (message) => set({ message }),
+  landmarks: () => get().entries.map((entry) => entry.landmark),
   toManifest: () => {
-    const { base, landmarks, interior } = get();
-    return base ? buildManifest(base, landmarks, interior) : null;
+    const { base, interior } = get();
+    return base ? buildManifest(base, get().landmarks(), interior) : null;
   },
   save: (storage) => {
     const manifest = get().toManifest();

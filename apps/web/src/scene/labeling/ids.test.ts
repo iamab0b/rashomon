@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { idForLabel, nextIdForLabel, parseAliases, slugify, uniqueId } from "./ids";
+import { idForLabel, parseAliases, slugify, uniqueId } from "./ids";
 
 describe("ids", () => {
   test("slugify lowercases, strips apostrophes and joins words with underscores", () => {
@@ -19,19 +19,6 @@ describe("ids", () => {
 
   test("idForLabel slugifies then dedupes", () => {
     expect(idForLabel("Shelf", ["shelf"])).toBe("shelf_2");
-  });
-
-  test("an id derived from the old label follows label edits", () => {
-    expect(nextIdForLabel("landmark_1", "Landmark 1", "Cooler", ["door"])).toBe("cooler");
-  });
-
-  test("a hand-edited id is left alone and an empty label keeps the id", () => {
-    expect(nextIdForLabel("my_id", "Cooler", "Fridge", [])).toBe("my_id");
-    expect(nextIdForLabel("cooler", "Cooler", "  ", [])).toBe("cooler");
-  });
-
-  test("a renamed label avoids ids already taken", () => {
-    expect(nextIdForLabel("landmark_1", "Landmark 1", "Door", ["door"])).toBe("door_2");
   });
 
   test("aliases split on commas and drop blanks", () => {

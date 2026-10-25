@@ -2,7 +2,7 @@ import { useRef, type CSSProperties } from "react";
 import { boxOfLandmark } from "./boxes";
 import { useLabelingStore } from "./labelingStore";
 import { LANDMARK_KINDS, type LandmarkKind } from "./kinds";
-import { landmarkErrors } from "./landmarkErrors";
+import { idErrorFor, labelErrorFor, landmarkErrors } from "./landmarkErrors";
 import { seedManifest } from "./seeds";
 import { parseManifestText } from "./validate";
 
@@ -57,8 +57,12 @@ function NumberField({ label, value, onChange }: { label: string; value: number;
 export function LabelingPanel() {
   const store = useLabelingStore();
   const fileInput = useRef<HTMLInputElement>(null);
-  const selected = store.landmarks.find((landmark) => landmark.id === store.selectedId) ?? null;
-  const errors = landmarkErrors(store.landmarks);
+  const selectedEntry = store.entries.find((entry) => entry.key === store.selectedKey) ?? null;
+  const selected = selectedEntry?.landmark ?? null;
+  const key = selectedEntry?.key ?? 0;
+  const errors = landmarkErrors(store.landmarks());
+  const idError = idErrorFor(store.entries, key);
+  const labelError = labelErrorFor(store.entries, key);
 
   const importFile = async (file: File) => {
     const result = parseManifestText(await file.text());
@@ -111,13 +115,13 @@ export function LabelingPanel() {
       ))}
 
       <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 4 }}>
-        {store.landmarks.map((landmark, index) => (
+        {store.entries.map((entry) => (
           <button
-            key={index}
-            onClick={() => store.select(landmark.id)}
-            style={{ fontWeight: landmark.id === store.selectedId ? 700 : 400 }}
+            key={entry.key}
+            onClick={() => store.select(entry.key)}
+            style={{ fontWeight: entry.key === store.selectedKey ? 700 : 400 }}
           >
-            {landmark.label || landmark.id || "(unnamed)"}
+            {entry.landmark.label || entry.landmark.id || "(unnamed)"}
           </button>
         ))}
       </div>
@@ -126,19 +130,21 @@ export function LabelingPanel() {
         <div>
           <label style={rowStyle}>
             Label
-            <input value={selected.label} style={fieldStyle} onChange={(event) => store.setLabel(selected.id, event.currentTarget.value)} />
+            <input value={selected.label} style={fieldStyle} onChange={(event) => store.setLabel(key, event.currentTarget.value)} />
+            {labelError ? <span role="alert" style={{ color: "#ff6b5e" }}>{labelError}</span> : null}
           </label>
           <label style={rowStyle}>
             Id
-            <input value={selected.id} style={fieldStyle} onChange={(event) => store.setId(selected.id, event.currentTarget.value)} />
+            <input value={selected.id} style={fieldStyle} onChange={(event) => store.setId(key, event.currentTarget.value)} />
+            {idError ? <span role="alert" style={{ color: "#ff6b5e" }}>{idError}</span> : null}
           </label>
           <label style={rowStyle}>
             Aliases (comma-separated)
             <input
-              key={selected.id}
+              key={key}
               defaultValue={selected.aliases.join(", ")}
               style={fieldStyle}
-              onChange={(event) => store.setAliases(selected.id, event.currentTarget.value)}
+              onChange={(event) => store.setAliases(key, event.currentTarget.value)}
             />
           </label>
           <label style={rowStyle}>
@@ -146,7 +152,7 @@ export function LabelingPanel() {
             <select
               value={selected.kind}
               style={fieldStyle}
-              onChange={(event) => store.setKind(selected.id, event.currentTarget.value as LandmarkKind)}
+              onChange={(event) => store.setKind(key, event.currentTarget.value as LandmarkKind)}
             >
               {LANDMARK_KINDS.map((kind) => (
                 <option key={kind} value={kind}>
@@ -156,16 +162,16 @@ export function LabelingPanel() {
             </select>
           </label>
           <label style={{ ...rowStyle, flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <input type="checkbox" checked={selected.occludes} onChange={(event) => store.setOccludes(selected.id, event.currentTarget.checked)} />
+            <input type="checkbox" checked={selected.occludes} onChange={(event) => store.setOccludes(key, event.currentTarget.checked)} />
             Occludes sightlines
           </label>
           <div style={inlineStyle}>
-            <NumberField label="Width (x)" value={boxOfLandmark(selected).width} onChange={(width) => store.setSize(selected.id, { width })} />
-            <NumberField label="Depth (z)" value={boxOfLandmark(selected).depth} onChange={(depth) => store.setSize(selected.id, { depth })} />
-            <NumberField label="Height (y)" value={boxOfLandmark(selected).height} onChange={(height) => store.setSize(selected.id, { height })} />
+            <NumberField label="Width (x)" value={boxOfLandmark(selected).width} onChange={(width) => store.setSize(key, { width })} />
+            <NumberField label="Depth (z)" value={boxOfLandmark(selected).depth} onChange={(depth) => store.setSize(key, { depth })} />
+            <NumberField label="Height (y)" value={boxOfLandmark(selected).height} onChange={(height) => store.setSize(key, { height })} />
           </div>
           <div style={inlineStyle}>
-            <button onClick={() => store.remove(selected.id)}>Delete</button>
+            <button onClick={() => store.remove(key)}>Delete</button>
           </div>
         </div>
       ) : null}

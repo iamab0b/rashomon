@@ -75,6 +75,9 @@ export function manifestError(value: unknown): string | null {
   if (value.interior !== undefined) {
     const interior = value.interior;
     if (!isRecord(interior) || !isVec3(interior.min) || !isVec3(interior.max)) return "interior needs min and max";
+    for (let axis = 0; axis < 3; axis += 1) {
+      if ((interior.min as Vec3)[axis]! > (interior.max as Vec3)[axis]!) return "interior min exceeds max";
+    }
   }
   if (value.portals !== undefined) return portalsError(value.portals);
   return null;

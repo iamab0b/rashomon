@@ -1,6 +1,6 @@
 import { SenderError } from "spacetimedb/server";
-import { ACTIONS } from "@rashomon/schema";
-import type { Anchor, Event, EventGraph, Flag, Override, PropInstance, Status } from "@rashomon/schema";
+import { ACTIONS, ACTION_STYLES, MAX_VERB_CHARS, STYLE_ACTION } from "@rashomon/schema";
+import type { ActionStyle, Anchor, Event, EventGraph, Flag, Override, PropInstance, Status } from "@rashomon/schema";
 
 export const SPEAKERS = ["witness", "interviewer", "agent"] as const;
 export const SEGMENT_SOURCES = ["live", "copilot", "upload_audio", "upload_text"] as const;
@@ -168,7 +168,30 @@ export type EventFields = {
   confidence: number;
   sources: string[];
   supersededBy: string | undefined;
+  style: ActionStyle | undefined;
+  actionApproximated: boolean | undefined;
+  verb: string | undefined;
 };
+
+export function optionalBoolean(value: unknown, what: string): boolean | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "boolean") return fail(`${what} must be true or false`);
+  return value;
+}
+
+export function optionalVerb(value: unknown, what: string): string | undefined {
+  const verb = optionalString(value, what);
+  if (verb !== undefined && verb.length > MAX_VERB_CHARS) return fail(`${what} must be at most ${MAX_VERB_CHARS} characters`);
+  return verb;
+}
+
+export function optionalStyle(value: unknown, what: string): ActionStyle | undefined {
+  return value === undefined ? undefined : oneOf(value, ACTION_STYLES, what);
+}
+
+export function styleFits(style: string | undefined, action: string): boolean {
+  return style === undefined || STYLE_ACTION[style as ActionStyle] === action;
+}
 
 const optionalAnchorRow = (value: unknown, what: string): AnchorRow | undefined =>
   value === undefined ? undefined : toAnchorRow(anchorFrom(value, what));
@@ -192,7 +215,14 @@ export function eventFieldsFrom(value: unknown): EventFields {
     confidence: confidenceOf(value.confidence, "event.confidence"),
     sources: sourcesOf(value.sources, "event"),
     supersededBy: optionalString(value.supersededBy, "event.supersededBy"),
+    style: optionalStyle(value.style, "event.style"),
+    actionApproximated: optionalBoolean(value.actionApproximated, "event.actionApproximated"),
+    verb: optionalVerb(value.verb, "event.verb"),
   };
+}
+
+export function checkStyleFits(style: string | undefined, action: string, what: string): void {
+  if (!styleFits(style, action)) fail(`${what} ${style} goes with ${STYLE_ACTION[style as ActionStyle]}, not ${action}`);
 }
 
 const EVENT_CHANGE_KEYS = new Set([
@@ -208,7 +238,12 @@ const EVENT_CHANGE_KEYS = new Set([
   "t",
   "tConfidence",
   "confidence",
+  "style",
+  "actionApproximated",
+  "verb",
 ]);
+
+export const OVERRIDE_SAFE_CHANGE_KEYS: ReadonlySet<string> = new Set(["t", "style", "actionApproximated", "verb"]);
 
 export function eventChangesFrom(changes: unknown): { keys: string[]; fields: Partial<EventFields> } {
   if (!isRecord(changes)) return fail("update_event.changes must be an object");
@@ -229,6 +264,11 @@ export function eventChangesFrom(changes: unknown): { keys: string[]; fields: Pa
   if ("tConfidence" in changes)
     fields.tConfidence = oneOf(changes.tConfidence, ["stated", "inferred"] as const, "changes.tConfidence");
   if ("confidence" in changes) fields.confidence = confidenceOf(changes.confidence, "changes.confidence");
+  if ("style" in changes) fields.style = changes.style === null ? undefined : optionalStyle(changes.style, "changes.style");
+  if ("actionApproximated" in changes)
+    fields.actionApproximated =
+      changes.actionApproximated === null ? undefined : optionalBoolean(changes.actionApproximated, "changes.actionApproximated");
+  if ("verb" in changes) fields.verb = changes.verb === null ? undefined : optionalVerb(changes.verb, "changes.verb");
   return { keys, fields };
 }
 
@@ -338,6 +378,9 @@ export type GraphRow = {
     flags: FlagRowInput[];
     override: { by: string; reason: string; at: number; flagIds: string[] } | undefined;
     supersededBy: string | undefined;
+    style: string | undefined;
+    actionApproximated: boolean | undefined;
+    verb: string | undefined;
   }[];
   props: {
     id: string;
@@ -383,6 +426,9 @@ export function eventGraphFromRow(row: GraphRow): EventGraph {
         flags: e.flags.map(flagFromRow),
         ...(override ? { override } : {}),
         ...(e.supersededBy !== undefined ? { supersededBy: e.supersededBy } : {}),
+        ...(e.style !== undefined ? { style: e.style as ActionStyle } : {}),
+        ...(e.actionApproximated !== undefined ? { actionApproximated: e.actionApproximated } : {}),
+        ...(e.verb !== undefined ? { verb: e.verb } : {}),
       };
     }),
     props: row.props.map(

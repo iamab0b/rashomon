@@ -68,6 +68,9 @@ export const Event = __t.object("Event", {
     return __t.option(OverrideRecord);
   },
   supersededBy: __t.option(__t.string()),
+  style: __t.option(__t.string()),
+  actionApproximated: __t.option(__t.bool()),
+  verb: __t.option(__t.string()),
 });
 export type Event = __Infer<typeof Event>;
 
@@ -116,6 +119,9 @@ export const Events = __t.object("Events", {
   sources: __t.array(__t.string()),
   status: __t.string(),
   supersededBy: __t.option(__t.string()),
+  style: __t.option(__t.string()),
+  actionApproximated: __t.option(__t.bool()),
+  verb: __t.option(__t.string()),
 });
 export type Events = __Infer<typeof Events>;
 

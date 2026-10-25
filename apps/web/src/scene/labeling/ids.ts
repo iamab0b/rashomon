@@ -21,13 +21,6 @@ export function idForLabel(label: string, taken: Iterable<string>): string {
   return uniqueId(slugify(label), taken);
 }
 
-export function nextIdForLabel(currentId: string, oldLabel: string, newLabel: string, taken: Iterable<string>): string {
-  if (newLabel.trim() === "") return currentId;
-  const others = [...taken];
-  if (currentId !== idForLabel(oldLabel, others)) return currentId;
-  return idForLabel(newLabel, others);
-}
-
 export function parseAliases(text: string): string[] {
   return text
     .split(",")

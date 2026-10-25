@@ -34,6 +34,8 @@ export type Block = {
   label: string;
   lane: number;
   witnessId?: string;
+  actionApproximated?: boolean;
+  verb?: string;
 };
 
 export type Row = { id: string; label: string; blocks: Block[]; hidden: number; lanes: number };
@@ -46,6 +48,7 @@ const PROP_COLOR = "#8a94a6";
 const QUIET_STROKE = "#4a5568";
 const ACTOR_STROKE_OPACITY = 0.55;
 const ACTIVE_STROKE_OPACITY = 0.9;
+export const APPROXIMATED_DASH = "2 3";
 
 export function actorColor(actorId: string, role: string, index: number): string {
   return PALETTE[role] ?? PALETTE[actorId] ?? FALLBACK[index % FALLBACK.length] ?? PROP_COLOR;
@@ -109,6 +112,8 @@ export function buildRows(resolved: ResolvedGraph | null, statuses: StatusMap): 
           color,
           label: event.id,
           witnessId: event.witnessId,
+          ...(event.actionApproximated ? { actionApproximated: true } : {}),
+          ...(event.actionApproximated && event.verb ? { verb: event.verb } : {}),
         })),
       ),
     };
@@ -167,6 +172,16 @@ export function strokeFor(
   status?: Status,
   color: string = QUIET_STROKE,
   playing = false,
+  approximated = false,
+): { dash?: string; stroke: string; opacity: number } {
+  const stroke = statusStroke(status, color, playing);
+  return approximated ? { ...stroke, dash: APPROXIMATED_DASH } : stroke;
+}
+
+function statusStroke(
+  status: Status | undefined,
+  color: string,
+  playing: boolean,
 ): { dash?: string; stroke: string; opacity: number } {
   if (status === undefined) return { stroke: PROP_COLOR, opacity: 1 };
   if (status === "proposed") return { dash: "5 3", stroke: "#ffffff", opacity: 0.4 };

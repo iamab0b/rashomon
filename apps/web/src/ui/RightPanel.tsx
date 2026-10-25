@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ComponentType, type CSSProperties, type ReactNode } from "react";
 import {
+  isGraphlessSearch,
   useGraph,
   useGraphActions,
   useGraphErrors,
@@ -13,6 +14,7 @@ import { EventsTab } from "./EventsTab";
 import { FlagsTab, openFlagCount } from "./FlagsTab";
 import { ContextDrawer, type ContextView } from "./ContextDrawer";
 import { OverrideDialog } from "./OverrideDialog";
+import { loadingCopy } from "./loadingCopy";
 import { eventDisplay, type PendingOverrides } from "./overridePending";
 import { anchorsFor, eventPlace } from "./places";
 import { playbackActiveIds } from "./playback";
@@ -123,7 +125,7 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
             </div>
           ) : (
             <div className="flags-empty">
-              <p>Loading the reconstruction…</p>
+              <p>{loadingCopy(isGraphlessSearch(window.location.search))}</p>
             </div>
           )}
         </div>
