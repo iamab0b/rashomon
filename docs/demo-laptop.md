@@ -92,7 +92,7 @@ If the browser's site data is cleared, the identity changes. Repeat these steps 
 
 ## 6. Publish (Sahil only, in his own terminal)
 
-ANTHROPIC_API_KEY, CARTESIA_WEBHOOK_SECRET and EDITOR_IDENTITIES are stored on Maincloud, so a code publish leaves them off the command line. The first publish of a module that declares a new env value has to carry it. The generated-motion module (B3) declares UTHANA_API_KEY and UTHANA_CHARACTER_ID, so the freeze publish is:
+ANTHROPIC_API_KEY, CARTESIA_WEBHOOK_SECRET and EDITOR_IDENTITIES are stored on Maincloud, so a code publish leaves them off the command line. The first publish of a module that declares a new env value has to carry it. Once the generated-motion module (B3) is merged, it declares UTHANA_API_KEY and UTHANA_CHARACTER_ID, so the first publish that includes it is:
 
 ```
 cd spacetimedb/server
@@ -122,8 +122,8 @@ EDITOR_IDENTITIES=… spacetime publish rashomon --server maincloud --env-only -
 | `CARTESIA_WEBHOOK_SECRET` | module (webhook), at publish; Cartesia dashboard header | always |
 | `EDITOR_IDENTITIES` | module, at publish | always |
 | `CARTESIA_API_KEY` | apps/agent setup script (Eric) | agent setup only |
-| `UTHANA_API_KEY` | module (generated motion; stored on Maincloud); dev server proxy `/__uthana` | always (the module declares it) |
-| `UTHANA_CHARACTER_ID` | module (stored on Maincloud) and dev server (the uploaded Y Bot's id; not secret, kept out of the repo) | always (the module declares it) |
+| `UTHANA_API_KEY` | module (generated motion; stored on Maincloud); dev server proxy `/__uthana` | once the generated-motion module (B3) is merged |
+| `UTHANA_CHARACTER_ID` | module (stored on Maincloud) and dev server (the uploaded Y Bot's id; not secret, kept out of the repo) | once the generated-motion module (B3) is merged |
 
 To upload the Y Bot to Uthana once, from your own terminal, after `read -rs UTHANA_API_KEY && export UTHANA_API_KEY`: use the multipart `create_character` request from uthana.com/docs/api/capabilities/auto-rig-and-add-character with apps/web/public/characters/ybot.fbx, then `export UTHANA_CHARACTER_ID=<returned id>`. Re-uploading the same file returns the same id. The Y Bot is uploaded with its own skeleton, so Uthana doesn't re-rig it. The text-to-motion model id is `text-to-motion-bucmd`; the API rejects `text-to-motion-2.0`.
 

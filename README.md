@@ -14,13 +14,13 @@ What works on `main` today (commit 2f57be9):
 - Plausibility gate (`packages/engine`) with four checks:
   - sightline (hard): rays from the observer's eye (1.6 m) to the target's chest (1.2 m) and head (1.6 m); blocked only if both rays hit an occluder;
   - reachability (hard): a route search over portal waypoints around the shelves, counter and cooler. A scene with no portals gets a walkable graph generated from its landmarks: a 0.25 m occupancy grid with furniture and appliances grown by a 0.25 m body radius, A* between landmarks, and the paths string-pulled into waypoints;
-  - time-distance (hard): over 2 m/s for a walk, 6 m/s for a run or 8 m/s for any movement;
+  - time-distance: over 2 m/s for a walk or 6 m/s for a run along its own path, or 8 m/s for any movement, including between events; hard on stated times, soft when a time was estimated (#50);
   - contradiction (soft): the same actor more than 2 m apart in two statements whose times overlap, within one witness or across witnesses.
 
   Two more soft checks catch events with no anchor and events with no stated time.
 - Statuses come from the gate, not from the UI: `plausible`, `proposed`, `implausible`, `overridden` and `superseded`. The gate derives `overridden` (a hard flag plus a reason of at least 10 characters) and `superseded` (a retracted event) from the data itself.
 - Every flag carries its measurements (blocker, distance, speed) and a templated, neutral follow-up question.
-- Extraction (`packages/extractor`): Claude Sonnet 5.5 with seven strict tools turns one witness statement into patches. A validator rejects unknown landmarks, actors and props, bad intervals, empty sources and styles that do not fit their action. Confidence is low, medium or high in the tool and maps to 0.3, 0.6 or 0.9 in code.
+- Extraction (`packages/extractor`): Claude Sonnet 5.5 with seven tools (five of them strict) turns one witness statement into patches. A validator rejects unknown landmarks, actors and props, bad intervals, empty sources and styles that do not fit their action. Confidence is low, medium or high in the tool and maps to 0.3, 0.6 or 0.9 in code.
 - Action vocabulary: 22 actions, nine of them added in #40 (`hands_up`, `point`, `reach`, `kneel`, `stumble`, `jump`, `phone`, `drink`, `dodge`), and five styles that pick a variant clip (`sneak` walk, `scared` run, `forward` fall, `outward` door, `behind` look). A verb outside the vocabulary maps to the nearest action with `actionApproximated` set and the witness's own word kept in `verb`. The timeline draws those blocks with a dashed outline. Mapping table: `docs/clip-action-map.md`.
 - 3D scene (`apps/web/src/scene`):
   - React Three Fiber, with Mixamo Y Bot and X Bot rigs and clips loaded by `FBXLoader` and root motion stripped at load. Clips for the new actions are optional and fall back to a listed clip when the file is missing;
@@ -158,7 +158,7 @@ The interviewer is a Cartesia Managed Agent, configured by `apps/agent/src/setup
 - Three webhook tools. `record_statement` sends the witness's last turn verbatim. `get_scene_context` returns landmark names, the last five events and the next unasked question. `end_interview` closes the record. Session and witness ids are constant values the model never sees or chooses.
 - The webhook secret is stored as a Cartesia secret header value, which is write-only. The script redacts the API key and the secret from any error it prints.
 - The landmark labels are loaded as speech-recognition keyterms, and the agent has Cartesia's `end_call` system tool.
-- The model is `CARTESIA_AGENT_MODEL`, or else the first model in Cartesia's catalog whose provider or id matches "anthropic" or "claude" (setup fails if there is none). The voice is `CARTESIA_VOICE_ID` if set, or else Cartesia's default for the agent. `apps/agent/src/config.ts` names no speech-to-text or speech model, so we state none.
+- The model is `CARTESIA_AGENT_MODEL`, or else the first model in Cartesia's catalog whose provider or id matches "anthropic" or "claude" (setup fails if there is none). The voice is `CARTESIA_VOICE_ID` if set, or else Cartesia's default for the agent. Setup sets no speech-to-text or speech model, so the agent uses Cartesia's defaults.
 - The instructions (`apps/agent/src/instructions.ts`) follow cognitive-interview order: free narrative first, then landmarks, then times, then sightlines. They forbid suggesting details and forbid words that judge the witness, such as "implausible", "lie" or "wrong", and they never read out a flag's detail.
 - Ask-back rule: `record_statement` returns `askNext`, one open hard flag's suggested question that has not been handed out before, or null. The agent asks it once, in its own words. The private `asked_flags` table records each one handed out, and flags on overridden or superseded events are skipped.
 
@@ -175,7 +175,7 @@ Limitations:
 - Cartesia cuts tool responses over 16 KiB, and `askNext` comes last in the body, so a long session could lose it.
 - One agent setup is bound to one session and one witness id. Changing them means re-running setup.
 - Our web app has no voice client. The demo and the video use Cartesia's Playground call to the managed agent, which writes statements through the webhook.
-- Ink-2 does not label speakers, so each stream carries one speaker. The copilot mode (investigator and witness on two devices) is designed but not built.
+- Each call carries one speaker. The copilot mode (investigator and witness on two devices) is designed but not built.
 - Managed Agents use Cartesia's model catalog, not our own Anthropic key, so the interviewer's model is billed through Cartesia.
 - Cartesia stops hosting the older Line SDK on Dec 1, 2026. We built on Managed Agents for that reason.
 - Our module stores transcript text, not audio. TODO(Eric): what does Cartesia retain of session audio, and what consent wording does a witness see?
@@ -183,13 +183,13 @@ Limitations:
 ## Claude usage and guardrails
 
 - **Extraction:** `claude-sonnet-5-5` (`packages/extractor/src/prompt.ts`), called from inside the SpacetimeDB module with `ctx.http.fetch`.
-  - Seven strict tools (`add_event`, `update_event`, `retract_event`, `add_prop`, `update_prop`, `add_actor`, `no_events`), each with `strict: true` and `additionalProperties: false`. `tool_choice` is auto, `max_tokens` is 16000 and effort is low.
+  - Seven tools (`add_event`, `update_event`, `retract_event`, `add_prop`, `update_prop`, `add_actor`, `no_events`), all with `additionalProperties: false`. Five are `strict: true`. `add_event` and `update_event` are non-strict, to stay within the API's limits on strict schemas (#48), and the validator checks every field they carry. `tool_choice` is auto, `max_tokens` is 16000 and effort is low.
   - The prompt says: record only what was said; never invent a detail; place everything by landmark id; times are intervals; appearance is not an event; a verb outside the vocabulary gets the nearest action plus the witness's own verb; a style only when the witness described how it was done.
   - One retry, shared: a reply with no tool call gets a reminder to answer with tools, and calls the validator rejects go back as `tool_result` errors. A reply cut off at `max_tokens` is recorded as truncated, and patches accepted on an earlier attempt are kept. What still fails is logged on the segment, not applied.
 - **Interviewer brain:** a Claude model from Cartesia's catalog (see above).
 - **Follow-up questions** are templates filled in by the gate, not generated text, so the same failed check always produces the same neutral question. The agent rephrases it but is told to keep its content.
 - **No model inside the gate.** It is deterministic TypeScript in `packages/engine`, and the browser and the module run the same code. The same graph always gives the same verdict, and the verdict can be printed.
-- **An override needs a reason** of at least 10 characters. The UI, the module reducer and the gate all check this. The module records who made the override, the sender's identity, the time and the waived flags. Any later edit to an event, other than a change to its time, clears its override and re-gates it.
+- **An override needs a reason** of at least 10 characters. The UI, the module reducer and the gate all check this. The module records who made the override, the sender's identity, the time and the waived flags. Any later edit to an event, other than a change to its time, style or approximated verb, clears its override and re-gates it.
 - **Every event carries sources.** The drawer shows the transcript lines behind an event. Each extracted segment stores the model id, a hash of the prompt and tools, the utterance ids sent, the time, the patch count and any error code. The `patches` table logs every patch with its sources and versions.
 - **Extraction can be wrong.** It can pick the wrong landmark or actor, or invent timing. Estimated times are marked and get a soft flag, and hedged statements get lower confidence. An investigator should read the source line before relying on an event.
 
@@ -202,7 +202,7 @@ The module (`spacetimedb/server`, `spacetimedb` 2.13.0) holds the whole graph an
 - **Tables:** `sessions`, `segments`, `utterances`, `actors`, `events`, `props`, `patches`, `flags` and `overrides` are public. `extraction_queue` and `asked_flags` are private.
 - **Reducers:**
   - `create_session`;
-  - `insert_segment` and `submit_statement`, editors only, checked against `EDITOR_IDENTITIES`;
+  - `insert_segment`, `submit_statement`, `apply_patches` and `override`, editors only, checked against `EDITOR_IDENTITIES`;
   - `apply_patches`, whose patch ops include `retract_event` and `override`. It refuses a stale `baseVersion`.
   - `override`;
   - `set_statuses`, for the module or the session creator only; it can never set overridden or superseded.
@@ -222,7 +222,7 @@ Caps: 64 KB per body, 50 utterances per segment, 32,000 characters per segment, 
 - The gate checks geometry, not truthfulness. A plausible event can still be false, and an honest witness can misjudge distance and time.
 - Extraction can be wrong (see above). The source line is the ground truth, not the event. An approximated verb is drawn with the nearest action's clip, not the witness's movement.
 - Animation persuades more than it should. A clean replay looks more certain than testimony is. This is a demonstrative aid for testing hypotheses, not evidence and not a recording.
-- Session data on Maincloud is readable by anyone who connects: the graph tables are public. `apply_patches` and `override` accept any caller; only `insert_segment` and `submit_statement` check `EDITOR_IDENTITIES`. Use only fictional statements, as the demo does.
+- Session data on Maincloud is readable by anyone who connects: the graph tables are public. Every write reducer checks `EDITOR_IDENTITIES`. Use only fictional statements, as the demo does.
 - Prop sizes come from a table of product dimensions in `props.json`. The witness's own estimate stays in the prop's notes.
 - Not in this build: a `scenes` table and `put_scene` reducer for scanned rooms in live mode (cut; the module registers one scene, `store_v1`), and Uthana text-to-motion for verbs with no clip (generated motion is not merged to `main`).
 - Not built: reachability with door states, recognition-distance and lighting checks, physics for dropped props, copilot mode, audio uploads, and an export.
