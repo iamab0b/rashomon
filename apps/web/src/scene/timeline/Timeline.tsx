@@ -14,6 +14,9 @@ import {
   buildRows,
   implausibleStarts,
   inferredBlockPath,
+  keepsStatusBorder,
+  SELECTED_WAVE_GAP,
+  SELECTED_WAVE_TINT,
   WAVE_INSET,
   WAVY_MIN_W,
   inferredTimes,
@@ -210,6 +213,16 @@ export function Timeline({ onOpen }: TimelineProps) {
                 const s = strokeFor(b.status, b.color, playingNow);
                 const h = ROW_H - 10;
                 const wavy = b.inferred && w >= WAVY_MIN_W ? inferredBlockPath(x + WAVE_INSET, y + 5, w - 2 * WAVE_INSET, h) : null;
+                const whiteWave = selected && !keepsStatusBorder(b.status);
+                const outerWave =
+                  wavy && selected && !whiteWave
+                    ? inferredBlockPath(
+                        x + WAVE_INSET - SELECTED_WAVE_GAP,
+                        y + 5 - SELECTED_WAVE_GAP,
+                        w - 2 * (WAVE_INSET - SELECTED_WAVE_GAP),
+                        h + 2 * SELECTED_WAVE_GAP,
+                      )
+                    : null;
                 return (
                   <g
                     key={b.key}
@@ -227,16 +240,22 @@ export function Timeline({ onOpen }: TimelineProps) {
                     {wavy ? (
                       <>
                         <rect x={x} y={y + 5} width={w} height={h} fill="transparent" className="rtl-hit" />
-                        <path d={wavy} fill={b.color} fillOpacity={fillOpacityFor(b.status, playingNow)} className="rtl-fill" />
+                        <path
+                          d={wavy}
+                          fill={b.color}
+                          fillOpacity={Number((fillOpacityFor(b.status, playingNow) + (selected ? SELECTED_WAVE_TINT : 0)).toFixed(2))}
+                          className="rtl-fill"
+                        />
                         <path
                           d={wavy}
                           fill="none"
-                          stroke={s.stroke}
-                          strokeOpacity={s.opacity}
+                          stroke={whiteWave ? "#fff" : s.stroke}
+                          strokeOpacity={whiteWave ? 1 : s.opacity}
                           strokeDasharray={s.dash}
                           strokeLinejoin="round"
-                          strokeWidth={selected ? 3 : 1.5}
+                          strokeWidth={selected ? 2 : 1.5}
                         />
+                        {outerWave && <path d={outerWave} fill="none" stroke="#fff" strokeOpacity={0.8} strokeLinejoin="round" strokeWidth={1} data-selection="" />}
                       </>
                     ) : (
                       <>
@@ -255,7 +274,7 @@ export function Timeline({ onOpen }: TimelineProps) {
                         />
                       </>
                     )}
-                    {selected && <rect x={x - 2} y={y + 3} width={w + 4} height={ROW_H - 6} rx={4} fill="none" stroke="#fff" />}
+                    {selected && !wavy && <rect x={x - 2} y={y + 3} width={w + 4} height={ROW_H - 6} rx={4} fill="none" stroke="#fff" />}
                     {b.status === "overridden" && <polygon points={`${x + w - 9},${y + 5} ${x + w},${y + 5} ${x + w},${y + 14}`} fill={AMBER} />}
                     <text x={x + 5} y={y + ROW_H / 2 + 4} fill="#e6ebf5" fontSize={10} pointerEvents="none">
                       {b.label}

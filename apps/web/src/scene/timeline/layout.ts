@@ -187,6 +187,12 @@ export function strokeFor(
 export const WAVE_AMPLITUDE = 1.6;
 export const WAVE_STEP = 4;
 export const WAVE_INSET = 3;
+export const SELECTED_WAVE_TINT = 0.08;
+export const SELECTED_WAVE_GAP = 2;
+
+export function keepsStatusBorder(status?: Status): boolean {
+  return status === "implausible" || status === "proposed";
+}
 export const WAVY_MIN_W = 14;
 
 const r1 = (n: number) => Number(n.toFixed(1));

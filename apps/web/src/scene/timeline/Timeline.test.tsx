@@ -274,6 +274,46 @@ describe("event state styling (regression)", () => {
     expect(xs.some((x) => x !== 100 && x !== 160)).toBe(true);
   });
 
+  const selectedRender = (selectedEventId: string, inferred: readonly string[] = []) => {
+    const { resolved, statuses } = snap();
+    return renderWith({
+      graph: { ...robberyGraph, events: robberyGraph.events.map((e) => (inferred.includes(e.id) ? { ...e, tConfidence: "inferred" as const } : e)) },
+      resolved,
+      statuses: { ...statuses, e2: "overridden" },
+      duration: resolved!.durationS,
+      t: 0,
+      selectedEventId,
+    });
+  };
+
+  test("a selected estimated event keeps its waves, turns them white, and gets no rectangle outline", () => {
+    const e8 = block(selectedRender("e8"), "e8");
+    expect(border(e8)).toMatch(/<path d="M[^"]+" fill="none" stroke="#fff" stroke-opacity="1" stroke-linejoin="round" stroke-width="2"/);
+    expect(fill(e8)).toMatch(new RegExp(`fill="${CLERK}" fill-opacity="0.22"`));
+    expect(e8).not.toMatch(/<rect [^>]*stroke="#fff"/);
+    expect(e8).not.toContain("data-selection");
+  });
+
+  test("a selected estimated overridden event keeps its amber corner under the white waves", () => {
+    const e2 = block(selectedRender("e2"), "e2");
+    expect(e2).toContain('data-status="overridden"');
+    expect(border(e2)).toMatch(/stroke="#fff"/);
+    expect(e2).toMatch(/<polygon [^>]*fill="#ffb020"/);
+  });
+
+  test("a selected estimated implausible event keeps its red dashes, with a thin white wave outside as the selection", () => {
+    const e5 = block(selectedRender("e5", ["e5"]), "e5");
+    expect(e5).toMatch(/<path d="M[^"]+" fill="none" stroke="#ff4d4f" stroke-opacity="1" stroke-dasharray="5 3"/);
+    expect(e5).toMatch(/<path d="M[^"]+" fill="none" stroke="#fff" stroke-opacity="0.8" stroke-linejoin="round" stroke-width="1" data-selection=""/);
+    expect(e5).not.toMatch(/<rect [^>]*stroke="#fff"/);
+  });
+
+  test("a selected stated event still gets the white rectangle outline", () => {
+    const e9 = block(selectedRender("e9"), "e9");
+    expect(e9).toMatch(/<rect [^>]*fill="none" stroke="#fff"/);
+    expect(e9).not.toContain("<path");
+  });
+
   test("an inferred implausible event keeps its red dashes on the wavy shape", () => {
     const { resolved, statuses } = snap();
     const html = renderWith({
