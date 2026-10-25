@@ -19,7 +19,20 @@ export function WitnessStrip({ graph, statusOf, openStatement, filter }: Witness
 
   return (
     <section className="witness-strip" aria-label="Witnesses">
-      <span className="eyebrow witness-strip__head">Witnesses</span>
+      <div className="witness-strip__head">
+        <span className="eyebrow">Witnesses</span>
+        {many && (
+          <button
+            type="button"
+            className="button button--small"
+            disabled={hidden.size === 0}
+            title={hidden.size === 0 ? "All witnesses are visible" : "Show every witness again"}
+            onClick={filter.showAll}
+          >
+            Show all
+          </button>
+        )}
+      </div>
       <ul className="witness-strip__cards">
         {layers.map((layer) => {
           const shown = !hidden.has(layer.id);

@@ -1,6 +1,7 @@
 import { canOverride } from "./overridePending";
 import type { Flag, ResolvedEvent } from "../scene";
 import { BASIS_LABELS, checkBasis, flagHeadline } from "./flagCopy";
+import { flagEvidenceRows } from "./flagEvidence";
 import { Icon } from "./Icon";
 import { placeName } from "./places";
 import {
@@ -257,6 +258,9 @@ export function FlagsTab(context: PanelContext) {
                     onOverride={canOverride(statusOf(event)) ? () => openOverride(event.id) : undefined}
                     onCopy={(text) => void copyText(text, notify)}
                     sides={flagSides(context, event, flag)}
+                    facts={flagEvidenceRows(graph, event, flag, context.placeOf)}
+                    sources={event.sources}
+                    onOpenSource={context.openSource}
                   />
                   <PendingNote note={pendingNoteOf(event)} />
                 </div>

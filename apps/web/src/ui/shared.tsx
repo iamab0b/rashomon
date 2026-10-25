@@ -227,8 +227,14 @@ export function FlagCard({
   onOverride,
   onCopy,
   sides = [],
+  facts = [],
+  sources = [],
+  onOpenSource,
 }: {
   sides?: readonly { tag: WitnessTag; eventId: string }[];
+  facts?: readonly { label: string; value: string; raw?: boolean }[];
+  sources?: string[];
+  onOpenSource?: (sourceId: string) => void;
   flag: Flag;
   sceneId: string;
   eventLabel: string;
@@ -240,6 +246,7 @@ export function FlagCard({
   onOverride?: () => void;
   onCopy: (text: string) => void;
 }) {
+  const hasEvidence = Object.keys(flag.evidence).length > 0;
   return (
     <article
       className={`hard-flag${selected ? " selected" : ""}`}
@@ -250,22 +257,6 @@ export function FlagCard({
       onClick={onSelect}
       onKeyDown={activateOnKey(onSelect)}
     >
-      <div className="flag-event">
-        <span className="flag-related">
-          <span className="field-label">Related event</span>
-          <span className="flag-related__event">
-            {eventLabel} ·{" "}
-            <span className="playback-when">
-              <PlaybackDot active={playbackActive} playing={playing} />
-              <time className="mono">{eventTimeLabel}</time>
-            </span>
-          </span>
-        </span>
-        <span className="view-in-scene" aria-hidden>
-          <Icon name="eye" size={13} />
-          View in scene
-        </span>
-      </div>
       <div className="hard-flag__heading">
         <div className="hard-flag__warning">
           <Icon name="warning" size={16} />
@@ -274,6 +265,10 @@ export function FlagCard({
           <span className="check-chip">{words(flag.check)}</span>
           <span className={`severity-chip${flag.severity === "soft" ? " soft" : ""}`}>{flag.severity}</span>
         </div>
+        <span className="view-in-scene" aria-hidden>
+          <Icon name="eye" size={13} />
+          View in scene
+        </span>
       </div>
       <h3>{flagHeadline(flag, (id) => placeName(sceneId, id))}</h3>
       <span className="flag-basis">{BASIS_LABELS[checkBasis(flag.check)]}</span>
@@ -289,8 +284,34 @@ export function FlagCard({
           ))}
         </p>
       )}
-      <p className="hard-flag__detail">{flag.detail}</p>
-      {Object.keys(flag.evidence).length > 0 && <div className="flag-evidence mono">{formatEvidence(flag)}</div>}
+      {facts.length > 0 && (
+        <dl className="flag-facts">
+          {facts.map((fact) => (
+            <div key={fact.label} className={fact.raw ? "is-raw" : undefined}>
+              <dt>{fact.label}</dt>
+              <dd>{fact.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      <div className="flag-event">
+        <span className="flag-related">
+          <span className="field-label">Related event</span>
+          <span className="flag-related__event">
+            {eventLabel} ·{" "}
+            <span className="playback-when">
+              <PlaybackDot active={playbackActive} playing={playing} />
+              <time className="mono">{eventTimeLabel}</time>
+            </span>
+          </span>
+          {onOpenSource && sources.length > 0 && <SourceMeta sources={sources} onOpen={onOpenSource} />}
+        </span>
+      </div>
+      <details className="flag-raw" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+        <summary>Raw evidence</summary>
+        <p className="hard-flag__detail">{flag.detail}</p>
+        {hasEvidence && <div className="flag-evidence mono">{formatEvidence(flag)}</div>}
+      </details>
       <div className="suggested-question">
         <span className="field-label">Suggested question</span>
         <blockquote>“{flag.suggestedQuestion}”</blockquote>

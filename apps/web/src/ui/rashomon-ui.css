@@ -130,7 +130,7 @@
 .rui .tab.active { color: #f0f2f1; font-weight: 600; background: var(--surface-raised); }
 .rui .tab:focus-visible { outline: 2px solid var(--text-primary); outline-offset: -2px; }
 .rui .tab-indicator { position: absolute; bottom: -1px; left: 0; width: calc(100% / var(--tab-count, 4)); height: 2px; padding: 0 13px; transform: translateX(calc(var(--tab-index, 0) * 100%)); transition: transform .18s ease-out; pointer-events: none; }
-.rui .tab-indicator::after { content: ""; display: block; height: 100%; background: #dfa950; }
+.rui .tab-indicator::after { content: ""; display: block; height: 100%; background: var(--selection); }
 .rui .tab-panel { animation: rui-tab-in .18s ease-out; }
 @keyframes rui-tab-in { from { opacity: 0; transform: translateX(6px); } to { opacity: 1; transform: none; } }
 @keyframes rui-fade-in { from { opacity: 0; } to { opacity: 1; } }
@@ -142,7 +142,7 @@
   .rui .view-in-scene { transition: none; }
   .rui .spinner { animation-duration: 2.4s; }
 }
-.rui .tab.active span { color: #d9a34d; }
+.rui .tab.active span { color: var(--text-secondary); }
 .rui .flag-event { display: flex; justify-content: space-between; gap: 8px; margin: 0 0 8px; color: var(--text-secondary); font-size: var(--fs-sm); }
 .rui .not-connected { margin-top: 12px; padding: 10px; color: var(--text-secondary); border: 1px dashed var(--border); border-radius: 4px; font-size: var(--fs-sm); line-height: 1.45; }
 .rui .not-connected strong { display: block; margin-bottom: 3px; color: var(--status-proposed); font: 500 var(--fs-xs) var(--mono); text-transform: uppercase; letter-spacing: .06em; }
@@ -306,7 +306,8 @@
   .rui .event-id { transition: none; }
 }
 .rui .witness-strip { flex: none; display: grid; gap: 6px; padding: 8px 16px 6px; border-bottom: 1px solid var(--border); }
-.rui .witness-strip__head { margin: 0; }
+.rui .witness-strip__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 22px; }
+.rui .witness-strip__head .eyebrow { margin: 0; }
 .rui .witness-strip__cards { display: flex; gap: 8px; margin: 0; padding: 0 0 4px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; list-style: none; }
 .rui .witness-card { flex: 0 0 236px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 8px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface-raised); scroll-snap-align: start; }
 .rui .witness-card.is-solo { box-shadow: inset 0 0 0 1px var(--text-secondary); }
@@ -345,3 +346,15 @@
 .rui .contradiction-side__id { color: var(--text-secondary); font-size: var(--fs-2xs); }
 .rui .contradiction-side .button { justify-self: start; }
 .rui .contradiction-side .source-meta { overflow-wrap: anywhere; }
+.rui .hard-flag__heading .view-in-scene { margin-left: auto; }
+.rui .flag-facts { display: grid; gap: 4px; margin: 10px 0 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 3px; background: var(--surface); }
+.rui .flag-facts > div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px; font-size: var(--fs-sm); }
+.rui .flag-facts dt { color: var(--text-secondary); }
+.rui .flag-facts dd { margin: 0; color: var(--text-primary); }
+.rui .flag-facts > .is-raw dd { color: var(--text-secondary); font-family: var(--mono); }
+.rui .hard-flag .flag-event { margin-top: 10px; }
+.rui .flag-related .source-meta { display: block; margin-top: 2px; }
+.rui .flag-raw { margin-top: 8px; color: var(--text-secondary); font-size: var(--fs-sm); }
+.rui .flag-raw summary { width: fit-content; cursor: pointer; }
+.rui .flag-raw summary:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+.rui .flag-raw[open] .hard-flag__detail { margin-top: 6px; }

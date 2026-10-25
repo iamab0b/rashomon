@@ -1,10 +1,13 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
-import { actorColor, selectSource, type ResolvedGraph, type WitnessLayer } from "../scene";
+import { actorColor, selectSource, type ResolvedEvent, type ResolvedGraph, type WitnessLayer } from "../scene";
 import { ContextDrawer } from "./ContextDrawer";
 import { EventsTab } from "./EventsTab";
 import { FlagsTab, groupFlags } from "./FlagsTab";
+import { flagEvidenceRows } from "./flagEvidence";
+import { anchorsFor, eventPlace } from "./places";
+import { robberyGraph } from "@rashomon/schema/fixtures";
 import { displayLabel, type PanelContext } from "./shared";
 import type { Utterance } from "./transcript";
 import { actorsWithEvents, filterSummary, isSolo, NO_ACTOR_FOCUS, toggleSolo, utteranceSpeaker, visibleUtterances, type WitnessFilter } from "./witnessFilter";
@@ -146,17 +149,21 @@ describe("panel layout pass", () => {
     const html = renderToStaticMarkup(<WitnessStrip graph={graph} statusOf={(e) => e.status} openStatement={openStatement} filter={spies} />);
     expect(html).toContain('aria-label="Witnesses"');
     expect(html).not.toContain(">Showing");
-    expect(html).not.toContain(">Show all<");
+    expect(html).toMatch(/<button type="button" class="button button--small" title="Show every witness again">Show all<\/button>/);
+    const allShown = renderToStaticMarkup(<WitnessStrip graph={graph} statusOf={(e) => e.status} openStatement={openStatement} filter={filter(graph)} />);
+    expect(allShown).toMatch(/<button type="button" class="button button--small" disabled="" title="All witnesses are visible">Show all<\/button>/);
     expect(html).toMatch(/<strong>Customer<\/strong><\/div>/);
     expect(html).toMatch(/class="witness-card is-hidden" data-witness-id="w1"/);
     expect(html).toMatch(/class="witness-card is-solo" data-witness-id="w2"/);
     expect(html).toMatch(/aria-pressed="false" aria-label="Show Customer"[^>]*><svg[^>]*>.*?<path d="M3.5 3.5l13 13"/s);
     const tree = WitnessStrip({ graph, statusOf: (e) => e.status, openStatement, filter: spies });
     const buttons = findAll(tree, (el) => el.type === "button");
+    (buttons.find((b) => b.props.children === "Show all")!.props.onClick as () => void)();
+    expect(spies.showAll).toHaveBeenCalledTimes(1);
     (buttons.find((b) => b.props["aria-label"] === "Show Customer")!.props.onClick as () => void)();
     expect(spies.toggle).toHaveBeenCalledWith("w1");
     (buttons.filter((b) => b.props.children === "Solo")[1]!.props.onClick as () => void)();
-    expect(spies.showAll).toHaveBeenCalled();
+    expect(spies.showAll).toHaveBeenCalledTimes(2);
     (buttons.filter((b) => b.props.children === "Re-interview")[1]!.props.onClick as () => void)();
     expect(openStatement).toHaveBeenCalledWith("w2");
   });
@@ -200,5 +207,34 @@ describe("panel layout pass", () => {
     expect(html).toMatch(/<div class="context-rail">.*Statement.*Transcript.*History.*<\/div><div id="context-drawer"/s);
     expect(html).not.toContain('tabindex="-1"');
     expect(html).not.toContain('role="tab"');
+  });
+
+  test("flag cards show places instead of coordinates, keeping the raw evidence collapsed", () => {
+    const graph = selectSource("?scenario=two-witnesses")!.getSnapshot().resolved!;
+    const placeOf = (event: ResolvedEvent) => eventPlace(graph.sceneId, event.action, anchorsFor(robberyGraph, event));
+    const e5 = graph.events.find((e) => e.id === "e5")!;
+    const sightline = e5.flags.find((f) => f.check === "sightline")!;
+    expect(sightline.detail).toMatch(/\(\d+\.\d, \d+\.\d\)/);
+    const rows = flagEvidenceRows(graph, e5, sightline, placeOf);
+    expect(rows.map((r) => `${r.label}: ${r.value}`)).toEqual([
+      "Sightline: From chips aisle to the suspect near counter",
+      "Blocked by: Chips shelf",
+      "Where: 1.1 m along a 3.8 m line of sight",
+      "When: 11.0 s",
+    ]);
+    expect(rows.every((r) => !/\(\d/.test(r.value))).toBe(true);
+    const html = renderToStaticMarkup(<FlagsTab {...context(graph, { placeOf })} />);
+    expect(html).toMatch(/<dt>Blocked by<\/dt><dd>Chips shelf<\/dd>/);
+    expect(html).toMatch(/<details class="flag-raw"><summary>Raw evidence<\/summary><p class="hard-flag__detail">witness at \(/);
+    const order = ["check-chip", "<h3>", "flag-basis", "flag-facts", "flag-related", "flag-raw", "suggested-question"].map((k) => html.indexOf(k, html.indexOf('class="hard-flag')));
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  test("an event with no named place keeps its coordinates as a marked raw value", () => {
+    const graph = twoWitnesses();
+    const e5 = graph.events.find((e) => e.id === "e5")!;
+    const rows = flagEvidenceRows(graph, e5, e5.flags[0]!, () => null);
+    expect(rows[0]).toMatchObject({ label: "Sightline", raw: true });
+    expect(rows[0]!.value).toMatch(/^From \(\d/);
   });
 });
