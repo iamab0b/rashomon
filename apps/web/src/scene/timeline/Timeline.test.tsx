@@ -179,6 +179,7 @@ describe("event state styling (regression)", () => {
   const render = () => {
     const { resolved, statuses } = snap();
     return renderWith({
+      graph: robberyGraph,
       resolved,
       statuses: { ...statuses, e2: "overridden" },
       duration: resolved!.durationS,
@@ -227,6 +228,25 @@ describe("event state styling (regression)", () => {
     expect(e5).toContain('data-status="implausible"');
     expect(border(e5)).toMatch(/stroke="#ff4d4f" stroke-opacity="1" stroke-dasharray="5 3"/);
     expect(fill(e5)).toMatch(new RegExp(`fill="${WITNESS}" fill-opacity="0.24"`));
+  });
+
+  test("an inferred time gets a dotted border in its actor's color; stated times stay solid", () => {
+    const html = render();
+    const e2 = block(html, "e2");
+    expect(e2).toContain("data-inferred");
+    expect(border(e2)).toMatch(new RegExp(`stroke="${CLERK}" stroke-opacity="[0-9.]+" stroke-dasharray="1.5 3" stroke-linecap="round"`));
+    expect(e2).toContain("<title>e2 · time inferred</title>");
+    const e9 = block(html, "e9");
+    expect(e9).not.toContain("data-inferred");
+    expect(border(e9)).not.toContain("stroke-dasharray");
+    expect(e9).not.toContain("<title>");
+  });
+
+  test("a status border wins over the inferred dots", () => {
+    expect(strokeFor("implausible", WITNESS, false, true)).toMatchObject({ dash: "5 3", stroke: "#ff4d4f" });
+    expect(strokeFor("proposed", WITNESS, false, true)).toMatchObject({ dash: "5 3", stroke: "#ffffff" });
+    expect(strokeFor("plausible", WITNESS, false, true)).toMatchObject({ dash: "1.5 3", stroke: WITNESS });
+    expect(strokeFor("overridden", WITNESS, true, true)).toMatchObject({ dash: "1.5 3", stroke: WITNESS });
   });
 
   test("non-overlapping events from one actor share a lane", () => {

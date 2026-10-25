@@ -13,6 +13,8 @@ import {
   W,
   buildRows,
   implausibleStarts,
+  INFERRED_DASH,
+  inferredTimes,
   neighborFlag,
   playheadHitAreas,
   rowHeight,
@@ -67,11 +69,12 @@ export function Timeline({ onOpen }: TimelineProps) {
   const { selectedEventId, select } = useSelection();
   const setSpeed = useSceneStore((s) => s.setSpeed);
   const hiddenWitnesses = useSceneStore((s) => s.hiddenWitnesses);
+  const graph = useSceneStore((s) => s.graph);
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef(createDrag()).current;
   const [scrubbing, setScrubbing] = useState(false);
 
-  const rows = buildRows(resolved, statuses);
+  const rows = buildRows(resolved, statuses, inferredTimes(graph));
   const flags = implausibleStarts(resolved, statuses);
   const tops = rowTops(rows);
   const height = TOP + rows.reduce((sum, row) => sum + rowHeight(row), 0) + 6;
@@ -202,13 +205,14 @@ export function Timeline({ onOpen }: TimelineProps) {
                 const selected = b.id !== null && b.id === selectedEventId;
                 const y = rowY + b.lane * LANE_H;
                 const playingNow = b.id !== null && b.tStart <= t && t < b.tEnd;
-                const s = strokeFor(b.status, b.color, playingNow);
+                const s = strokeFor(b.status, b.color, playingNow, b.inferred);
                 return (
                   <g
                     key={b.key}
                     data-block={b.key}
                     data-lane={b.lane}
                     data-status={b.status}
+                    data-inferred={b.inferred ? "" : undefined}
                     data-event={b.id ? "" : undefined}
                     data-playback-active={playingNow ? "true" : undefined}
                     className="rtl-block"
@@ -227,6 +231,7 @@ export function Timeline({ onOpen }: TimelineProps) {
                       stroke={s.stroke}
                       strokeOpacity={s.opacity}
                       strokeDasharray={s.dash}
+                      strokeLinecap={s.dash === INFERRED_DASH ? "round" : undefined}
                       strokeWidth={selected ? 3 : 1.5}
                     />
                     {selected && <rect x={x - 2} y={y + 3} width={w + 4} height={ROW_H - 6} rx={4} fill="none" stroke="#fff" />}
@@ -234,6 +239,7 @@ export function Timeline({ onOpen }: TimelineProps) {
                     <text x={x + 5} y={y + ROW_H / 2 + 4} fill="#e6ebf5" fontSize={10} pointerEvents="none">
                       {b.label}
                     </text>
+                    {b.inferred && <title>{`${b.label} · time inferred`}</title>}
                   </g>
                 );
               })}

@@ -1,5 +1,5 @@
 import type { ResolvedGraph } from "@rashomon/engine";
-import type { Status } from "@rashomon/schema";
+import type { EventGraph, Status } from "@rashomon/schema";
 import { statusOf } from "../playback/useGraph";
 
 export const W = 1000;
@@ -34,6 +34,7 @@ export type Block = {
   label: string;
   lane: number;
   witnessId?: string;
+  inferred?: boolean;
 };
 
 export type Row = { id: string; label: string; blocks: Block[]; hidden: number; lanes: number };
@@ -85,7 +86,14 @@ export function rowTops(rows: Row[]): number[] {
   });
 }
 
-export function buildRows(resolved: ResolvedGraph | null, statuses: StatusMap): Row[] {
+const NO_IDS: ReadonlySet<string> = new Set();
+
+export function inferredTimes(graph: Pick<EventGraph, "events"> | null): ReadonlySet<string> {
+  if (!graph) return NO_IDS;
+  return new Set(graph.events.filter((event) => event.tConfidence === "inferred").map((event) => event.id));
+}
+
+export function buildRows(resolved: ResolvedGraph | null, statuses: StatusMap, inferred: ReadonlySet<string> = NO_IDS): Row[] {
   if (!resolved) return [];
   const rows: Row[] = resolved.actors.map((actor, index) => {
     const color = actorColor(actor.id, actor.role, index);
@@ -109,6 +117,7 @@ export function buildRows(resolved: ResolvedGraph | null, statuses: StatusMap): 
           color,
           label: event.id,
           witnessId: event.witnessId,
+          inferred: event.tInferred || inferred.has(event.id),
         })),
       ),
     };
@@ -163,15 +172,17 @@ export function fillOpacityFor(status: Status | undefined, playing: boolean): nu
   return status === "implausible" || status === "overridden" ? 0.24 : 0.34;
 }
 
+export const INFERRED_DASH = "1.5 3";
+
 export function strokeFor(
   status?: Status,
   color: string = QUIET_STROKE,
   playing = false,
+  inferred = false,
 ): { dash?: string; stroke: string; opacity: number } {
   if (status === undefined) return { stroke: PROP_COLOR, opacity: 1 };
   if (status === "proposed") return { dash: "5 3", stroke: "#ffffff", opacity: 0.4 };
   if (status === "implausible") return { dash: "5 3", stroke: "#ff4d4f", opacity: 1 };
   const opacity = playing ? ACTIVE_STROKE_OPACITY : ACTOR_STROKE_OPACITY;
-  if (status === "overridden") return { stroke: color, opacity };
-  return { stroke: color, opacity };
+  return inferred ? { dash: INFERRED_DASH, stroke: color, opacity } : { stroke: color, opacity };
 }
