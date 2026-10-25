@@ -19,6 +19,7 @@ import { eventGraphFromRow } from "../convert";
 import { buildGraph, type ModuleSchema, type ReadDb } from "../graph";
 import { applyPatchBatch, key, manifestFor } from "../reducers";
 import { MAX_SEGMENT_TEXT_CHARS } from "../limits";
+import { enqueueMotions } from "../motion/queue";
 import { fnv1a64 } from "./hash";
 import { mintPropIds } from "./props";
 
@@ -269,7 +270,10 @@ export function runExtraction(io: Io, sessionId: string, segmentId: string): Ext
       const before = ctx.db.segments.rowKey.find(key(sessionId, segmentId));
       if (!before) throw new Error(`unknown segment ${segmentId}`);
       if (before.extractedAt !== undefined) return storedResult(ctx, before);
-      if (patches.length > 0) applyPatchBatch(ctx, sessionId, session.version, patches);
+      if (patches.length > 0) {
+        applyPatchBatch(ctx, sessionId, session.version, patches);
+        enqueueMotions(ctx, sessionId);
+      }
       const row = ctx.db.segments.rowKey.find(key(sessionId, segmentId));
       if (!row) throw new Error(`unknown segment ${segmentId}`);
       ctx.db.segments.rowKey.update({

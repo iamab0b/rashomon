@@ -81,7 +81,7 @@ function ownDraft(event: ResolvedEvent, hasClip: (name: string) => boolean): Dra
   const spec = ACTION_MAP[event.action];
   return {
     source: event.id,
-    clip: chooseClip(spec, hasClip, event.style),
+    clip: chooseClip(spec, hasClip, event.style, event.actionApproximated ? event.verb : undefined),
     start: event.tStart,
     end: event.tEnd,
     loop: spec.loop,

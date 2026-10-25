@@ -7,6 +7,8 @@ import type { GraphSnapshot } from "../store";
 import { applyPatches } from "./applyPatches";
 import { gatedSnapshot, NO_GEOM } from "./gatedSnapshot";
 import { RECORDED_NOTE, recordedToolCalls } from "./recordedStatements";
+import type { GeneratedMotion } from "../characters/generated/loadGeneratedMotion";
+import { GENERATED_FIXTURE_MOTIONS, GENERATED_SCENARIO, generatedFixturePatches } from "./generatedFixture";
 import { checkStatement, statementSegmentId } from "./statementId";
 import { NO_STATEMENTS, type StatementStatus, type StatementStatuses, type SubmittedStatement } from "./statementStatus";
 
@@ -24,7 +26,10 @@ export interface GraphSource {
   getSnapshot(): GraphSnapshot;
   subscribe(listener: () => void): () => void;
   eventOf?(id: string): Event | undefined;
+  generatedMotions?(): readonly GeneratedMotion[];
 }
+
+const NO_MOTIONS: readonly GeneratedMotion[] = [];
 
 export interface FixtureGraphSource extends GraphSource {
   readonly kind: "fixture";
@@ -41,7 +46,7 @@ type FixtureState = {
 
 const CORRECTED_SCENARIO = "corrected";
 const TWO_WITNESSES_SCENARIO = "two-witnesses";
-const SCENARIOS: ReadonlySet<string> = new Set([CORRECTED_SCENARIO, TWO_WITNESSES_SCENARIO]);
+const SCENARIOS: ReadonlySet<string> = new Set([CORRECTED_SCENARIO, TWO_WITNESSES_SCENARIO, GENERATED_SCENARIO]);
 const CORRECTION_TIME = 0;
 
 export function robberyCorrectionPatches(): readonly Patch[] {
@@ -76,7 +81,12 @@ function twoWitnessGraph(manifest: SceneManifest): EventGraph {
 function scenarioGraph(scenario: string | null | undefined, manifest: SceneManifest): EventGraph {
   if (scenario === CORRECTED_SCENARIO) return applyPatches(baseGraph(manifest), robberyCorrectionPatches(), CORRECTION_TIME, manifest);
   if (scenario === TWO_WITNESSES_SCENARIO) return twoWitnessGraph(manifest);
+  if (scenario === GENERATED_SCENARIO) return applyPatches(baseGraph(manifest), generatedFixturePatches(), CORRECTION_TIME, manifest);
   return baseGraph(manifest);
+}
+
+function motionsFor(scenario: string | null | undefined): readonly GeneratedMotion[] {
+  return scenario === GENERATED_SCENARIO ? GENERATED_FIXTURE_MOTIONS : NO_MOTIONS;
 }
 
 const FIXTURE_STATES: Readonly<Record<string, () => FixtureState>> = {
@@ -86,6 +96,9 @@ const FIXTURE_STATES: Readonly<Record<string, () => FixtureState>> = {
   ),
   [`store:${TWO_WITNESSES_SCENARIO}`]: memoized(`store:${TWO_WITNESSES_SCENARIO}`, () =>
     gatedState(scenarioGraph(TWO_WITNESSES_SCENARIO, storeScene), STORE_GATE),
+  ),
+  [`store:${GENERATED_SCENARIO}`]: memoized(`store:${GENERATED_SCENARIO}`, () =>
+    gatedState(scenarioGraph(GENERATED_SCENARIO, storeScene), STORE_GATE),
   ),
 };
 
@@ -138,7 +151,11 @@ function statementSegment(text: string, witnessName: string): Segment {
   };
 }
 
-function patchableSource(initial: () => FixtureState, scene: GateScene): FixtureGraphSource {
+function patchableSource(
+  initial: () => FixtureState,
+  scene: GateScene,
+  motions: readonly GeneratedMotion[] = NO_MOTIONS,
+): FixtureGraphSource {
   const { manifest, geom } = scene;
   let current: FixtureState | null = null;
   let statements: StatementStatuses = NO_STATEMENTS;
@@ -194,6 +211,7 @@ function patchableSource(initial: () => FixtureState, scene: GateScene): Fixture
       return Promise.resolve({ segmentId: segment.id, baseVersion });
     },
     eventOf: (id) => state().graph.events.find((event) => event.id === id),
+    generatedMotions: () => motions,
     subscribe(listener) {
       listeners.add(listener);
       return () => {
@@ -217,10 +235,10 @@ export function fixtureGraphSource(
   scan?: GateScene | null,
 ): FixtureGraphSource | null {
   if (scenario && !SCENARIOS.has(scenario)) return null;
-  if (scan) return patchableSource(once(() => scanState(scenario, scan)), scan);
+  if (scan) return patchableSource(once(() => scanState(scenario, scan)), scan, motionsFor(scenario));
   const key = fixtureKey(fixture, scenario);
   const build = Object.hasOwn(FIXTURE_STATES, key) ? FIXTURE_STATES[key] : undefined;
-  return build ? patchableSource(build, STORE_GATE) : null;
+  return build ? patchableSource(build, STORE_GATE, motionsFor(scenario)) : null;
 }
 
 export function scenarioFromSearch(search: string): string | null {

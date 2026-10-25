@@ -181,6 +181,18 @@ export const Flags = __t.object("Flags", {
 });
 export type Flags = __Infer<typeof Flags>;
 
+export const GeneratedMotions = __t.object("GeneratedMotions", {
+  rowKey: __t.string(),
+  sessionId: __t.string(),
+  verb: __t.string(),
+  motionId: __t.option(__t.string()),
+  characterId: __t.option(__t.string()),
+  status: __t.string(),
+  error: __t.option(__t.string()),
+  requestedAt: __t.timestamp(),
+});
+export type GeneratedMotions = __Infer<typeof GeneratedMotions>;
+
 export const GraphForScene = __t.object("GraphForScene", {
   sessionId: __t.string(),
 });
@@ -194,6 +206,15 @@ export const HardFlag = __t.object("HardFlag", {
   suggestedQuestion: __t.string(),
 });
 export type HardFlag = __Infer<typeof HardFlag>;
+
+export const MotionQueue = __t.object("MotionQueue", {
+  scheduledId: __t.u64(),
+  scheduledAt: __t.scheduleAt(),
+  sessionId: __t.string(),
+  verb: __t.string(),
+  lengthS: __t.f64(),
+});
+export type MotionQueue = __Infer<typeof MotionQueue>;
 
 export const OverrideRecord = __t.object("OverrideRecord", {
   by: __t.string(),

@@ -1,12 +1,19 @@
 import { useFrame } from "@react-three/fiber";
 import type { SceneManifest } from "@rashomon/schema";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { AnimationAction } from "three";
 import { statusOf } from "../playback/useGraph";
 import { useSceneStore } from "../store";
 import { buildClipWindows, createClipSampler, EMPTY_WINDOW_SET } from "./blend";
 import type { CharacterHandle } from "./Character";
-import { cycleDistanceOf, getClip, loadClips, loadOptionalClips } from "./clips";
+import {
+  clipRegistryVersion,
+  cycleDistanceOf,
+  getClip,
+  loadClips,
+  loadOptionalClips,
+  subscribeClipRegistry,
+} from "./clips";
 import { poseActorFrame } from "./procedural/applyProcedural";
 import { locomotionTimer } from "./procedural/locomotion";
 import { rigFromCharacter } from "./procedural/proceduralRig";
@@ -61,6 +68,7 @@ export function useActorAnimation(
   const events = resolved?.events;
   const clipsLoaded = useClipsLoaded();
   const optionalSettled = useOptionalClipsSettled();
+  const registered = useSyncExternalStore(subscribeClipRegistry, clipRegistryVersion);
   const touched = useRef(new Map<string, AnimationAction>());
   const sampler = useMemo(createClipSampler, []);
 
@@ -69,7 +77,7 @@ export function useActorAnimation(
       clipsLoaded && events
         ? buildClipWindows(actorId, events, hasClip, (event) => statusOf(statuses, event))
         : EMPTY_WINDOW_SET,
-    [actorId, events, statuses, clipsLoaded, optionalSettled],
+    [actorId, events, statuses, clipsLoaded, optionalSettled, registered],
   );
 
   const timeOf = useMemo(

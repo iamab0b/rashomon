@@ -49,6 +49,10 @@ When the witness's verb is not one of the actions, the extractor picks the neare
 
 Required clips load first and playback starts on them; the optional files load in the background and each actor switches to them once they settle. `?debug=rig` plays each new clip on the Y Bot from 12 s, one every 3 s, and its panel lists each clip with its window and, when the file is missing, the clip that plays instead.
 
+## Generated clips for approximated verbs
+
+When an extraction commits an approximated event, the module queues one Uthana text-to-motion generation per normalized verb (trimmed, lower case, letters, spaces, `'` and `-`), at most 5 per session and 1 to 4 s long, with the prompt `a person <verb>` on the uploaded Y Bot (`UTHANA_CHARACTER_ID`). Its public `generated_motions` row goes `pending`, then `ready` with a `motionId` or `failed` with a short code. In live mode on the dev server, the browser fetches a ready motion's GLB through `/__uthana/motion/<characterId>/<motionId>.glb`, keeps it in IndexedDB under `rashomon.gen.<characterId>.<motionId>`, folds the GLB's Z-up armature rotation into the hips tracks, drops tracks on leaf end bones, zeroes hips X and Z like every other clip, and registers it as `gen_<verb>`. `chooseClip` prefers `gen_<verb>` for approximated events with that verb, ahead of style and action clips. Until it arrives, and on any machine without the dev server, the event plays the nearest action's clip. Uthana keeps the Mixamo bone names (`mixamorig:Hips`, bound as `mixamorigHips`), so no bone map is needed. `?scenario=generated` marks the clerk's fall (e8) approximated with the verb `staggers` and plays `public/generated/staggers.glb` when that local, gitignored file is present.
+
 ## Rules the agent must follow
 
 - Blend weights are computed by hand from the overlap windows and set every frame from the single timeline `t`. Never call `crossFadeTo`, `fadeIn` or `fadeOut`; they hold real-time state and break scrubbing backward.

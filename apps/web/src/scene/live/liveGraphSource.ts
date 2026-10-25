@@ -12,7 +12,8 @@ import {
 } from "../playback/statementStatus";
 import type { GraphSnapshot } from "../store";
 import { convertGraphRow, type LiveGraphRow } from "./convert";
-import type { LiveConnection, LiveConnector, LiveOptions } from "./liveConnection";
+import type { GeneratedMotion } from "../characters/generated/loadGeneratedMotion";
+import type { LiveConnection, LiveConnector, LiveGeneratedMotionRow, LiveOptions } from "./liveConnection";
 
 export interface LiveGraphSource extends GraphSource {
   readonly kind: "live";
@@ -23,6 +24,16 @@ export interface LiveGraphSource extends GraphSource {
   apply(patches: readonly Patch[]): void;
   submitStatement(text: string, witnessName: string): Promise<SubmittedStatement>;
   eventOf(id: string): Event | undefined;
+  generatedMotions(): readonly GeneratedMotion[];
+}
+
+function motionOf(row: LiveGeneratedMotionRow): GeneratedMotion {
+  return {
+    verb: row.verb,
+    status: row.status,
+    ...(row.motionId !== undefined ? { motionId: row.motionId } : {}),
+    ...(row.characterId !== undefined ? { characterId: row.characterId } : {}),
+  };
 }
 
 const CHANGE_IN_FLIGHT = "a change is still being applied; try again in a moment";
@@ -64,6 +75,8 @@ export function liveGraphSource(
   let statements: StatementStatuses = NO_STATEMENTS;
   const submitted = new Map<string, number>();
   const segments = new Map<string, LiveSegmentRow>();
+  const motionsByVerb = new Map<string, GeneratedMotion>();
+  let motions: readonly GeneratedMotion[] = [];
   const recompute = () => {
     const version = baseVersion ?? 0;
     statements = Object.fromEntries(
@@ -111,6 +124,12 @@ export function liveGraphSource(
         identity = hex;
         notify();
       },
+      onGeneratedMotion(row) {
+        if (!live()) return;
+        motionsByVerb.set(row.verb, motionOf(row));
+        motions = [...motionsByVerb.values()];
+        notify();
+      },
     });
   };
 
@@ -136,6 +155,7 @@ export function liveGraphSource(
     statementStatuses: () => statements,
     getSnapshot: () => snapshot,
     eventOf: (id): Event | undefined => graph?.events.find((event) => event.id === id),
+    generatedMotions: () => motions,
     apply(patches) {
       const sending = connection;
       if (!sending) throw new Error("patches rejected: the live graph source is not connected");

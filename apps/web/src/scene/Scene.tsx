@@ -6,6 +6,7 @@ import { FrameObject } from "./cameras/FrameObject";
 import { PovRayLine } from "./cameras/PovRayLine";
 import { WitnessView } from "./cameras/WitnessView";
 import { CAMERA_PRESETS } from "./cameras/presets";
+import { useGeneratedMotions } from "./characters/generated/useGeneratedMotions";
 import { RigDebug } from "./characters/RigDebug";
 import { RigReportPanel } from "./characters/RigReportPanel";
 import { DebugOverlay } from "./DebugOverlay";
@@ -229,6 +230,7 @@ export function Scene({ fixture, debug, t }: SceneProps) {
     return gateScene && !liveScan ? fixtureGraphSource(fixture, scenarioFromSearch(window.location.search), gateScene) : null;
   }, [isRigDebug, fixture, scanRequest, gateScene, liveScan]);
   useGraphSource(graphSource);
+  useGeneratedMotions(graphSource);
   useSceneSourcePublisher(loaded, scan);
   const failure = useSceneFailure(fixture, isRigDebug, graphSource !== null, { request: scanRequest, loaded: scan !== null });
   const aligning = useScanAlignStore((state) => state.aligning);

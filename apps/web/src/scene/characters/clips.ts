@@ -125,3 +125,23 @@ export function getClip(name: string): AnimationClip | undefined {
 export function cycleDistanceOf(name: string): number | undefined {
   return cycleDistances.get(name);
 }
+
+const registryListeners = new Set<() => void>();
+let registryVersion = 0;
+
+export function registerClip(clip: AnimationClip): void {
+  clipCache.set(clip.name, clip);
+  registryVersion += 1;
+  for (const listener of [...registryListeners]) listener();
+}
+
+export function clipRegistryVersion(): number {
+  return registryVersion;
+}
+
+export function subscribeClipRegistry(listener: () => void): () => void {
+  registryListeners.add(listener);
+  return () => {
+    registryListeners.delete(listener);
+  };
+}

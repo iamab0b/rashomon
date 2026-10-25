@@ -260,6 +260,31 @@ export const extractionQueue = table(
   },
 );
 
+export const motionQueue = table(
+  { name: "motion_queue" },
+  {
+    scheduledId: t.u64().primaryKey().autoInc(),
+    scheduledAt: t.scheduleAt(),
+    sessionId: t.string(),
+    verb: t.string(),
+    lengthS: t.f64(),
+  },
+);
+
+const generatedMotions = table(
+  { name: "generated_motions", public: true },
+  {
+    rowKey: t.string().primaryKey(),
+    sessionId: t.string().index(),
+    verb: t.string(),
+    motionId: t.option(t.string()),
+    characterId: t.option(t.string()),
+    status: t.string(),
+    error: t.option(t.string()),
+    requestedAt: t.timestamp(),
+  },
+);
+
 const askedFlags = table(
   { name: "asked_flags" },
   {
@@ -290,8 +315,16 @@ export const spacetimedb = schema({
   overrides,
   extractionQueue,
   askedFlags,
+  motionQueue,
+  generatedMotions,
 }, {
-  env: { ANTHROPIC_API_KEY: t.string(), CARTESIA_WEBHOOK_SECRET: t.string(), EDITOR_IDENTITIES: t.string() },
+  env: {
+    ANTHROPIC_API_KEY: t.string(),
+    CARTESIA_WEBHOOK_SECRET: t.string(),
+    EDITOR_IDENTITIES: t.string(),
+    UTHANA_API_KEY: t.string(),
+    UTHANA_CHARACTER_ID: t.string(),
+  },
 });
 
 export { t };

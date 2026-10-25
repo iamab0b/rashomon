@@ -48,6 +48,7 @@ import * as ExtractSegmentProcedure from "./extract_segment_procedure";
 import ActorsRow from "./actors_table";
 import EventsRow from "./events_table";
 import FlagsRow from "./flags_table";
+import GeneratedMotionsRow from "./generated_motions_table";
 import GraphForSceneRow from "./graph_for_scene_table";
 import OverridesRow from "./overrides_table";
 import PatchesRow from "./patches_table";
@@ -105,6 +106,20 @@ const tablesSchema = __schema({
       { name: 'flags_row_key_key', constraint: 'unique', columns: ['rowKey'] },
     ],
   }, FlagsRow),
+  generatedMotions: __table({
+    name: 'generated_motions',
+    indexes: [
+      { accessor: 'rowKey', name: 'generated_motions_row_key_idx_btree', algorithm: 'btree', columns: [
+        'rowKey',
+      ] },
+      { accessor: 'sessionId', name: 'generated_motions_session_id_idx_btree', algorithm: 'btree', columns: [
+        'sessionId',
+      ] },
+    ],
+    constraints: [
+      { name: 'generated_motions_row_key_key', constraint: 'unique', columns: ['rowKey'] },
+    ],
+  }, GeneratedMotionsRow),
   overrides: __table({
     name: 'overrides',
     indexes: [

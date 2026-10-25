@@ -4,7 +4,16 @@ import { pushSource } from "../playback/useGraph";
 import { statementSegmentId } from "../playback/statementId";
 import { useGraphActions } from "../playback/useGraphActions";
 import { useSceneStore } from "../store";
-import { DEFAULT_LIVE_OPTIONS, loadToken, saveToken, segmentsQuery, tokenKey, type LiveConnector, type LiveHandlers } from "./liveConnection";
+import {
+  DEFAULT_LIVE_OPTIONS,
+  generatedMotionsQuery,
+  loadToken,
+  saveToken,
+  segmentsQuery,
+  tokenKey,
+  type LiveConnector,
+  type LiveHandlers,
+} from "./liveConnection";
 import { liveGraphSource } from "./liveGraphSource";
 
 const initial = useSceneStore.getState();
@@ -64,7 +73,7 @@ const noHandlers: LiveHandlers = { onRow: () => undefined, onError: () => undefi
 function connectedStub() {
   const table = { onInsert: () => undefined, onUpdate: () => undefined };
   return {
-    db: { graphForScene: table, segments: table },
+    db: { graphForScene: table, segments: table, generatedMotions: table },
     subscriptionBuilder: () => ({
       onError() {
         return this;
@@ -207,6 +216,7 @@ describe("the browser's token", () => {
       "SELECT * FROM graph_for_scene('demo')",
       segmentsQuery("demo"),
     ]);
+    expect(bindings.subscribed[1]).toEqual([generatedMotionsQuery("demo")]);
 
     spacetimeConnector(DEFAULT_LIVE_OPTIONS, noHandlers);
     expect(bindings.withTokenCalls).toEqual(["tok-1"]);

@@ -1,5 +1,6 @@
 import type { Action, ActionStyle } from "@rashomon/schema";
 import type { ClipName, OptionalClipName } from "./clips";
+import { genClipName } from "./generated/verb";
 
 export type ActionClipName = ClipName | OptionalClipName;
 
@@ -178,7 +179,14 @@ export const ACTION_MAP: Readonly<Record<Action, ActionSpec>> = {
   },
 };
 
-export function chooseClip(spec: ActionSpec, hasClip: (name: string) => boolean, style?: ActionStyle): string {
+export function chooseClip(
+  spec: ActionSpec,
+  hasClip: (name: string) => boolean,
+  style?: ActionStyle,
+  approximatedVerb?: string,
+): string {
+  const generated = approximatedVerb === undefined ? undefined : genClipName(approximatedVerb);
+  if (generated !== undefined && hasClip(generated)) return generated;
   const styled = style === undefined ? undefined : spec.styles?.[style];
   if (styled !== undefined && hasClip(styled)) return styled;
   if (hasClip(spec.clip)) return spec.clip;

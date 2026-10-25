@@ -7,11 +7,19 @@ export type LiveOptions = {
   readonly sessionId: string;
 };
 
+export type LiveGeneratedMotionRow = {
+  readonly verb: string;
+  readonly status: string;
+  readonly motionId?: string;
+  readonly characterId?: string;
+};
+
 export type LiveHandlers = {
   readonly onRow: (row: LiveGraphRow) => void;
   readonly onError: (message: string) => void;
   readonly onSegment?: (row: LiveSegmentRow) => void;
   readonly onIdentity?: (identity: string) => void;
+  readonly onGeneratedMotion?: (row: LiveGeneratedMotionRow) => void;
 };
 
 export interface LiveConnection {
@@ -44,6 +52,10 @@ export function liveOptionsFromSearch(search: string): LiveOptions {
 
 export function segmentsQuery(sessionId: string): string {
   return `SELECT * FROM segments WHERE session_id = '${sessionId.replaceAll("'", "''")}'`;
+}
+
+export function generatedMotionsQuery(sessionId: string): string {
+  return `SELECT * FROM generated_motions WHERE session_id = '${sessionId.replaceAll("'", "''")}'`;
 }
 
 export function tokenKey(options: Pick<LiveOptions, "uri" | "databaseName">): string {

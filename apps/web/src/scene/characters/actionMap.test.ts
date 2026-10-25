@@ -179,4 +179,15 @@ describe("chooseClip", () => {
     for (const action of ["hands_up", "point", "reach", "kneel", "stumble", "jump", "phone", "drink", "dodge", "throw"] as const)
       expect(chooseClip(ACTION_MAP[action], () => true)).toBe(ACTION_MAP[action].clip);
   });
+
+  test("an approximated verb prefers its registered generated clip over style and action clips", () => {
+    const has = (name: string) => name === "gen_staggered" || name === "clip_fall_forward" || name === "clip_fall_back";
+
+    expect(chooseClip(ACTION_MAP.fall, has, "forward", " Staggered ")).toBe("gen_staggered");
+  });
+
+  test("an approximated verb without a generated clip keeps the nearest clip", () => {
+    expect(chooseClip(ACTION_MAP.fall, hasKnownClip, undefined, "staggered")).toBe("clip_fall_back");
+    expect(chooseClip(ACTION_MAP.fall, () => true, undefined, "ran!")).toBe("clip_fall_back");
+  });
 });

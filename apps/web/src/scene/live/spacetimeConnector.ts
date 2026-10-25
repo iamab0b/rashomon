@@ -1,6 +1,14 @@
 import { DbConnection } from "./bindings";
 import type { LiveGraphRow } from "./convert";
-import { clearToken, graphQuery, loadToken, saveToken, segmentsQuery, type LiveConnector } from "./liveConnection";
+import {
+  clearToken,
+  generatedMotionsQuery,
+  graphQuery,
+  loadToken,
+  saveToken,
+  segmentsQuery,
+  type LiveConnector,
+} from "./liveConnection";
 
 const isAuthRejection = (error: unknown): boolean => {
   const rejected = error as { name?: unknown; status?: unknown } | null;
@@ -39,6 +47,15 @@ export const spacetimeConnector: LiveConnector = (options, handlers) => {
             report(`live subscription to session ${options.sessionId} failed: ${ctx.event?.message ?? "unknown error"}`),
           )
           .subscribe([graphQuery(options.sessionId), segmentsQuery(options.sessionId)]);
+        const motions = connected.db.generatedMotions;
+        motions.onInsert((_ctx, row) => handlers.onGeneratedMotion?.(row));
+        motions.onUpdate?.((_ctx, _old, row) => handlers.onGeneratedMotion?.(row));
+        connected
+          .subscriptionBuilder()
+          .onError((ctx) =>
+            console.info(`generated motions unavailable for session ${options.sessionId}: ${ctx.event?.message ?? "unknown error"}`),
+          )
+          .subscribe([generatedMotionsQuery(options.sessionId)]);
       })
       .onConnectError((_ctx, error) => {
         if (saved && !retriedWithoutToken && !closing && isAuthRejection(error)) {
