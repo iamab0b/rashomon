@@ -39,6 +39,14 @@ export const Anchor = __t.object("Anchor", {
 });
 export type Anchor = __Infer<typeof Anchor>;
 
+export const AskedFlags = __t.object("AskedFlags", {
+  rowKey: __t.string(),
+  sessionId: __t.string(),
+  flagId: __t.string(),
+  askedAt: __t.timestamp(),
+});
+export type AskedFlags = __Infer<typeof AskedFlags>;
+
 export const Event = __t.object("Event", {
   id: __t.string(),
   witnessId: __t.string(),
