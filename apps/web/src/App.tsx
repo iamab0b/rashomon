@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { isCameraPreset, isLandmarkEditing, POV_CAM, Scene, Timeline, useCamera, useGraph } from "./scene";
-import { RightPanel } from "./ui/RightPanel";
+import { RIGHT_SIDE_CLOSED_PX, RightPanel } from "./ui/RightPanel";
 import { TopBar } from "./ui/TopBar";
 import { ViewSwitcher } from "./ui/ViewSwitcher";
 import { useActorFocus } from "./ui/actorFocus";
@@ -26,7 +26,15 @@ export function App() {
     <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%" }}>
       <TopBar />
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: "flex",
+            flexDirection: "column",
+            ["--rtl-min-width" as string]: `calc(100vw - ${RIGHT_SIDE_CLOSED_PX}px)`,
+          }}
+        >
           <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
             <Scene fixture={fixture} debug={debug} t={t} sceneToolsHosted={drawerMounted} />
             <ViewSwitcher />

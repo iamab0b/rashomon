@@ -47,6 +47,8 @@ const TABS: Tab[] = [
 
 const TOAST_MS = 2200;
 const PANEL_WIDTH_PX = 360;
+const CONTEXT_RAIL_PX = 33;
+export const RIGHT_SIDE_CLOSED_PX = PANEL_WIDTH_PX + CONTEXT_RAIL_PX;
 
 const COLUMN_STYLE: CSSProperties = {
   width: PANEL_WIDTH_PX,
