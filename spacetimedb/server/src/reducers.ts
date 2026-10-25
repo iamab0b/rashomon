@@ -29,7 +29,7 @@ import {
   validateFlag,
 } from "./convert";
 import { buildGraph, type ModuleSchema } from "./graph";
-import { NOT_AN_EDITOR, isEditor } from "./editors";
+import { NOT_AN_EDITOR, NOT_AN_EDITOR_EDIT, isEditor } from "./editors";
 import { fnv1a64 } from "./extract/hash";
 import { MAX_BODY_BYTES, MAX_SEGMENT_TEXT_CHARS, MAX_UTTERANCES, MAX_WITNESS_NAME_CHARS, utf8Bytes } from "./limits";
 import { EventGraphT, FlagT, StatusEntryT, UtteranceInputT, spacetimedb } from "./tables";
@@ -438,6 +438,7 @@ export function applyPatchBatch(ctx: Ctx, sessionId: string, baseVersion: number
 export const applyPatches = spacetimedb.reducer(
   { sessionId: t.string(), baseVersion: t.u32(), patchesJson: t.string() },
   (ctx, { sessionId, baseVersion, patchesJson }) => {
+    if (!isEditor(ctx)) fail(NOT_AN_EDITOR_EDIT);
     let patches: unknown;
     try {
       patches = JSON.parse(patchesJson);
@@ -451,6 +452,7 @@ export const applyPatches = spacetimedb.reducer(
 export const override = spacetimedb.reducer(
   { sessionId: t.string(), eventId: t.string(), reason: t.string(), by: t.string() },
   (ctx, { sessionId, eventId, reason, by }) => {
+    if (!isEditor(ctx)) fail(NOT_AN_EDITOR_EDIT);
     requireSession(ctx, sessionId);
     applyOverride(ctx, sessionId, eventId, reason, by);
     regate(ctx, sessionId);

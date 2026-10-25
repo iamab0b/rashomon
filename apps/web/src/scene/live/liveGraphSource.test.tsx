@@ -279,6 +279,20 @@ describe("live GraphSource applying patches", () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
+  it("a refused edit from a non-editor says this browser can't edit the event graph", async () => {
+    const fake = fakeConnector();
+    fake.applyPatches.mockRejectedValueOnce(new Error("only editors can change the event graph"));
+    const source = liveGraphSource(DEFAULT_LIVE_OPTIONS, fake.connect);
+    source.subscribe(vi.fn());
+    fake.current().onRow(robberyRow("implausible", 1));
+
+    source.apply([MOVE_E5]);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(source.actionError).toBe("This browser can't edit the event graph");
+  });
+
   it("an updated row replaces the snapshot and clears the action error", async () => {
     const fake = fakeConnector();
     fake.applyPatches.mockRejectedValueOnce(new Error("stale baseVersion 1; the graph is at version 2"));
