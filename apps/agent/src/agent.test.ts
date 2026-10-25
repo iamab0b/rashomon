@@ -136,6 +136,7 @@ describe("setup", () => {
     expect(calls.map((c) => `${c.op}:${c.id}`)).toEqual(["updateTool:tool_1", "updateTool:tool_2", "updateTool:tool_3", "updateAgent:agent_1"]);
     expect(calls[0]!.body).not.toHaveProperty("type");
     expect(calls[3]!.body).toMatchObject({ config: { tools: [{ id: "tool_1" }, { id: "tool_2" }, { id: "tool_3" }] } });
+    expect(calls[3]!.body).not.toHaveProperty("version_description");
   });
 
   test("the log never contains the webhook secret", async () => {
