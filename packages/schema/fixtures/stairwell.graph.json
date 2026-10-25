@@ -1,0 +1,25 @@
+{
+  "sceneId": "room_v1",
+  "version": 1,
+  "witnesses": [{ "id": "w1", "label": "Witness", "actorId": "witness" }],
+  "actors": [
+    { "id": "witness", "label": "Witness", "role": "witness", "rig": "mixamo_xbot" },
+    { "id": "suspect", "label": "Suspect", "role": "suspect", "rig": "mixamo_ybot" }
+  ],
+  "props": [],
+  "events": [
+    { "id": "s1", "witnessId": "w1", "actor": "suspect", "action": "walk", "from": { "kind": "at", "landmark": "window_e" }, "to": { "kind": "at", "landmark": "window_s" }, "t": [0, 4], "tConfidence": "stated", "confidence": 0.9, "sources": ["utt_s1"], "status": "proposed", "flags": [] },
+    { "id": "s2", "witnessId": "w1", "actor": "suspect", "action": "stand", "at": { "kind": "at", "landmark": "window_s" }, "t": [4, 12], "tConfidence": "stated", "confidence": 0.9, "sources": ["utt_s1"], "status": "proposed", "flags": [] },
+    { "id": "w1e", "witnessId": "w1", "actor": "witness", "action": "stand", "at": { "kind": "at", "landmark": "stairs_top" }, "t": [0, 12], "tConfidence": "stated", "confidence": 0.9, "sources": ["utt_s1"], "status": "proposed", "flags": [] },
+    { "id": "w2e", "witnessId": "w1", "actor": "witness", "action": "look", "at": { "kind": "at", "landmark": "stairs_top" }, "target": "suspect", "t": [6, 8], "tConfidence": "stated", "confidence": 0.9, "sources": ["utt_s1"], "status": "proposed", "flags": [] },
+    { "id": "s3", "witnessId": "w1", "actor": "suspect", "action": "walk", "from": { "kind": "at", "landmark": "window_s" }, "to": { "kind": "at", "landmark": "window_n" }, "t": [12, 16], "tConfidence": "stated", "confidence": 0.9, "sources": ["utt_s1"], "status": "proposed", "flags": [] }
+  ],
+  "correctionPatch": {
+    "note": "The patches the live loop produces when the witness says she had stepped over to the west window. After them, w2e must be plausible and a new witness walk from stairs_top to window_w should exist for t [4, 6].",
+    "patches": [
+      { "op": "update_event", "id": "w1e", "changes": { "t": [0, 4] }, "sources": ["utt_s2"] },
+      { "op": "add_event", "event": { "witnessId": "w1", "actor": "witness", "action": "walk", "from": { "kind": "at", "landmark": "stairs_top" }, "to": { "kind": "at", "landmark": "window_w" }, "t": [4, 6], "tConfidence": "stated", "confidence": 0.9, "sources": ["utt_s2"] } },
+      { "op": "update_event", "id": "w2e", "changes": { "at": { "kind": "at", "landmark": "window_w" } }, "sources": ["utt_s2"] }
+    ]
+  }
+}

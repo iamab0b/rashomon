@@ -3,10 +3,13 @@ import { extractSegment, type CallModel, type ExtractContext } from "@rashomon/e
 import propsJson from "@rashomon/props";
 import type { Event, EventGraph, Patch, PropType, SceneManifest, Segment } from "@rashomon/schema";
 import { robberyClerkPatches, robberyClerkWitness, robberyGraph, storeScene } from "@rashomon/schema/fixtures";
+import { ROOM_FIXTURE, roomScene } from "../loaders/roomFixture";
 import type { GraphSnapshot } from "../store";
 import { applyPatches } from "./applyPatches";
 import { gatedSnapshot, NO_GEOM } from "./gatedSnapshot";
-import { RECORDED_NOTE, recordedToolCalls } from "./recordedStatements";
+import { ROBBERY_STATEMENTS, type RecordedStatements } from "./recordedStatements";
+import { stairwellCorrectionPatches, stairwellGraph } from "./stairwell";
+import { STAIRWELL_STATEMENTS } from "./stairwellStatements";
 import { checkStatement, statementSegmentId } from "./statementId";
 import { NO_STATEMENTS, type StatementStatus, type StatementStatuses, type SubmittedStatement } from "./statementStatus";
 
@@ -18,6 +21,7 @@ export type GateScene = {
 };
 
 const STORE_GATE: GateScene = { manifest: storeScene, geom: NO_GEOM };
+const ROOM_GATE: GateScene = { manifest: roomScene, geom: NO_GEOM };
 
 export interface GraphSource {
   readonly kind: "fixture" | "live";
@@ -87,7 +91,26 @@ const FIXTURE_STATES: Readonly<Record<string, () => FixtureState>> = {
   [`store:${TWO_WITNESSES_SCENARIO}`]: memoized(`store:${TWO_WITNESSES_SCENARIO}`, () =>
     gatedState(scenarioGraph(TWO_WITNESSES_SCENARIO, storeScene), STORE_GATE),
   ),
+  [ROOM_FIXTURE]: memoized(ROOM_FIXTURE, () => gatedState(stairwellGraph, ROOM_GATE)),
+  [`${ROOM_FIXTURE}:${CORRECTED_SCENARIO}`]: memoized(`${ROOM_FIXTURE}:${CORRECTED_SCENARIO}`, () =>
+    gatedState(applyPatches(stairwellGraph, stairwellCorrectionPatches(), CORRECTION_TIME, roomScene), ROOM_GATE),
+  ),
 };
+
+type FixtureScene = {
+  readonly gate: GateScene;
+  readonly statements: RecordedStatements;
+};
+
+const STORE_SCENE: FixtureScene = { gate: STORE_GATE, statements: ROBBERY_STATEMENTS };
+
+const FIXTURE_SCENES: Readonly<Record<string, FixtureScene>> = {
+  [ROOM_FIXTURE]: { gate: ROOM_GATE, statements: STAIRWELL_STATEMENTS },
+};
+
+function fixtureScene(fixture: string): FixtureScene {
+  return (Object.hasOwn(FIXTURE_SCENES, fixture) ? FIXTURE_SCENES[fixture] : undefined) ?? STORE_SCENE;
+}
 
 function emptyGraph(sceneId: string): EventGraph {
   return { sceneId, actors: robberyGraph.actors, events: [], props: [], witnesses: robberyGraph.witnesses ?? [], version: 1 };
@@ -120,8 +143,8 @@ const FIXTURE_WITNESS = "w1";
 const WORDS_PER_SECOND = 1 / 15;
 
 const recordedModelFor =
-  (statement: string): CallModel =>
-  async () => ({ content: [...recordedToolCalls(statement)] });
+  (statements: RecordedStatements, statement: string): CallModel =>
+  async () => ({ content: [...statements.calls(statement)] });
 
 function statementSegment(text: string, witnessName: string): Segment {
   const body = text.trim();
@@ -138,7 +161,11 @@ function statementSegment(text: string, witnessName: string): Segment {
   };
 }
 
-function patchableSource(initial: () => FixtureState, scene: GateScene): FixtureGraphSource {
+function patchableSource(
+  initial: () => FixtureState,
+  scene: GateScene,
+  statementsSource: RecordedStatements = ROBBERY_STATEMENTS,
+): FixtureGraphSource {
   const { manifest, geom } = scene;
   let current: FixtureState | null = null;
   let statements: StatementStatuses = NO_STATEMENTS;
@@ -162,14 +189,14 @@ function patchableSource(initial: () => FixtureState, scene: GateScene): Fixture
       recentSegments: [segment],
     };
     try {
-      const result = await extractSegment(segment, context, recordedModelFor(segment.text));
+      const result = await extractSegment(segment, context, recordedModelFor(statementsSource, segment.text));
       if (result.patches.length > 0) {
         current = gatedState(applyPatches(graph, result.patches, Date.now(), manifest, geom), scene);
       }
       setStatement(segment.id, {
         state: "done",
         patchCount: result.patches.length,
-        ...(result.patches.length === 0 ? { note: RECORDED_NOTE } : {}),
+        ...(result.patches.length === 0 ? { note: statementsSource.note } : {}),
       });
     } catch (error) {
       setStatement(segment.id, { state: "failed", error: error instanceof Error ? error.message : String(error) });
@@ -220,7 +247,9 @@ export function fixtureGraphSource(
   if (scan) return patchableSource(once(() => scanState(scenario, scan)), scan);
   const key = fixtureKey(fixture, scenario);
   const build = Object.hasOwn(FIXTURE_STATES, key) ? FIXTURE_STATES[key] : undefined;
-  return build ? patchableSource(build, STORE_GATE) : null;
+  if (!build) return null;
+  const { gate, statements } = fixtureScene(fixture);
+  return patchableSource(build, gate, statements);
 }
 
 export function scenarioFromSearch(search: string): string | null {

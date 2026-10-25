@@ -9,11 +9,11 @@ export const normalizeStatement = (text: string): string =>
     .replace(/\s+/g, " ")
     .trim();
 
-const at = (landmark: string) => ({ kind: "at", landmark, second_landmark: null, radius_m: null });
+export const at = (landmark: string) => ({ kind: "at", landmark, second_landmark: null, radius_m: null });
 
-const NONE = { from: null, to: null, at: null, facing: null, target: null, prop: null, action: null, t_start: null, t_end: null };
+export const NONE = { from: null, to: null, at: null, facing: null, target: null, prop: null, action: null, t_start: null, t_end: null };
 
-const use = (id: string, name: string, input: Record<string, unknown>): ToolUseBlock => ({
+export const use = (id: string, name: string, input: Record<string, unknown>): ToolUseBlock => ({
   type: "tool_use",
   id,
   name,
@@ -46,6 +46,13 @@ const CORRECTION_CALLS: ToolUseBlock[] = [
 
 const RECORDED: ReadonlyMap<string, readonly ToolUseBlock[]> = new Map([[normalizeStatement(CORRECTION_TEXT), CORRECTION_CALLS]]);
 
+export type RecordedStatements = {
+  readonly calls: (text: string) => readonly ToolUseBlock[];
+  readonly note: string;
+};
+
 export function recordedToolCalls(text: string): readonly ToolUseBlock[] {
   return RECORDED.get(normalizeStatement(text)) ?? [];
 }
+
+export const ROBBERY_STATEMENTS: RecordedStatements = { calls: recordedToolCalls, note: RECORDED_NOTE };

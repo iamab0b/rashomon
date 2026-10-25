@@ -11,6 +11,9 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { SceneManifest } from "@rashomon/schema";
 import { storeScene } from "@rashomon/schema/fixtures";
 import { ownMaterials } from "../characters/materials";
+import { applyAlignment, type Alignment } from "./alignment";
+import { ROOM_FIXTURE, roomAlignment, roomScene } from "./roomFixture";
+import { makeScanUnlit, scanLitFromSearch } from "./scanUnlit";
 import { specGlossPlugin } from "./specGlossPlugin";
 
 export type LoadedScene = {
@@ -22,6 +25,10 @@ export type LoadedScene = {
 export const DRESS_PREFIX = "dress_";
 const FIXTURES: Readonly<Record<string, SceneManifest>> = {
   store: storeScene,
+  [ROOM_FIXTURE]: roomScene,
+};
+const FIXTURE_ALIGNMENTS: Readonly<Record<string, Alignment>> = {
+  [ROOM_FIXTURE]: roomAlignment,
 };
 
 export function isKnownFixture(fixture: string): boolean {
@@ -92,8 +99,37 @@ export async function loadGlb(url: string): Promise<Object3D> {
   return gltf.scene;
 }
 
-export async function loadScene(fixture: string): Promise<LoadedScene> {
-  return loadSceneFromManifest(loadManifest(fixture));
+export async function loadScene(fixture: string, lit: boolean = scanLitFromSearch(globalThis.location?.search ?? "")): Promise<LoadedScene> {
+  const manifest = loadManifest(fixture);
+  const alignment = Object.hasOwn(FIXTURE_ALIGNMENTS, fixture) ? FIXTURE_ALIGNMENTS[fixture] : undefined;
+  return alignment ? loadAlignedScan(manifest, alignment, lit) : loadSceneFromManifest(manifest);
+}
+
+function placeholderScene(manifest: SceneManifest, error: unknown): LoadedScene {
+  console.warn(`scene mesh ${manifest.meshUrl} failed to load, using placeholder built from landmark bounds`, error);
+  const model = buildPlaceholder(manifest);
+  tagCollision(model);
+  enableShadows(model);
+  ownMaterials(model);
+  return { manifest, model, isPlaceholder: true };
+}
+
+export async function loadAlignedScan(manifest: SceneManifest, alignment: Alignment, lit: boolean): Promise<LoadedScene> {
+  let raw: Object3D;
+  try {
+    raw = await loadGlb(manifest.meshUrl);
+  } catch (error) {
+    return placeholderScene(manifest, error);
+  }
+  tagCollision(raw);
+  if (lit) enableShadows(raw);
+  else makeScanUnlit(raw);
+  ownMaterials(raw);
+  const model = new Group();
+  model.name = `${manifest.sceneId}_aligned`;
+  model.add(raw);
+  applyAlignment(model, alignment);
+  return { manifest, model, isPlaceholder: false };
 }
 
 export async function loadSceneFromManifest(manifest: SceneManifest): Promise<LoadedScene> {
@@ -104,14 +140,6 @@ export async function loadSceneFromManifest(manifest: SceneManifest): Promise<Lo
     ownMaterials(model);
     return { manifest, model, isPlaceholder: false };
   } catch (error) {
-    console.warn(
-      `scene mesh ${manifest.meshUrl} failed to load, using placeholder built from landmark bounds`,
-      error,
-    );
-    const model = buildPlaceholder(manifest);
-    tagCollision(model);
-    enableShadows(model);
-    ownMaterials(model);
-    return { manifest, model, isPlaceholder: true };
+    return placeholderScene(manifest, error);
   }
 }
