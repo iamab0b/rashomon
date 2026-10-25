@@ -23,14 +23,13 @@ const walk = (over: Partial<Event> = {}): Event =>
     ...over,
   }) as Event;
 
-const mcfix1 = (walkEvent: Event): EventGraph => {
-  const events = robberyGraph.events.map((e) => {
-    if (e.id === "e3") return { ...e, t: [0, 8] as [number, number] };
-    if (e.id === "e5") return { ...e, at: at("window_front") };
-    if (e.id === "e9") return { ...e, at: at("window_front") };
-    return e;
-  });
-  return { ...robberyGraph, events: [...events, walkEvent] } as EventGraph;
+const template = (id: string) => robberyGraph.events.find((e) => e.id === id)!;
+
+const dated = (id: string, from: string, over: Partial<Event>): Event => ({ ...template(from), id, ...over }) as Event;
+
+const lookWithoutPlace = (id: string, over: Partial<Event>): Event => {
+  const { at: _at, ...rest } = template("e5");
+  return { ...rest, id, ...over } as Event;
 };
 
 const run = (graph: EventGraph) => {
@@ -41,20 +40,86 @@ const run = (graph: EventGraph) => {
   return { resolved, verdict, byId, flagsOf };
 };
 
-describe("inferred movement", () => {
-  test("mcfix1: an inferred walk squeezed between stated events is estimated and soft, and e5 keeps its view", () => {
-    const { verdict, byId, flagsOf } = run(mcfix1(walk()));
+const allStated = (graph: EventGraph): EventGraph => ({
+  ...graph,
+  events: graph.events.map((e) => ({ ...e, tConfidence: "stated" })),
+});
+
+const mcfix1 = (walkEvent: Event): EventGraph => {
+  const events = robberyGraph.events.map((e) => {
+    if (e.id === "e3") return { ...e, t: [0, 8] as [number, number] };
+    if (e.id === "e5") return { ...e, at: at("window_front") };
+    if (e.id === "e9") return { ...e, at: at("window_front") };
+    return e;
+  });
+  return { ...robberyGraph, events: [...events, walkEvent] } as EventGraph;
+};
+
+const withoutWitness = robberyGraph.events.filter((e) => e.actor !== "witness");
+
+const repros: Record<string, EventGraph> = {
+  mcfix1: mcfix1(walk()),
+  "A: an estimated walk then a stated crouch at the counter": {
+    ...robberyGraph,
+    events: [
+      dated("s0", "e3", { t: [0, 8] }),
+      walk({ t: [8, 10] }),
+      dated("c1", "e9", { t: [12, 20], at: at("counter") }),
+    ],
+  } as EventGraph,
+  "B: an estimated run then an estimated crouch": {
+    ...robberyGraph,
+    events: [
+      dated("s0", "e3", { at: at("front_door"), t: [0, 10] }),
+      walk({ id: "x1", action: "run", from: at("front_door"), to: at("back_door"), t: [10, 11] }),
+      dated("x2", "e9", { at: at("back_door"), t: [11, 13], tConfidence: "inferred" }),
+    ],
+  } as EventGraph,
+  ...Object.fromEntries(
+    (
+      [
+        ["C: a stated look over the estimated walk", [8, 9]],
+        ["C: a stated look that starts first", [7.5, 9]],
+        ["C: a stated look that starts inside the walk", [8.5, 9.5]],
+      ] as const
+    ).map(([name, lookT]) => [
+      name,
+      {
+        ...robberyGraph,
+        events: [
+          ...withoutWitness,
+          dated("s0", "e3", { at: at("front_door"), t: [0, 2] }),
+          walk({ from: at("front_door"), t: [8, 9] }),
+          lookWithoutPlace("l1", { t: [...lookT] }),
+        ],
+      } as EventGraph,
+    ]),
+  ),
+  "cross-actor: a stated look at the suspect's estimated walk": {
+    ...robberyGraph,
+    events: [
+      ...robberyGraph.events.filter((e) => e.actor !== "witness" && e.id !== "e10"),
+      walk({ id: "x1", actor: "suspect", from: at("front_door"), to: at("counter"), t: [19.5, 20.5] }),
+      dated("l1", "e5", { at: at("back_door"), t: [19.5, 21.5] }),
+    ],
+  } as EventGraph,
+};
+
+describe("inferred movement keeps its time and is only softened", () => {
+  test("mcfix1: e11 keeps 8-10, is estimated with soft flags and proposed; e5 stays plausible from the window", () => {
+    const { verdict, byId, flagsOf } = run(repros.mcfix1!);
     const e11 = byId("e11");
+    expect([e11.tStart, e11.tEnd]).toEqual([8, 10]);
     expect(e11.pathLengthM).toBeCloseTo(5.7, 0);
     expect(e11.tInferred).toBe(true);
-    expect([e11.tStart, e11.tEnd]).toEqual([8, 10]);
     const timing = flagsOf("e11").filter((f) => f.check === "time_distance");
     expect(timing.length).toBeGreaterThan(0);
     expect(timing.every((f) => f.severity === "soft")).toBe(true);
-    expect(verdict.statuses.e11).toBe("proposed");
     expect(flagsOf("e11").filter((f) => f.severity === "hard")).toEqual([]);
+    expect(verdict.statuses.e11).toBe("proposed");
     expect(verdict.statuses.e5).toBe("plausible");
     expect(flagsOf("e5").filter((f) => f.check === "sightline")).toEqual([]);
+    expect(byId("e5").at).toEqual(storeScene.landmarks.find((l) => l.id === "window_front")!.position);
     expect([byId("e3").tStart, byId("e3").tEnd]).toEqual([0, 8]);
     expect([byId("e5").tStart, byId("e5").tEnd]).toEqual([10, 12]);
     expect([byId("e9").tStart, byId("e9").tEnd]).toEqual([13, 24]);
@@ -63,195 +128,86 @@ describe("inferred movement", () => {
   test("the same walk with a stated time keeps the hard flag and is implausible", () => {
     const { verdict, byId, flagsOf } = run(mcfix1(walk({ tConfidence: "stated" })));
     expect(byId("e11").tInferred).toBe(false);
-    const timing = flagsOf("e11").filter((f) => f.check === "time_distance");
-    expect(timing.map((f) => f.severity)).toEqual(["hard"]);
+    expect(flagsOf("e11").filter((f) => f.check === "time_distance").map((f) => f.severity)).toEqual(["hard"]);
     expect(verdict.statuses.e11).toBe("implausible");
   });
 
-  test("with room to extend, an inferred 5.7 m walk lasts at least 4.07 s and has no time_distance flag", () => {
-    const graph = { ...robberyGraph, events: [walk({ t: [30, 32] })] } as EventGraph;
-    const { verdict, byId, flagsOf } = run(graph);
-    const e11 = byId("e11");
-    expect(e11.tInferred).toBe(true);
-    expect(e11.tStart).toBe(30);
-    expect(e11.tEnd - e11.tStart).toBeGreaterThanOrEqual(e11.pathLengthM / 1.4 - 1e-6);
-    expect(e11.tEnd - e11.tStart).toBeGreaterThanOrEqual(4.07);
-    expect(flagsOf("e11").filter((f) => f.check === "time_distance")).toEqual([]);
-    expect(flagsOf("e11").filter((f) => f.severity === "hard")).toEqual([]);
-    expect(verdict.statuses.e11).not.toBe("implausible");
-  });
-
-  test("an inferred 12 m run in 1 s is lengthened to 3 s", () => {
-    const open = {
-      ...storeScene,
-      landmarks: [],
-      portals: undefined,
-      interior: { min: [0, 0, 0], max: [20, 3, 20] },
-    } as unknown as typeof storeScene;
-    const xyz = (x: number, z: number) => ({ kind: "xyz" as const, position: [x, 0, z] as [number, number, number] });
-    const sprint = walk({ id: "r1", action: "run", from: xyz(2, 5), to: xyz(14, 5), t: [30, 31] });
-    const resolved = resolve({ ...robberyGraph, props: [], events: [sprint] } as EventGraph, open);
-    const r1 = resolved.events[0]!;
-    expect(r1.pathLengthM).toBeCloseTo(12, 5);
-    expect(r1.tStart).toBe(30);
-    expect(r1.tEnd).toBeCloseTo(33, 5);
-    expect(r1.tInferred).toBe(true);
-  });
-
-  test("when the end cannot move the start extends back, never into a stated event", () => {
-    const events = [
-      { ...robberyGraph.events.find((e) => e.id === "e3")!, t: [0, 6] as [number, number] },
-      walk({ t: [8, 10] }),
-      { ...robberyGraph.events.find((e) => e.id === "e5")!, t: [10, 12] as [number, number], at: at("window_front") },
-    ];
-    const { byId } = run({ ...robberyGraph, events } as EventGraph);
-    const e11 = byId("e11");
-    expect(e11.tEnd).toBe(10);
-    expect(e11.tStart).toBeLessThan(8);
-    expect(e11.tStart).toBeGreaterThanOrEqual(6);
-  });
-
-  test("a walk that already fits its interval is untouched and not estimated", () => {
-    const { byId } = run({ ...robberyGraph, events: [walk({ t: [30, 40] })] } as EventGraph);
+  test("an estimated walk that fits its interval is not marked estimated", () => {
+    const { byId, flagsOf } = run({ ...robberyGraph, events: [walk({ t: [30, 40] })] } as EventGraph);
     expect(byId("e11")).toMatchObject({ tStart: 30, tEnd: 40, tInferred: false });
+    expect(flagsOf("e11")).toEqual([]);
   });
 
-  test("the fixture's own correction walk overlaps stated events and is left alone", () => {
-    const patch = (robberyGraph as unknown as { correctionPatch: { patches: { op: string; event?: Event }[] } }).correctionPatch.patches;
-    const added = patch.find((p) => p.op === "add_event")!.event!;
-    const { byId } = run({ ...robberyGraph, events: [...robberyGraph.events, { ...added, id: "e11" } as Event] } as EventGraph);
-    expect(byId("e11")).toMatchObject({ tStart: 8, tEnd: 11, tInferred: false });
+  test("an estimated run over the run limit is marked estimated and keeps its time", () => {
+    const { byId, flagsOf } = run({
+      ...robberyGraph,
+      events: [walk({ id: "r1", action: "run", from: at("front_door"), to: at("back_door"), t: [30, 31] })],
+    } as EventGraph);
+    expect(byId("r1")).toMatchObject({ tStart: 30, tEnd: 31, tInferred: true });
+    expect(flagsOf("r1").filter((f) => f.check === "time_distance").every((f) => f.severity === "soft")).toBe(true);
   });
 
-  test("a stated crouch right after an estimated walk stays plausible", () => {
+  test("a between-event flag is soft when the earlier event's time is estimated", () => {
     const events = [
-      { ...robberyGraph.events.find((e) => e.id === "e3")!, t: [0, 8] as [number, number] },
+      dated("s0", "e3", { t: [0, 8] }),
       walk({ t: [8, 10] }),
-      { ...robberyGraph.events.find((e) => e.id === "e9")!, id: "c1", t: [12, 20] as [number, number], at: at("counter") },
+      dated("c1", "e9", { t: [10.1, 20], at: at("counter") }),
     ];
     const { verdict, byId, flagsOf } = run({ ...robberyGraph, events } as EventGraph);
-    expect([byId("c1").tStart, byId("c1").tEnd]).toEqual([12, 20]);
-    expect(flagsOf("c1").filter((f) => f.severity === "hard")).toEqual([]);
+    expect(byId("e11").tInferred).toBe(true);
+    expect(byId("c1").tInferred).toBe(false);
+    const between = flagsOf("c1").filter((f) => f.check === "time_distance");
+    expect(between.length).toBeGreaterThan(0);
+    expect(between.every((f) => f.severity === "soft" && f.evidence.previousEventId === "e11")).toBe(true);
     expect(verdict.statuses.c1).toBe("plausible");
-    expect(verdict.statuses.e11).not.toBe("implausible");
   });
 
-  test("a stated event with no estimate before it keeps its hard between-event flag", () => {
+  test("a between-event flag stays hard when both sides are stated", () => {
     const events = [
-      { ...robberyGraph.events.find((e) => e.id === "e3")!, t: [0, 8] as [number, number] },
+      dated("s0", "e3", { t: [0, 8] }),
       walk({ t: [8, 8.1], tConfidence: "stated" }),
-      { ...robberyGraph.events.find((e) => e.id === "e9")!, id: "c1", t: [8.2, 20] as [number, number], at: at("counter") },
+      dated("c1", "e9", { t: [8.2, 20], at: at("counter") }),
     ];
     const { verdict } = run({ ...robberyGraph, events } as EventGraph);
     expect(verdict.statuses.c1).toBe("implausible");
   });
 
-  test("the lengthened end stops early enough to walk to a close next event", () => {
-    const events = [
-      walk({ t: [8, 9] }),
-      { ...robberyGraph.events.find((e) => e.id === "e9")!, id: "c1", t: [14, 20] as [number, number], at: at("counter") },
-    ];
-    const { byId, flagsOf } = run({ ...robberyGraph, events } as EventGraph);
-    const e11 = byId("e11");
-    const c1 = byId("c1");
-    const travel = Math.hypot(e11.to![0] - c1.at![0], e11.to![2] - c1.at![2]);
-    expect(travel / 1.4).toBeGreaterThan(14 - (8 + e11.pathLengthM / 1.4));
-    expect(c1.tStart - e11.tEnd).toBeGreaterThanOrEqual(travel / 1.4 - 1e-6);
-    expect(flagsOf("c1").filter((f) => f.check === "time_distance")).toEqual([]);
-  });
-
-  test("an estimated run cannot swallow the estimated event after it", () => {
-    const spot = (id: string, over: Partial<Event>): Event =>
-      ({ ...robberyGraph.events.find((e) => e.id === "e3")!, id, actor: "witness", ...over }) as Event;
-    const events = [
-      spot("s0", { at: at("front_door"), t: [0, 10], tConfidence: "stated" }),
-      walk({ id: "x1", action: "run", from: at("front_door"), to: at("back_door"), t: [10, 11] }),
-      spot("x2", { action: "crouch", at: at("back_door"), t: [11, 13], tConfidence: "inferred" }),
-    ];
-    const { verdict, byId, flagsOf } = run({ ...robberyGraph, events } as EventGraph);
-    const run1 = byId("x1");
-    const crouch = byId("x2");
-    expect(run1.tEnd).toBeLessThanOrEqual(crouch.tStart);
-    expect(run1.tStart).toBeGreaterThanOrEqual(10);
-    expect([crouch.tStart, crouch.tEnd]).toEqual([11, 13]);
-    expect(verdict.statuses.x2).not.toBe("implausible");
-    expect(flagsOf("x2").filter((f) => f.severity === "hard")).toEqual([]);
-    expect(run1.tInferred).toBe(true);
-    expect(flagsOf("x1").filter((f) => f.severity === "hard")).toEqual([]);
-    expect(verdict.statuses.x1).not.toBe("implausible");
-  });
-
-  test("a stated event that starts when the walk does bounds the start, and one ending at the walk's end bounds the end", () => {
-    const events = [
-      { ...robberyGraph.events.find((e) => e.id === "e3")!, id: "s1", t: [8, 9] as [number, number] },
-      walk({ t: [8, 10] }),
-      { ...robberyGraph.events.find((e) => e.id === "e5")!, t: [10, 12] as [number, number], at: at("window_front") },
-    ];
-    const { byId } = run({ ...robberyGraph, events } as EventGraph);
-    expect(byId("e11").tStart).toBe(8);
-    expect(byId("e11").tEnd).toBe(10);
-  });
-
-  describe("a walk whose own interval already overlaps a dated event is never stretched", () => {
-    const others = robberyGraph.events.filter((e) => e.actor !== "witness");
-    const stand = { ...robberyGraph.events.find((e) => e.id === "e3")!, id: "s0", at: at("front_door"), t: [0, 2] as [number, number] };
-    const look = (t: [number, number]) => {
-      const { at: _at, ...rest } = robberyGraph.events.find((e) => e.id === "e5")!;
-      return { ...rest, id: "l1", t } as Event;
-    };
-    const graphWith = (lookT: [number, number], confidence: "inferred" | "stated") =>
-      ({
-        ...robberyGraph,
-        events: [...others, stand, walk({ from: at("front_door"), t: [8, 9], tConfidence: confidence }), look(lookT)],
-      }) as EventGraph;
-
-    test("a look over the same interval keeps its verdict and stays plausible", () => {
-      const inferred = run(graphWith([8, 9], "inferred"));
-      expect([inferred.byId("e11").tStart, inferred.byId("e11").tEnd]).toEqual([8, 9]);
-      expect(inferred.verdict.statuses.l1).toBe("plausible");
-      expect(inferred.flagsOf("l1").filter((f) => f.check === "sightline")).toEqual([]);
-      expect(inferred.flagsOf("e11").filter((f) => f.severity === "hard")).toEqual([]);
+  for (const [name, graph] of Object.entries(repros)) {
+    test(`${name}: times and positions equal main's, and no status gets worse`, () => {
+      const now = run(graph);
+      const before = run(allStated(graph));
+      expect(now.resolved.events.map(({ tInferred: _t, ...rest }) => rest)).toEqual(
+        before.resolved.events.map(({ tInferred: _t, ...rest }) => rest),
+      );
+      for (const e of now.resolved.events) {
+        if (before.verdict.statuses[e.id] !== "implausible") expect(now.verdict.statuses[e.id], e.id).not.toBe("implausible");
+      }
     });
+  }
 
-    for (const [name, lookT] of [
-      ["a look that starts first", [7.5, 9]],
-      ["a look that starts inside the walk", [8.5, 9.5]],
-    ] as const) {
-      test(`${name} sees from where the unstretched walk puts the witness`, () => {
-        const inferred = run(graphWith([...lookT], "inferred"));
-        const stated = run(graphWith([...lookT], "stated"));
-        expect([inferred.byId("e11").tStart, inferred.byId("e11").tEnd]).toEqual([8, 9]);
-        expect(inferred.verdict.statuses.l1).toBe(stated.verdict.statuses.l1);
-        expect(inferred.flagsOf("l1")).toEqual(stated.flagsOf("l1"));
-      });
+  test("for random estimated walks, every event's time and position equals the confidence-blind resolve", () => {
+    const places = storeScene.landmarks.filter((l) => l.kind !== "zone").map((l) => l.id);
+    let seed = 7;
+    const next = () => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed / 2147483648;
+    };
+    for (let i = 0; i < 200; i++) {
+      const start = Math.round(next() * 200) / 10;
+      const span = 0.2 + Math.round(next() * 60) / 10;
+      const action = next() < 0.5 ? "walk" : "run";
+      const from = places[Math.floor(next() * places.length)]!;
+      const to = places[Math.floor(next() * places.length)]!;
+      const graph = {
+        ...robberyGraph,
+        events: [
+          ...robberyGraph.events,
+          walk({ id: "x1", action, actor: next() < 0.5 ? "witness" : "suspect", from: at(from), to: at(to), t: [start, start + span] }),
+        ],
+      } as EventGraph;
+      const now = resolve(graph, storeScene);
+      const before = resolve(allStated(graph), storeScene);
+      expect(now.events.map(({ tInferred: _t, ...rest }) => rest)).toEqual(before.events.map(({ tInferred: _t, ...rest }) => rest));
     }
-  });
-
-  test("the start never stretches back over an untimed event just before the walk", () => {
-    const base = robberyGraph.events.find((e) => e.id === "e3")!;
-    const events = [
-      { ...base, id: "s0", t: [0, 4] as [number, number] },
-      { ...base, id: "s1", t: undefined, tConfidence: "inferred" } as unknown as Event,
-      walk({ t: [7, 8] }),
-      { ...robberyGraph.events.find((e) => e.id === "e5")!, t: [8, 12] as [number, number], at: at("window_front") },
-    ];
-    const { byId } = run({ ...robberyGraph, events } as EventGraph);
-    const untimedEnd = byId("s1").tEnd;
-    expect(untimedEnd).toBeGreaterThan(4);
-    expect(byId("e11").tEnd).toBe(8);
-    expect(byId("e11").tStart).toBeLessThan(7);
-    expect(byId("e11").tStart).toBeGreaterThanOrEqual(untimedEnd);
-  });
-
-  test("when the reserve does not fit, the end is not stretched toward the next event", () => {
-    const events = [
-      { ...robberyGraph.events.find((e) => e.id === "e3")!, t: [0, 8] as [number, number] },
-      walk({ t: [8, 10] }),
-      { ...robberyGraph.events.find((e) => e.id === "e9")!, id: "c1", t: [11, 20] as [number, number], at: at("counter") },
-    ];
-    const { verdict, byId } = run({ ...robberyGraph, events } as EventGraph);
-    expect([byId("e11").tStart, byId("e11").tEnd]).toEqual([8, 10]);
-    expect(byId("e11").tInferred).toBe(true);
-    expect(verdict.statuses.c1).not.toBe("implausible");
   });
 });

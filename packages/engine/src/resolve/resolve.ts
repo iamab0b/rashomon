@@ -10,33 +10,10 @@ import { anchorToPoint } from "./anchors";
 import type { Box } from "./geometry";
 import { pathLength, shortestPath, straightLineClear } from "./portals";
 import { portalsFor } from "./walkable";
-import { WALK_SPEED_MS, hasInterval, realisticMovement, resolveInterval } from "./time";
+import { hasInterval, overSpeedLimit, resolveInterval } from "./time";
 
 const MOVEMENT = new Set(["walk", "run"]);
 const TIME_EPS = 1e-9;
-
-const isDated = (e: Event): e is Event & { t: [number, number] } => hasInterval(e.t) && !isRetracted(e);
-
-function datedNeighbours(
-  events: readonly Event[],
-  self: Event,
-  t: [number, number],
-): { floor: number; ceiling: number; next: Event | undefined; overlapped: boolean } {
-  let floor = 0;
-  let ceiling = Number.POSITIVE_INFINITY;
-  let next: Event | undefined;
-  let overlapped = false;
-  for (const other of events) {
-    if (other === self || other.actor !== self.actor || !isDated(other)) continue;
-    if (other.t[0] === t[0] || (other.t[0] < t[1] && other.t[1] > t[0])) overlapped = true;
-    if (other.t[0] <= t[0]) floor = Math.max(floor, other.t[1]);
-    else if (other.t[0] < ceiling) {
-      ceiling = other.t[0];
-      next = other;
-    }
-  }
-  return { floor, ceiling, next, overlapped };
-}
 
 const handoffRank = (action: string): number => (action === "drop" ? 0 : 1);
 
@@ -168,13 +145,6 @@ export function resolve(
     a ? roundVec(anchorToPoint(a, manifest)) : undefined;
   const tracker = createTracker();
 
-  const boundsFor = (e: Event, t: [number, number], arrival: Vec3 | undefined, previousEnd: number) => {
-    const { floor, ceiling, next, overlapped } = datedNeighbours(graph.events, e, t);
-    const target = next ? (MOVEMENT.has(next.action) ? point(next.from) : (point(next.at) ?? point(next.from))) : undefined;
-    const reserveS = arrival && target ? Math.hypot(...arrival.map((v, i) => v - target[i]!) as Vec3) / WALK_SPEED_MS : 0;
-    return { floor: Math.max(floor, previousEnd), ceiling, reserveS, overlapped };
-  };
-
   const previousEndByActor = new Map<string, number>();
   const events: ResolvedEvent[] = graph.events.map((e) => {
     const isMove = MOVEMENT.has(e.action);
@@ -188,11 +158,12 @@ export function resolve(
       ? routeBetween(from, to, portals, obstacles)
       : { path: [], reachable: true, travelM: 0 };
 
-    const given = resolveInterval(e.t, e.action, route.travelM, previousEnd);
-    const t =
-      isMove && e.tConfidence === "inferred" && hasInterval(e.t)
-        ? realisticMovement(given, e.action, pathLength(route.path), boundsFor(e, e.t, route.reachable ? to : from, previousEnd))
-        : given;
+    const t = resolveInterval(e.t, e.action, route.travelM, previousEnd);
+    const estimated =
+      t.tInferred ||
+      (isMove &&
+        e.tConfidence === "inferred" &&
+        overSpeedLimit(e.action, pathLength(route.path), t.tEnd - t.tStart));
     previousEndByActor.set(e.actor, t.tEnd);
     const arrivedAt = isMove ? (route.reachable ? to : from) : at;
     if (!isRetracted(e)) {
@@ -225,7 +196,7 @@ export function resolve(
       sources: e.sources,
       ...(e.override ? { override: { ...e.override, flagIds: [...e.override.flagIds] } } : {}),
       ...(e.supersededBy !== undefined ? { supersededBy: e.supersededBy } : {}),
-      tInferred: t.tInferred,
+      tInferred: estimated,
     };
   });
 

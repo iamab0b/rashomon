@@ -33,34 +33,12 @@ export function durationFor(action: Action, distanceM: number): number {
   return FIXED_DURATION_S[action];
 }
 
-export type Interval = { tStart: number; tEnd: number; tInferred: boolean };
-
-export type StatedBounds = { floor: number; ceiling: number; reserveS: number; overlapped: boolean };
-
-const MIN_SPEED_MS: Partial<Record<Action, number>> = { walk: WALK_SPEED_MS, run: RUN_SPEED_MS };
 const MAX_SPEED_MS: Partial<Record<Action, number>> = { walk: WALK_MAX_MS, run: RUN_MAX_MS };
 
-export function realisticMovement(
-  interval: Interval,
-  action: Action,
-  pathLengthM: number,
-  bounds: StatedBounds,
-): Interval {
-  const speed = MIN_SPEED_MS[action];
+export function overSpeedLimit(action: Action, pathLengthM: number, seconds: number): boolean {
   const limit = MAX_SPEED_MS[action];
-  if (speed === undefined || limit === undefined || pathLengthM <= 0) return interval;
-  const needed = pathLengthM / speed;
-  let { tStart, tEnd } = interval;
-  if (tEnd - tStart < needed && !bounds.overlapped) {
-    const reserved = bounds.ceiling - bounds.reserveS;
-    tEnd = Math.max(tEnd, Math.min(tStart + needed, reserved));
-    const missing = needed - (tEnd - tStart);
-    if (missing > 0) tStart = Math.min(tStart, Math.max(bounds.floor, tStart - missing));
-  }
-  const changed = tStart !== interval.tStart || tEnd !== interval.tEnd;
-  const seconds = tEnd - tStart;
-  const tooFast = seconds <= 0 || pathLengthM / seconds > limit;
-  return { tStart, tEnd, tInferred: interval.tInferred || changed || tooFast };
+  if (limit === undefined || pathLengthM <= 0) return false;
+  return seconds <= 0 || pathLengthM / seconds > limit;
 }
 
 export const hasInterval = (t: unknown): t is [number, number] =>
