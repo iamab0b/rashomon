@@ -81,11 +81,20 @@ describe("inferred movement", () => {
     expect(verdict.statuses.e11).not.toBe("implausible");
   });
 
-  test("an inferred run is lengthened to path / 4 m/s", () => {
-    const run12 = walk({ id: "r1", action: "run", from: at("front_door"), to: at("cooler"), t: [30, 31] });
-    const { byId } = run({ ...robberyGraph, events: [run12] } as EventGraph);
-    const r1 = byId("r1");
-    expect(r1.tEnd - r1.tStart).toBeCloseTo(r1.pathLengthM / 4, 5);
+  test("an inferred 12 m run in 1 s is lengthened to 3 s", () => {
+    const open = {
+      ...storeScene,
+      landmarks: [],
+      portals: undefined,
+      interior: { min: [0, 0, 0], max: [20, 3, 20] },
+    } as unknown as typeof storeScene;
+    const xyz = (x: number, z: number) => ({ kind: "xyz" as const, position: [x, 0, z] as [number, number, number] });
+    const sprint = walk({ id: "r1", action: "run", from: xyz(2, 5), to: xyz(14, 5), t: [30, 31] });
+    const resolved = resolve({ ...robberyGraph, props: [], events: [sprint] } as EventGraph, open);
+    const r1 = resolved.events[0]!;
+    expect(r1.pathLengthM).toBeCloseTo(12, 5);
+    expect(r1.tStart).toBe(30);
+    expect(r1.tEnd).toBeCloseTo(33, 5);
     expect(r1.tInferred).toBe(true);
   });
 
@@ -112,5 +121,52 @@ describe("inferred movement", () => {
     const added = patch.find((p) => p.op === "add_event")!.event!;
     const { byId } = run({ ...robberyGraph, events: [...robberyGraph.events, { ...added, id: "e11" } as Event] } as EventGraph);
     expect(byId("e11")).toMatchObject({ tStart: 8, tEnd: 11, tInferred: false });
+  });
+
+  test("a stated crouch right after an estimated walk stays plausible", () => {
+    const events = [
+      { ...robberyGraph.events.find((e) => e.id === "e3")!, t: [0, 8] as [number, number] },
+      walk({ t: [8, 10] }),
+      { ...robberyGraph.events.find((e) => e.id === "e9")!, id: "c1", t: [12, 20] as [number, number], at: at("counter") },
+    ];
+    const { verdict, byId, flagsOf } = run({ ...robberyGraph, events } as EventGraph);
+    expect([byId("c1").tStart, byId("c1").tEnd]).toEqual([12, 20]);
+    expect(flagsOf("c1").filter((f) => f.severity === "hard")).toEqual([]);
+    expect(verdict.statuses.c1).toBe("plausible");
+    expect(verdict.statuses.e11).not.toBe("implausible");
+  });
+
+  test("a stated event with no estimate before it keeps its hard between-event flag", () => {
+    const events = [
+      { ...robberyGraph.events.find((e) => e.id === "e3")!, t: [0, 8] as [number, number] },
+      walk({ t: [8, 8.1], tConfidence: "stated" }),
+      { ...robberyGraph.events.find((e) => e.id === "e9")!, id: "c1", t: [8.2, 20] as [number, number], at: at("counter") },
+    ];
+    const { verdict } = run({ ...robberyGraph, events } as EventGraph);
+    expect(verdict.statuses.c1).toBe("implausible");
+  });
+
+  test("the lengthened end leaves walking time to the next stated event when it fits", () => {
+    const events = [
+      walk({ t: [8, 9] }),
+      { ...robberyGraph.events.find((e) => e.id === "e9")!, id: "c1", t: [30, 40] as [number, number], at: at("counter") },
+    ];
+    const { byId } = run({ ...robberyGraph, events } as EventGraph);
+    const e11 = byId("e11");
+    const c1 = byId("c1");
+    const travel = Math.hypot(e11.to![0] - c1.at![0], e11.to![2] - c1.at![2]);
+    expect(e11.tEnd - e11.tStart).toBeGreaterThanOrEqual(e11.pathLengthM / 1.4 - 1e-6);
+    expect(c1.tStart - e11.tEnd).toBeGreaterThanOrEqual(travel / 1.4 - 1e-6);
+  });
+
+  test("a stated event that starts when the walk does bounds the start, and one ending at the walk's end bounds the end", () => {
+    const events = [
+      { ...robberyGraph.events.find((e) => e.id === "e3")!, id: "s1", t: [8, 9] as [number, number] },
+      walk({ t: [8, 10] }),
+      { ...robberyGraph.events.find((e) => e.id === "e5")!, t: [10, 12] as [number, number], at: at("window_front") },
+    ];
+    const { byId } = run({ ...robberyGraph, events } as EventGraph);
+    expect(byId("e11").tStart).toBe(8);
+    expect(byId("e11").tEnd).toBe(10);
   });
 });

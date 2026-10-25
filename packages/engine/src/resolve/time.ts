@@ -35,7 +35,7 @@ export function durationFor(action: Action, distanceM: number): number {
 
 export type Interval = { tStart: number; tEnd: number; tInferred: boolean };
 
-export type StatedBounds = { floor: number; ceiling: number };
+export type StatedBounds = { floor: number; ceiling: number; reserveS: number };
 
 const MIN_SPEED_MS: Partial<Record<Action, number>> = { walk: WALK_SPEED_MS, run: RUN_SPEED_MS };
 const MAX_SPEED_MS: Partial<Record<Action, number>> = { walk: WALK_MAX_MS, run: RUN_MAX_MS };
@@ -52,7 +52,9 @@ export function realisticMovement(
   const needed = pathLengthM / speed;
   let { tStart, tEnd } = interval;
   if (tEnd - tStart < needed) {
-    tEnd = Math.max(tEnd, Math.min(tStart + needed, bounds.ceiling));
+    const reserved = bounds.ceiling - bounds.reserveS;
+    const ceiling = reserved >= tEnd ? reserved : bounds.ceiling;
+    tEnd = Math.max(tEnd, Math.min(tStart + needed, ceiling));
     const missing = needed - (tEnd - tStart);
     if (missing > 0) tStart = Math.min(tStart, Math.max(bounds.floor, tStart - missing));
   }

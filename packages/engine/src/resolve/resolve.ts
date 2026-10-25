@@ -10,7 +10,7 @@ import { anchorToPoint } from "./anchors";
 import type { Box } from "./geometry";
 import { pathLength, shortestPath, straightLineClear } from "./portals";
 import { portalsFor } from "./walkable";
-import { hasInterval, realisticMovement, resolveInterval } from "./time";
+import { WALK_SPEED_MS, hasInterval, realisticMovement, resolveInterval } from "./time";
 
 const MOVEMENT = new Set(["walk", "run"]);
 const TIME_EPS = 1e-9;
@@ -18,15 +18,23 @@ const TIME_EPS = 1e-9;
 const isStated = (e: Event): e is Event & { t: [number, number] } =>
   e.tConfidence === "stated" && hasInterval(e.t) && !isRetracted(e);
 
-function statedBounds(events: readonly Event[], self: Event, t: [number, number]): { floor: number; ceiling: number } {
+function statedNeighbours(
+  events: readonly Event[],
+  self: Event,
+  t: [number, number],
+): { floor: number; ceiling: number; next: Event | undefined } {
   let floor = 0;
   let ceiling = Number.POSITIVE_INFINITY;
+  let next: Event | undefined;
   for (const other of events) {
     if (other === self || other.actor !== self.actor || !isStated(other)) continue;
-    if (other.t[0] < t[0]) floor = Math.max(floor, other.t[1]);
-    else if (other.t[0] > t[0]) ceiling = Math.min(ceiling, other.t[0]);
+    if (other.t[0] <= t[0]) floor = Math.max(floor, other.t[1]);
+    else if (other.t[0] < ceiling) {
+      ceiling = other.t[0];
+      next = other;
+    }
   }
-  return { floor, ceiling };
+  return { floor, ceiling, next };
 }
 
 const handoffRank = (action: string): number => (action === "drop" ? 0 : 1);
@@ -159,6 +167,13 @@ export function resolve(
     a ? roundVec(anchorToPoint(a, manifest)) : undefined;
   const tracker = createTracker();
 
+  const boundsFor = (e: Event, t: [number, number], arrival: Vec3 | undefined) => {
+    const { floor, ceiling, next } = statedNeighbours(graph.events, e, t);
+    const target = next ? (MOVEMENT.has(next.action) ? point(next.from) : (point(next.at) ?? point(next.from))) : undefined;
+    const reserveS = arrival && target ? Math.hypot(...arrival.map((v, i) => v - target[i]!) as Vec3) / WALK_SPEED_MS : 0;
+    return { floor, ceiling, reserveS };
+  };
+
   const previousEndByActor = new Map<string, number>();
   const events: ResolvedEvent[] = graph.events.map((e) => {
     const isMove = MOVEMENT.has(e.action);
@@ -175,7 +190,7 @@ export function resolve(
     const given = resolveInterval(e.t, e.action, route.travelM, previousEnd);
     const t =
       isMove && e.tConfidence === "inferred" && hasInterval(e.t)
-        ? realisticMovement(given, e.action, pathLength(route.path), statedBounds(graph.events, e, e.t))
+        ? realisticMovement(given, e.action, pathLength(route.path), boundsFor(e, e.t, route.reachable ? to : from))
         : given;
     previousEndByActor.set(e.actor, t.tEnd);
     const arrivedAt = isMove ? (route.reachable ? to : from) : at;

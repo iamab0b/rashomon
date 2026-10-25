@@ -23,6 +23,7 @@ export function timeDistanceFlags(resolved: ResolvedGraph): FlagDraft[] {
     lead: string,
     between: string,
     ownMovement: boolean,
+    estimated: boolean,
     extra: Record<string, string> = {},
   ) => {
     const speed = meters / seconds;
@@ -31,7 +32,7 @@ export function timeDistanceFlags(resolved: ResolvedGraph): FlagDraft[] {
     flags.push({
       eventId: e.id,
       check: "time_distance",
-      severity: e.tInferred ? "soft" : "hard",
+      severity: estimated ? "soft" : "hard",
       detail: `${lead} ${meters.toFixed(1)} m${between} in ${seconds.toFixed(1)} s, ${speed.toFixed(1)} m/s, over the ${limit.toFixed(1)} m/s limit.`,
       evidence: {
         distanceM: Number(meters.toFixed(2)),
@@ -52,7 +53,7 @@ export function timeDistanceFlags(resolved: ResolvedGraph): FlagDraft[] {
     for (const e of mine) {
       if ((e.action === "walk" || e.action === "run") && e.pathLengthM > 0) {
         const seconds = e.tEnd - e.tStart;
-        push(e, e.pathLengthM, seconds > 0 ? seconds : MIN_GAP_S, `${e.actor} covers`, "", true);
+        push(e, e.pathLengthM, seconds > 0 ? seconds : MIN_GAP_S, `${e.actor} covers`, "", true, e.tInferred);
       }
       const to = startPoint(e);
       if (!to) continue;
@@ -73,6 +74,7 @@ export function timeDistanceFlags(resolved: ResolvedGraph): FlagDraft[] {
         `${e.actor} would have to cover`,
         ` between ${prev.id} and ${e.id}`,
         false,
+        e.tInferred || prev.tInferred,
         { previousEventId: prev.id },
       );
     }
