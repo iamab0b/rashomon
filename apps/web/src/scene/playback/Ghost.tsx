@@ -3,10 +3,10 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import { MeshBasicMaterial, type Group } from "three";
 import { IDLE_CLIP } from "../characters/actionMap";
+import type { CharacterLook } from "../characters/bodies";
 import { useCharacter } from "../characters/Character";
 import { getClip, loadClips } from "../characters/clips";
 import { replaceMaterials } from "../characters/materials";
-import type { Rig } from "../characters/rigs";
 import { followedActorId } from "../cameras/povSightline";
 import { useSceneStore } from "../store";
 import { ghostAnchor, ghostVisible, ghostYaw, type PositionLookup } from "./actorPose";
@@ -20,7 +20,7 @@ const BADGE_RADIUS_M = 0.09;
 
 type Props = {
   event: ResolvedEvent;
-  rig: Rig;
+  look: CharacterLook;
   positionOf: PositionLookup;
   onReady: (id: string) => void;
   readyId?: string;
@@ -40,9 +40,9 @@ export function applyGhostOpacity(
   dimForWitness(badge, dim);
 }
 
-export function Ghost({ event, rig, positionOf, onReady, readyId, color = GHOST_COLOR, badge = true, shownAt }: Props) {
+export function Ghost({ event, look, positionOf, onReady, readyId, color = GHOST_COLOR, badge = true, shownAt }: Props) {
   const ready = readyId ?? event.id;
-  const handle = useCharacter(rig);
+  const handle = useCharacter(look);
   const group = useRef<Group>(null);
   const material = useMemo(
     () => new MeshBasicMaterial({ color, wireframe: true, transparent: true, opacity: GHOST_OPACITY, depthWrite: false }),
