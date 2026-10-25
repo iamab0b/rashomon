@@ -1,11 +1,13 @@
 import type { ResolvedEvent, ResolvedGraph } from "@rashomon/engine";
-import type { Action, ActionStyle } from "@rashomon/schema";
+import { ACTOR_BODIES, type Action, type ActionStyle, type ActorBody } from "@rashomon/schema";
 import { ACTION_MAP, chooseClip, type ActionClipName } from "./actionMap";
+import { isActorBody } from "./bodies";
 import type { Rig } from "./rigs";
 
 export type DebugActor = {
   id: string;
   rig: Rig;
+  body?: ActorBody;
   position: readonly [number, number, number];
 };
 
@@ -83,17 +85,60 @@ export function rigDebugClipLines(hasClip: (name: string) => boolean): readonly 
   }));
 }
 
-export const RIG_DEBUG_GRAPH: ResolvedGraph = {
-  sceneId: "rig_debug",
-  version: 1,
-  durationS: 57,
-  actors: RIG_DEBUG_ACTORS.map((actor) => ({ id: actor.id, label: actor.id, role: "other", rig: actor.rig })),
-  events: [
-    debugEvent("d1", "debug_ybot", "walk", 0, 6),
-    debugEvent("d2", "debug_ybot", "fall", 6, 8),
-    debugEvent("d3", "debug_xbot", "walk", 0, 6),
-    debugEvent("d4", "debug_xbot", "speak", 6, 12),
-    ...newClipEvents,
-  ],
-  props: [],
-};
+const RIG_DEBUG_DURATION_S = 57;
+const BODY_PARAM = "body";
+const BODY_FILE_PREFIX = "body_";
+const ALL_BODIES = "all";
+const SINGLE_BODY_POSITION = [7, 0, 3] as const;
+const BODY_ROW_POSITIONS: readonly (readonly [number, number, number])[] = [
+  [1.5, 0, 5],
+  [2.8, 0, 5],
+  [4.1, 0, 5],
+  [5.4, 0, 5],
+  [6.7, 0, 5],
+  [8, 0, 5],
+];
+
+export type RigDebugBodies = { readonly bodies: readonly ActorBody[]; readonly unknown?: string };
+
+export function rigDebugBodies(search: string): RigDebugBodies {
+  const raw = new URLSearchParams(search).get(BODY_PARAM);
+  if (raw === null || raw === "") return { bodies: [] };
+  if (raw === ALL_BODIES) return { bodies: ACTOR_BODIES };
+  const name = raw.startsWith(BODY_FILE_PREFIX) ? raw.slice(BODY_FILE_PREFIX.length) : raw;
+  return isActorBody(name) ? { bodies: [name] } : { bodies: [], unknown: raw };
+}
+
+export function rigDebugActors(bodies: readonly ActorBody[]): readonly DebugActor[] {
+  return [
+    ...RIG_DEBUG_ACTORS,
+    ...bodies.map(
+      (body, index): DebugActor => ({
+        id: `debug_${body}`,
+        rig: "mixamo_ybot",
+        body,
+        position: bodies.length === 1 ? SINGLE_BODY_POSITION : BODY_ROW_POSITIONS[index] ?? SINGLE_BODY_POSITION,
+      }),
+    ),
+  ];
+}
+
+export function rigDebugGraph(bodies: readonly ActorBody[]): ResolvedGraph {
+  return {
+    sceneId: "rig_debug",
+    version: 1,
+    durationS: RIG_DEBUG_DURATION_S,
+    actors: rigDebugActors(bodies).map((actor) => ({ id: actor.id, label: actor.id, role: "other", rig: actor.rig })),
+    events: [
+      debugEvent("d1", "debug_ybot", "walk", 0, 6),
+      debugEvent("d2", "debug_ybot", "fall", 6, 8),
+      debugEvent("d3", "debug_xbot", "walk", 0, 6),
+      debugEvent("d4", "debug_xbot", "speak", 6, 12),
+      ...newClipEvents,
+      ...bodies.map((body) => debugEvent(`b_${body}`, `debug_${body}`, "stand", 0, RIG_DEBUG_DURATION_S)),
+    ],
+    props: [],
+  };
+}
+
+export const RIG_DEBUG_GRAPH: ResolvedGraph = rigDebugGraph([]);

@@ -7,3 +7,4 @@ export * from "./anthropic";
 export * from "./localGraph";
 export * from "./compare";
 export * from "./guards";
+export * from "./colors";

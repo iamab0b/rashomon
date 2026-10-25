@@ -1,4 +1,13 @@
-import { ACTIONS, ACTION_STYLES, MAX_VERB_CHARS, STYLE_ACTION } from "@rashomon/schema";
+import {
+  ACTIONS,
+  ACTION_STYLES,
+  ACTOR_BODIES,
+  MAX_HEIGHT_M,
+  MAX_VERB_CHARS,
+  MIN_HEIGHT_M,
+  STYLE_ACTION,
+  TINT_PATTERN,
+} from "@rashomon/schema";
 import type { Anchor, Patch } from "@rashomon/schema";
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
@@ -46,6 +55,12 @@ const verbOk = (o: Record<string, unknown>, clearable = false): boolean =>
   (o.verb === undefined ||
     (clearable && o.verb === null) ||
     (typeof o.verb === "string" && o.verb.length <= MAX_VERB_CHARS));
+
+const actorLooksOk = (a: Record<string, unknown>): boolean =>
+  (a.body === undefined || ACTOR_BODIES.includes(a.body as never)) &&
+  (a.heightM === undefined ||
+    (typeof a.heightM === "number" && a.heightM >= MIN_HEIGHT_M && a.heightM <= MAX_HEIGHT_M)) &&
+  (a.tint === undefined || (typeof a.tint === "string" && TINT_PATTERN.test(a.tint)));
 
 export const isPatch = (v: unknown): v is Patch => {
   if (!isRecord(v)) return false;
@@ -99,7 +114,8 @@ export const isPatch = (v: unknown): v is Patch => {
       return (
         isRecord(v.actor) &&
         typeof v.actor.id === "string" &&
-        typeof v.actor.label === "string"
+        typeof v.actor.label === "string" &&
+        actorLooksOk(v.actor)
       );
     default:
       return false;

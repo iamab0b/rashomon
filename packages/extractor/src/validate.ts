@@ -1,14 +1,16 @@
-import { ACTIONS, ACTION_STYLES, MAX_VERB_CHARS, STYLE_ACTION } from "@rashomon/schema";
+import { ACTIONS, ACTION_STYLES, ACTOR_BODIES, MAX_HEIGHT_M, MAX_VERB_CHARS, MIN_HEIGHT_M, STYLE_ACTION } from "@rashomon/schema";
 import type {
   Action,
   ActionStyle,
   Actor,
+  ActorBody,
   Anchor,
   Event,
   Landmark,
   Patch,
   Segment,
 } from "@rashomon/schema";
+import { CLOTHING_COLORS, colorStatedIn, isClothingColor } from "./colors";
 import { CONFIDENCE_MAP } from "./tools";
 import type { BlockResult, ExtractContext, ToolUseBlock } from "./types";
 
@@ -350,7 +352,29 @@ const updateProp = (
   };
 };
 
-const addActor = (input: Input, ctx: ExtractContext): Patch => {
+const actorBody = (input: Input): ActorBody | undefined => {
+  const body = optString(input, "body");
+  if (body === undefined) return undefined;
+  if (!ACTOR_BODIES.includes(body as ActorBody))
+    throw new Invalid(`body must be one of ${ACTOR_BODIES.join(", ")} or null`);
+  return body as ActorBody;
+};
+
+const actorHeight = (input: Input): number | undefined => {
+  const height = optNumber(input, "heightM");
+  if (height === undefined) return undefined;
+  return Math.min(MAX_HEIGHT_M, Math.max(MIN_HEIGHT_M, height));
+};
+
+const actorTint = (input: Input, segment: Segment): string | undefined => {
+  const name = optString(input, "tint");
+  if (name === undefined) return undefined;
+  if (!isClothingColor(name))
+    throw new Invalid(`tint must be one of ${Object.keys(CLOTHING_COLORS).join(", ")} or null`);
+  return colorStatedIn(name, segment.text) ? CLOTHING_COLORS[name].hex : undefined;
+};
+
+const addActor = (input: Input, segment: Segment, ctx: ExtractContext): Patch => {
   const id = reqString(input, "id");
   if (actorIds(ctx).has(id)) throw new Invalid(`id: actor "${id}" already exists`);
   const role = input.role;
@@ -367,6 +391,12 @@ const addActor = (input: Input, ctx: ExtractContext): Patch => {
     role,
     rig: "mixamo_ybot",
   };
+  const body = actorBody(input);
+  const heightM = actorHeight(input);
+  const tint = actorTint(input, segment);
+  if (body !== undefined) actor.body = body;
+  if (heightM !== undefined) actor.heightM = heightM;
+  if (tint !== undefined) actor.tint = tint;
   return { op: "add_actor", actor };
 };
 
@@ -406,7 +436,7 @@ export function validateToolUses(
           patch = updateProp(input, segment, ctx);
           break;
         case "add_actor":
-          patch = addActor(input, ctx);
+          patch = addActor(input, segment, ctx);
           break;
         case "no_events":
           patch = null;

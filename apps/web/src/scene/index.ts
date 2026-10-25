@@ -33,6 +33,8 @@ export type { SelectionApi } from "./playback/useSelection";
 export { Timeline } from "./timeline";
 export { actorColor } from "./timeline/layout";
 export type { TimelineProps } from "./timeline";
+export { isGraphlessSearch, isLandmarkEditing } from "./labeling/storage";
 export { useSceneSource } from "./loaders/useSceneSource";
 export type { SceneSource } from "./loaders/sceneSource";
 export { localManifestKey } from "./loaders/scanRequest";
+export { SceneTools, useSceneToolsAvailable } from "./SceneTools";

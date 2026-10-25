@@ -15,6 +15,9 @@ export const Actor = __t.object("Actor", {
   label: __t.string(),
   role: __t.string(),
   rig: __t.string(),
+  body: __t.option(__t.string()),
+  heightM: __t.option(__t.f64()),
+  tint: __t.option(__t.string()),
 });
 export type Actor = __Infer<typeof Actor>;
 
@@ -26,6 +29,9 @@ export const Actors = __t.object("Actors", {
   label: __t.string(),
   role: __t.string(),
   rig: __t.string(),
+  body: __t.option(__t.string()),
+  heightM: __t.option(__t.f64()),
+  tint: __t.option(__t.string()),
 });
 export type Actors = __Infer<typeof Actors>;
 

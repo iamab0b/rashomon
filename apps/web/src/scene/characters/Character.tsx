@@ -1,20 +1,24 @@
+import type { ActorBody } from "@rashomon/schema";
 import { useEffect, useState } from "react";
 import { AnimationMixer, type Bone, type Object3D, type SkinnedMesh } from "three";
 import type { Material } from "three";
-import { disposeMaterials, ownMaterials } from "./materials";
+import { bodyScale, loadLook, type CharacterLook, type LoadedLook } from "./bodies";
+import { disposeMaterials, ownMaterials, tintClothing } from "./materials";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import {
   findHipBone,
   findRightHand,
   findPrimarySkinnedMesh,
   findSkinnedMeshes,
-  loadRig,
   MIXAMO_UNIT_SCALE,
   type Rig,
 } from "./rigs";
 
 export type CharacterHandle = {
   rig: Rig;
+  body: ActorBody | undefined;
+  name: string;
+  scale: number;
   root: Object3D;
   skinnedMeshes: readonly SkinnedMesh[];
   mixer: AnimationMixer;
@@ -24,24 +28,30 @@ export type CharacterHandle = {
 };
 
 type Props = {
-  rig: Rig;
+  look: CharacterLook;
   position: readonly [number, number, number];
   onReady?: (handle: CharacterHandle) => void;
 };
 
-function instantiate(rig: Rig, source: Object3D): CharacterHandle {
-  const root = cloneSkinned(source);
-  root.scale.setScalar(MIXAMO_UNIT_SCALE);
+export function instantiate(look: CharacterLook, loaded: LoadedLook): CharacterHandle {
+  const name = loaded.body ?? look.rig;
+  const root = cloneSkinned(loaded.source);
+  const scale = bodyScale(loaded.body, look.heightM);
+  root.scale.setScalar(MIXAMO_UNIT_SCALE * scale);
   const ownedMaterials = ownMaterials(root);
+  if (look.tint !== undefined) tintClothing(root, look.tint, ownedMaterials);
   root.traverse((object) => {
     object.castShadow = true;
     object.receiveShadow = true;
   });
   const skinnedMeshes = findSkinnedMeshes(root);
   const mixerRoot = findPrimarySkinnedMesh(skinnedMeshes);
-  if (!mixerRoot) throw new Error(`rig ${rig} has no SkinnedMesh with a primary skeleton`);
+  if (!mixerRoot) throw new Error(`rig ${name} has no SkinnedMesh with a primary skeleton`);
   return {
-    rig,
+    rig: look.rig,
+    body: loaded.body,
+    name,
+    scale,
     root,
     skinnedMeshes,
     mixer: new AnimationMixer(mixerRoot),
@@ -51,14 +61,21 @@ function instantiate(rig: Rig, source: Object3D): CharacterHandle {
   };
 }
 
-export function useCharacter(rig: Rig): CharacterHandle | null {
+export function useCharacter(look: CharacterLook): CharacterHandle | null {
   const [handle, setHandle] = useState<CharacterHandle | null>(null);
+  const { rig, body, heightM, tint } = look;
 
   useEffect(() => {
     let cancelled = false;
-    loadRig(rig)
-      .then((source) => {
-        if (!cancelled) setHandle(instantiate(rig, source));
+    const wanted: CharacterLook = {
+      rig,
+      ...(body !== undefined ? { body } : {}),
+      ...(heightM !== undefined ? { heightM } : {}),
+      ...(tint !== undefined ? { tint } : {}),
+    };
+    loadLook(wanted)
+      .then((loaded) => {
+        if (!cancelled) setHandle(instantiate(wanted, loaded));
       })
       .catch((error: unknown) => {
         console.error(`character rig ${rig} failed to load`, error);
@@ -66,7 +83,7 @@ export function useCharacter(rig: Rig): CharacterHandle | null {
     return () => {
       cancelled = true;
     };
-  }, [rig]);
+  }, [rig, body, heightM, tint]);
 
   useEffect(() => {
     if (!handle) return;
@@ -80,8 +97,8 @@ export function useCharacter(rig: Rig): CharacterHandle | null {
   return handle;
 }
 
-export function Character({ rig, position, onReady }: Props) {
-  const handle = useCharacter(rig);
+export function Character({ look, position, onReady }: Props) {
+  const handle = useCharacter(look);
 
   useEffect(() => {
     if (handle) onReady?.(handle);
