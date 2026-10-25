@@ -181,7 +181,7 @@ describe("nested blocks stay clickable", () => {
 });
 
 describe("event state styling (regression)", () => {
-  const WITNESS = "#4f9dff";
+  const WITNESS = "#c58bff";
   const SUSPECT = "#ff9f43";
   const CLERK = "#4cd6a0";
   const render = () => {
@@ -613,7 +613,7 @@ describe("approximated events", () => {
     expect(e9).toContain('data-verb="ducked"');
     expect(e9).toContain(`data-status="${statuses.e9}"`);
     expect(statuses).toEqual(snap().statuses);
-    expect(border(e9)).toMatch(/stroke="#4f9dff" stroke-opacity="0.55" stroke-dasharray="2 3"/);
+    expect(border(e9)).toMatch(/stroke="#c58bff" stroke-opacity="0.55" stroke-dasharray="2 3"/);
     const e1 = block(html, "e1");
     expect(e1).not.toContain("data-approximated");
     expect(border(e1)).not.toContain("stroke-dasharray");

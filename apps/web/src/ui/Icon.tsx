@@ -1,12 +1,19 @@
 import type { ReactNode } from "react";
 
-export type IconName = "eye" | "warning" | "x" | "chevron" | "chevronUp" | "copy" | "history" | "transcript" | "statement";
+export type IconName = "eye" | "eyeOff" | "warning" | "x" | "chevron" | "chevronUp" | "copy" | "history" | "transcript" | "statement";
 
 const icons: Record<IconName, ReactNode> = {
   eye: (
     <>
       <path d="M2.5 10s2.7-4 7.5-4 7.5 4 7.5 4-2.7 4-7.5 4S2.5 10 2.5 10Z" />
       <circle cx="10" cy="10" r="2" />
+    </>
+  ),
+  eyeOff: (
+    <>
+      <path d="M2.5 10s2.7-4 7.5-4 7.5 4 7.5 4-2.7 4-7.5 4S2.5 10 2.5 10Z" />
+      <circle cx="10" cy="10" r="2" />
+      <path d="M3.5 3.5l13 13" />
     </>
   ),
   warning: (

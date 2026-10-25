@@ -8,6 +8,7 @@ import { chosenWitness, NEW_WITNESS, witnessToSend } from "./statement";
 import { StatementSectionView, type StatementSectionViewProps } from "./StatementSection";
 import type { PanelContext } from "./shared";
 import { WitnessesTabView, witnessTagOf } from "./WitnessesTab";
+import { NO_WITNESS_FILTER } from "./witnessFilter";
 
 function twoWitnesses(): ResolvedGraph {
   return selectSource("?scenario=two-witnesses")!.getSnapshot().resolved!;
@@ -31,6 +32,8 @@ function context(graph: ResolvedGraph, overrides: Partial<PanelContext> = {}): P
     placeOf: () => null,
     timeBasisOf: () => "stated",
     witnessOf: (event) => witnessTagOf(layers, event.witnessId),
+    actorColorOf: () => "#c58bff",
+    witnessFilter: NO_WITNESS_FILTER,
     playing: false,
     jumpTo: () => {},
     openOverride: () => {},
@@ -83,8 +86,7 @@ describe("two-witness UI", () => {
     const e5 = graph.events.find((e) => e.id === "e5")!;
     expect(flagSides(ctx, e5, e5.flags[0]!)).toEqual([]);
     const html = renderToStaticMarkup(<FlagsTab {...ctx} />);
-    expect(html.match(/class="flag-witnesses"/g)!.length).toBeGreaterThanOrEqual(3);
-    expect(html).toMatch(/Accounts differ:.*Customer.*e7.*vs.*Clerk.*e11/s);
+    expect(html).toMatch(/data-pair="e11\|e7".*Customer says.*e7.*Clerk says.*e11/s);
   });
 
   test("the Statement box picks an existing witness by id, or a new one by name", () => {

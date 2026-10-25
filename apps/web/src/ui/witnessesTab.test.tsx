@@ -81,22 +81,16 @@ describe("witnesses tab", () => {
     expect(hiddenButtons.filter((b) => b.props.children === "Only this")[0]!.props.disabled).toBe(true);
   });
 
-  test("Where they disagree lists each cross-witness conflict once, and each side jumps to its event", () => {
+  test("cross-witness conflicts are still found once per pair, but are shown in Flags, not in this tab", () => {
     const graph = twoWitnesses();
     const pairs = disagreements({ graph });
     expect(pairs.map((p) => p.events.map((e) => e.id).sort())).toEqual([
       ["e11", "e6"],
       ["e11", "e7"],
     ]);
-    const jumpTo = vi.fn();
-    const tree = WitnessesTabView(props(graph, { jumpTo }));
-    const conflicts = findAll(tree, (el) => el.props.className === "witness-conflict");
-    expect(conflicts).toHaveLength(2);
-    expect(text(conflicts[0]!)).toMatch(/^Suspect · \d+\.\d s · \d+\.\d m apart/);
-    const sides = findAll(conflicts[0]!, (el) => el.props.className === "witness-conflict__side");
-    expect(sides.map(text)).toEqual(["Customerplace of e6e6", "Clerkplace of e11e11"]);
-    (sides[1]!.props.onClick as () => void)();
-    expect(jumpTo).toHaveBeenCalledWith("e11");
+    const html = renderToStaticMarkup(<WitnessesTabView {...props(graph)} />);
+    expect(html).not.toContain("Where they disagree");
+    expect(html).not.toContain("witness-conflict");
   });
 
   test("one witness: no layer controls and no disagreement section", () => {

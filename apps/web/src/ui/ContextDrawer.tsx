@@ -64,8 +64,7 @@ export function ContextDrawer({
             aria-controls={CONTEXT_DRAWER_ID}
             aria-description={v.id === "history" && historyAccent ? "Selected event has override history" : undefined}
             title={v.id === "history" && historyAccent ? "Show history · selected event was overridden" : `Show ${v.label.toLowerCase()}`}
-            tabIndex={open ? -1 : 0}
-            onClick={() => onOpen(v.id)}
+            onClick={() => (view === v.id ? onClose() : onOpen(v.id))}
           >
             <Icon name={v.icon} size={16} />
             <span>{v.label}</span>
@@ -75,29 +74,15 @@ export function ContextDrawer({
       </div>
       <div id={CONTEXT_DRAWER_ID} className="context-inner" inert={!open}>
         <header className="context-header">
-          <div className="segmented context-tabs" role="tablist" aria-label="Context view">
-            {VIEWS.map((v) => (
-              <button
-                type="button"
-                role="tab"
-                key={v.id}
-                aria-selected={view === v.id}
-                className={[view === v.id && "active", v.id === "history" && historyAccent && "has-override"].filter(Boolean).join(" ") || undefined}
-                onClick={() => onOpen(v.id)}
-              >
-                {v.label}
-                {v.id === "history" && historyAccent && <span className="status-diamond" aria-hidden />}
-              </button>
-            ))}
-          </div>
+          <h2 className="context-title">{VIEWS.find((v) => v.id === (view ?? lastView.current))?.label ?? ""}</h2>
           <button type="button" className="close" ref={closeRef} onClick={onClose} aria-label="Close context panel" title="Close">
             <Icon name="x" size={16} />
           </button>
         </header>
-        <div role="tabpanel" aria-label="Statement" hidden={view !== "statement"}>
+        <div role="region" aria-label="Statement" hidden={view !== "statement"}>
           <StatementSection graph={context.graph} onSelect={context.jumpTo} preferredWitness={preferredWitness} />
         </div>
-        <div role="tabpanel" aria-label={view === "history" ? "History" : "Transcript"} hidden={view === "statement"}>
+        <div role="region" aria-label={view === "history" ? "History" : "Transcript"} hidden={view === "statement"}>
           {view === "history" ? (
             <HistoryTab {...context} overrideFocusId={overrideFocusId} />
           ) : view === "transcript" ? (

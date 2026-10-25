@@ -14,10 +14,11 @@ export type PanelHeaderProps = {
   selectedEventId: string | null;
   placeOf: (event: ResolvedEvent) => string | null;
   timeBasisOf?: (event: ResolvedEvent) => TimeBasis;
+  actorColorOf?: (actorId: string) => string;
   onJump: (eventId: string) => void;
 };
 
-export function PanelHeader({ tabs, activeTab, onTab, graph, selectedEventId, placeOf, timeBasisOf, onJump }: PanelHeaderProps) {
+export function PanelHeader({ tabs, activeTab, onTab, graph, selectedEventId, placeOf, timeBasisOf, actorColorOf, onJump }: PanelHeaderProps) {
   const tabIndex = Math.max(
     0,
     tabs.findIndex((t) => t.id === activeTab),
@@ -71,7 +72,9 @@ export function PanelHeader({ tabs, activeTab, onTab, graph, selectedEventId, pl
           {selectedEvent ? (
             <>
               <strong>
-                {selectedEvent.id} · {actorLabel(graph, selectedEvent.actor)} · {words(selectedEvent.action)}
+                {selectedEvent.id} ·{" "}
+                <span style={actorColorOf ? { color: actorColorOf(selectedEvent.actor) } : undefined}>{actorLabel(graph, selectedEvent.actor)}</span> ·{" "}
+                {words(selectedEvent.action)}
               </strong>
               <span className="selection-meta">
                 <span className="mono">{eventTime(selectedEvent)}</span>

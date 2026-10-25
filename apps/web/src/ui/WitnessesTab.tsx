@@ -61,7 +61,6 @@ export type WitnessesTabViewProps = Pick<PanelContext, "graph" | "statusOf" | "p
 };
 
 export function WitnessesTabView({ graph, statusOf, placeOf, jumpTo, layers, hidden, onToggle, onOnly, onShowAll, onReinterview }: WitnessesTabViewProps) {
-  const pairs = disagreements({ graph });
   const many = layers.length > 1;
 
   return (
@@ -141,37 +140,6 @@ export function WitnessesTabView({ graph, statusOf, placeOf, jumpTo, layers, hid
         })}
       </div>
 
-      {many && (
-        <section className="witness-disagreements" aria-label="Where the witnesses disagree">
-          <div className="section-title">
-            <h2>Where they disagree</h2>
-            <span>{pairs.length === 0 ? "No conflicts" : `${pairs.length} ${pairs.length === 1 ? "conflict" : "conflicts"}`}</span>
-          </div>
-          {pairs.length === 0 ? (
-            <p className="witness-empty">The statements agree wherever they overlap.</p>
-          ) : (
-            <ul className="witness-conflicts">
-              {pairs.map((pair) => (
-                <li key={pair.key} className="witness-conflict">
-                  <p className="witness-conflict__title">
-                    {actorLabel(graph, pair.actor)}
-                    {pair.atTimeS !== null && <span className="mono"> · {pair.atTimeS.toFixed(1)} s</span>}
-                    {pair.distanceM !== null && <span> · {pair.distanceM.toFixed(1)} m apart</span>}
-                  </p>
-                  {pair.events.map((event) => (
-                    <button type="button" key={event.id} className="witness-conflict__side" onClick={() => jumpTo(event.id)}>
-                      <span className="witness-dot" style={{ background: witnessColor(layers, event.witnessId) }} aria-hidden />
-                      <span className="witness-conflict__who">{witnessName(layers, event.witnessId)}</span>
-                      <span className="witness-conflict__where">{placeOf(event) ?? "unplaced"}</span>
-                      <span className="mono witness-conflict__id">{event.id}</span>
-                    </button>
-                  ))}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
     </>
   );
 }

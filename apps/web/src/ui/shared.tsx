@@ -5,6 +5,7 @@ import { BASIS_LABELS, checkBasis, flagHeadline } from "./flagCopy";
 import { Icon } from "./Icon";
 import { placeName } from "./places";
 import { sourceNumber, type Utterance } from "./transcript";
+import type { WitnessFilter } from "./witnessFilter";
 
 const STATUS_LABELS: Record<Status, string> = {
   plausible: "Plausible",
@@ -24,6 +25,8 @@ export type PanelContext = {
   placeOf: (event: ResolvedEvent) => string | null;
   timeBasisOf: (event: ResolvedEvent) => TimeBasis;
   witnessOf: (event: ResolvedEvent) => WitnessTag | null;
+  actorColorOf: (actorId: string) => string;
+  witnessFilter: WitnessFilter;
   playing: boolean;
   jumpTo: (eventId: string) => void;
   openOverride: (eventId: string) => void;

@@ -7,6 +7,7 @@ import type { Status } from "../scene";
 import { MISSING_OVERRIDE_RECORD } from "./OverrideHistory";
 import { gatedRobbery, OVERRIDE_REASON, overriddenRobbery } from "./testGraph";
 import { transcriptFor } from "./transcript";
+import { NO_WITNESS_FILTER } from "./witnessFilter";
 
 function context(): PanelContext {
   const resolved = gatedRobbery();
@@ -20,6 +21,8 @@ function context(): PanelContext {
     placeOf: () => null,
     timeBasisOf: () => "stated",
     witnessOf: () => null,
+    actorColorOf: () => "#c58bff",
+    witnessFilter: NO_WITNESS_FILTER,
     playing: false,
     jumpTo: () => {},
     openOverride: () => {},
@@ -82,7 +85,9 @@ describe("context drawer", () => {
     const html = drawer("transcript", ctx, e5.sources[0] ?? null);
     expect(html).toContain("data-open");
     expect(html).not.toContain("inert");
-    expect(html).toMatch(/role="tab" aria-selected="true" class="active">Transcript/);
+    expect(html).toMatch(/aria-expanded="true" aria-controls="context-drawer" title="Show transcript"/);
+    expect(html).toContain('<h2 class="context-title">Transcript</h2>');
+    expect(html).not.toContain('role="tab"');
     for (const id of e5.sources) {
       expect(html).toMatch(new RegExp(`data-utterance="${id}" class="related[^"]*" aria-current="true"`));
     }
@@ -95,7 +100,8 @@ describe("context drawer", () => {
     const e5 = base.graph.events.find((e) => e.id === "e5")!;
     const earlier = { ...e5, id: "e5a", tStart: 8, tEnd: 9, supersededBy: "e5", status: "superseded" as const, flags: [] };
     const html = drawer("history", { ...base, graph: { ...base.graph, events: [...base.graph.events, earlier] } });
-    expect(html).toMatch(/role="tab" aria-selected="true" class="active">History/);
+    expect(html).toMatch(/aria-expanded="true" aria-controls="context-drawer" title="Show history"/);
+    expect(html).toContain('<h2 class="context-title">History</h2>');
     expect(html).toContain('aria-label="Close context panel"');
     expect(html.indexOf("Version 2 ")).toBeLessThan(html.indexOf("Version 1 "));
     expect(html).toMatch(/version-card--superseded/);

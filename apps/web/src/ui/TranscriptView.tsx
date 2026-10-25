@@ -1,14 +1,17 @@
 import { useEffect, useRef } from "react";
 import { NotConnected, words, type PanelContext } from "./shared";
 import { relatedUtterances, sourceLabel, speakerLabel, utteranceEvents } from "./transcript";
+import { filterSummary, visibleUtterances } from "./witnessFilter";
 
 export function TranscriptView({
   graph,
   selectedEventId,
   transcript,
   jumpTo,
+  witnessFilter,
   focusId,
 }: PanelContext & { focusId: string | null }) {
+  const summary = filterSummary(witnessFilter);
   const listRef = useRef<HTMLOListElement>(null);
   const event = graph.events.find((e) => e.id === selectedEventId) ?? null;
   const related = relatedUtterances(event);
@@ -52,8 +55,16 @@ export function TranscriptView({
               : `Cited by ${[...related].map(sourceLabel).join(", ")}`}
         </span>
       </div>
+      {summary && (
+        <p className="witness-filter__active" role="status">
+          <span>Filtered: {summary}</span>
+          <button type="button" className="button button--small" onClick={witnessFilter.showAll}>
+            Show all
+          </button>
+        </p>
+      )}
       <ol ref={listRef} className="utterance-list">
-        {transcript.map((utterance) => {
+        {visibleUtterances(transcript, graph.events, witnessFilter.hidden).map((utterance) => {
           const isRelated = related.has(utterance.id);
           const isFocus = utterance.id === focusId;
           return (

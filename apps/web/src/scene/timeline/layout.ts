@@ -43,7 +43,8 @@ export type Row = { id: string; label: string; blocks: Block[]; hidden: number; 
 
 export type StatusMap = Readonly<Record<string, Status>>;
 
-const PALETTE: Record<string, string> = { witness: "#4f9dff", suspect: "#ff9f43", clerk: "#4cd6a0" };
+export const CUSTOMER_COLOR = "#c58bff";
+const PALETTE: Record<string, string> = { witness: CUSTOMER_COLOR, suspect: "#ff9f43", clerk: "#4cd6a0" };
 const FALLBACK = ["#c58bff", "#f06fb5", "#9ad14b", "#e6d84f"];
 const PROP_COLOR = "#8a94a6";
 const QUIET_STROKE = "#4a5568";

@@ -7,11 +7,13 @@ import {
   useSelection,
   useTimeline,
   useWitnessLayers,
+  actorColor,
   type ResolvedEvent,
   type Status,
 } from "../scene";
 import { EventsTab } from "./EventsTab";
 import { witnessTagOf } from "./WitnessesTab";
+import { WitnessStrip } from "./WitnessStrip";
 import { FlagsTab, openFlagCount } from "./FlagsTab";
 import { ContextDrawer, type ContextView } from "./ContextDrawer";
 import { OverrideDialog } from "./OverrideDialog";
@@ -61,7 +63,7 @@ function PanelColumn({ children, padded = false }: { children: ReactNode; padded
 
 export function RightPanel({ by = "investigator" }: { by?: string }) {
   const { resolved, statuses, graph } = useGraph();
-  const { witnesses: layers } = useWitnessLayers();
+  const { witnesses: layers, hidden: hiddenWitnesses, toggle: toggleWitness, only: onlyWitness, showAll: showAllWitnesses } = useWitnessLayers();
   const { actionError } = useGraphErrors();
   const scene = useSceneStatus();
   const { selectedEventId, select } = useSelection();
@@ -163,6 +165,12 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
     placeOf: (event) => eventPlace(resolved.sceneId, event.action, anchorsFor(graph, event)),
     timeBasisOf: (event) => timeBasis(graph, event),
     witnessOf: (event) => witnessTagOf(layers, event.witnessId),
+    actorColorOf: (actorId) => {
+      const index = resolved.actors.findIndex((actor) => actor.id === actorId);
+      const actor = resolved.actors[index];
+      return actor ? actorColor(actor.id, actor.role, index) : "var(--text-primary)";
+    },
+    witnessFilter: { layers, hidden: hiddenWitnesses, toggle: toggleWitness, only: onlyWitness, showAll: showAllWitnesses },
     jumpTo,
     openOverride: setDialogEventId,
     openSource: (id) => {
@@ -194,6 +202,7 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
     <>
       <PanelColumn>
         <div className="rui panel panel--docked" ref={panelRef}>
+          <WitnessStrip graph={resolved} statusOf={statusOf} openStatement={context.openStatement} filter={context.witnessFilter} />
           <PanelHeader
             tabs={TABS.map((t) => ({ id: t.id, label: t.label, count: t.count?.(context) }))}
             activeTab={tab.id}
@@ -202,6 +211,7 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
             selectedEventId={selectedEventId}
             placeOf={context.placeOf}
             timeBasisOf={context.timeBasisOf}
+            actorColorOf={context.actorColorOf}
             onJump={jumpTo}
           />
 
