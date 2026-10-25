@@ -51,15 +51,13 @@ export function timeBasis(graph: Pick<EventGraph, "events"> | null, event: Pick<
   return graph?.events.find((raw) => raw.id === event.id)?.tConfidence === "inferred" ? "inferred" : "stated";
 }
 
-const TIME_BASIS_TITLES: Record<TimeBasis, string> = {
-  stated: "The witness gave this time",
-  inferred: "The witness gave no time; it was estimated from the order of the statement",
-};
+export const ESTIMATED_TIME_TITLE = "The witness gave no time; it was estimated from the order of the statement";
 
 export function TimeBasisLabel({ basis }: { basis: TimeBasis }) {
+  if (basis !== "inferred") return null;
   return (
-    <small className={`time-basis time-basis--${basis}`} title={TIME_BASIS_TITLES[basis]}>
-      {basis === "stated" ? "Time stated" : "Time inferred"}
+    <small className="time-estimated" title={ESTIMATED_TIME_TITLE}>
+      Estimated Time
     </small>
   );
 }
