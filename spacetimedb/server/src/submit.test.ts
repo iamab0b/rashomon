@@ -341,13 +341,13 @@ describe("the webhook still works with no editors listed", () => {
     expect(graph().events).toHaveLength(1);
   });
 
-  test("a body whose text is over the character cap is refused with a 400", () => {
+  test("a body whose text is over the character cap is refused with a 413", () => {
     const body = JSON.stringify({
       sessionId: SESSION,
       witness: "w1",
       utterances: [{ text: "a".repeat(MAX_SEGMENT_TEXT_CHARS + 1), tStart: 0, tEnd: 30 }],
     });
-    expect(handleCartesia(webhookIo(respond([])), post(body)).status).toBe(400);
+    expect(handleCartesia(webhookIo(respond([])), post(body)).status).toBe(413);
     expect([...harness.db.segments.iter()]).toEqual([]);
   });
 });

@@ -314,6 +314,18 @@ export const Utterances = __t.object("Utterances", {
 });
 export type Utterances = __Infer<typeof Utterances>;
 
+export const WebhookStatements = __t.object("WebhookStatements", {
+  rowKey: __t.string(),
+  sessionId: __t.string(),
+  segmentId: __t.string(),
+  seq: __t.u32(),
+  witnessId: __t.string(),
+  text: __t.string(),
+  storedAt: __t.timestamp(),
+  askFlagId: __t.option(__t.string()),
+});
+export type WebhookStatements = __Infer<typeof WebhookStatements>;
+
 export const Witness = __t.object("Witness", {
   id: __t.string(),
   label: __t.string(),

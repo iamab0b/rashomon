@@ -276,6 +276,20 @@ const askedFlags = table(
   },
 );
 
+const webhookStatements = table(
+  { name: "webhook_statements" },
+  {
+    rowKey: t.string().primaryKey(),
+    sessionId: t.string().index(),
+    segmentId: t.string(),
+    seq: t.u32(),
+    witnessId: t.string(),
+    text: t.string(),
+    storedAt: t.timestamp(),
+    askFlagId: t.option(t.string()),
+  },
+);
+
 export const ExtractionT = t.object("Extraction", {
   segmentId: t.string(),
   patchCount: t.u32(),
@@ -296,6 +310,7 @@ export const spacetimedb = schema({
   overrides,
   extractionQueue,
   askedFlags,
+  webhookStatements,
 }, {
   env: { ANTHROPIC_API_KEY: t.string(), CARTESIA_WEBHOOK_SECRET: t.string(), EDITOR_IDENTITIES: t.string() },
 });

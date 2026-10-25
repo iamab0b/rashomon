@@ -35,6 +35,7 @@ export type ProposalState = {
   proposals: Proposal[];
   dropped: number;
   y0: number;
+  source: SceneGeom | null;
   portals: Portals | null;
   controller: AbortController | null;
   suggest: (scan: ScanInput, deps: SuggestDeps) => Promise<void>;
@@ -63,6 +64,7 @@ export const useProposalStore = create<ProposalState>((set, get) => ({
   proposals: [],
   dropped: 0,
   y0: 0,
+  source: null,
   portals: null,
   controller: null,
   suggest: async (scan, deps) => {
@@ -99,7 +101,7 @@ export const useProposalStore = create<ProposalState>((set, get) => ({
           };
         })
         .sort((a, b) => a.number - b.number);
-      finish({ status: "idle", proposals, dropped: result.dropped, y0: found.y0 });
+      finish({ status: "idle", proposals, dropped: result.dropped, y0: found.y0, source: scan.geom });
     } catch (error) {
       if (controller.signal.aborted) return;
       console.error("landmark suggestion failed", error);
@@ -142,6 +144,6 @@ export const useProposalStore = create<ProposalState>((set, get) => ({
   },
   clear: () => {
     get().controller?.abort();
-    set({ status: "idle", error: null, proposals: [], dropped: 0, portals: null, controller: null });
+    set({ status: "idle", error: null, proposals: [], dropped: 0, source: null, portals: null, controller: null });
   },
 }));

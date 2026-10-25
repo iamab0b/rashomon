@@ -1,5 +1,9 @@
-import { useRef, type CSSProperties } from "react";
+import { useMemo, useRef, type CSSProperties } from "react";
+import { useScanToolsStore } from "../loaders/scanToolsStore";
+import { labelingAdapter } from "./auto/adapter";
+import { SuggestLandmarks } from "./auto/SuggestLandmarks";
 import { boxOfLandmark } from "./boxes";
+import { uniqueId } from "./ids";
 import { useLabelingStore } from "./labelingStore";
 import { LANDMARK_KINDS, type LandmarkKind } from "./kinds";
 import { idErrorFor, labelErrorFor, landmarkErrors } from "./landmarkErrors";
@@ -21,6 +25,8 @@ const panelStyle: CSSProperties = {
 const rowStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: 2, marginTop: 8 };
 const inlineStyle: CSSProperties = { display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" };
 const fieldStyle: CSSProperties = { width: "100%", boxSizing: "border-box" };
+
+export const suggestAdapter = labelingAdapter(useLabelingStore, uniqueId);
 
 function download(name: string, text: string): void {
   const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
@@ -52,6 +58,8 @@ function NumberField({ label, value, onChange }: { label: string; value: number;
 
 export function LabelingPanel() {
   const store = useLabelingStore();
+  const scan = useScanToolsStore((state) => state.scan);
+  const scanInput = useMemo(() => (scan ? { geom: scan.geom, model: scan.model } : null), [scan]);
   const fileInput = useRef<HTMLInputElement>(null);
   const selectedEntry = store.entries.find((entry) => entry.key === store.selectedKey) ?? null;
   const selected = selectedEntry?.landmark ?? null;
@@ -101,6 +109,8 @@ export function LabelingPanel() {
           }}
         />
       </div>
+
+      <SuggestLandmarks scan={scanInput} adapter={suggestAdapter} />
 
       {store.message ? <div style={{ marginTop: 8, color: "#ffd24a" }}>{store.message}</div> : null}
       {errors.map((error) => (
