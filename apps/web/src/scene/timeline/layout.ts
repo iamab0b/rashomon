@@ -179,7 +179,7 @@ export function strokeFor(
 ): { dash?: string; stroke: string; opacity: number } {
   if (status === undefined) return { stroke: PROP_COLOR, opacity: 1 };
   if (status === "proposed") return { dash: "5 3", stroke: "#ffffff", opacity: 0.4 };
-  if (status === "implausible") return { dash: "5 3", stroke: "#ff4d4f", opacity: 1 };
+  if (status === "implausible") return { dash: "5 3", stroke: IMPLAUSIBLE_STROKE, opacity: 1 };
   const opacity = playing ? ACTIVE_STROKE_OPACITY : ACTOR_STROKE_OPACITY;
   return { stroke: color, opacity };
 }
@@ -190,8 +190,10 @@ export const WAVE_INSET = 3;
 export const SELECTION = { stroke: "#fff", width: 2, gap: 2, haloWidth: 1, haloOpacity: 0.8, tint: 0.08 } as const;
 export const BORDER_W = 1.5;
 
+export const IMPLAUSIBLE_STROKE = "#ff4d4f";
+
 export function keepsStatusBorder(status?: Status): boolean {
-  return status === "implausible" || status === "proposed";
+  return status === "proposed";
 }
 
 export function borderFor(
@@ -204,7 +206,8 @@ export function borderFor(
   const fillOpacity = Number((fillOpacityFor(status, playing) + (selected ? SELECTION.tint : 0)).toFixed(2));
   if (!selected) return { ...s, width: BORDER_W, halo: false, fillOpacity };
   if (keepsStatusBorder(status)) return { ...s, width: SELECTION.width, halo: true, fillOpacity };
-  return { ...(s.dash ? { dash: s.dash } : {}), stroke: SELECTION.stroke, opacity: 1, width: SELECTION.width, halo: false, fillOpacity };
+  const stroke = status === "implausible" ? IMPLAUSIBLE_STROKE : SELECTION.stroke;
+  return { stroke, opacity: 1, width: SELECTION.width, halo: false, fillOpacity };
 }
 export const WAVY_MIN_W = 14;
 

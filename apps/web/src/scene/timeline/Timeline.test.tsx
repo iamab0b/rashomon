@@ -221,17 +221,31 @@ describe("event state styling (regression)", () => {
     expect(html).not.toContain("#4f8cff");
   });
 
+  const selectedRender = (selectedEventId: string, inferred: readonly string[] = []) => {
+    const { resolved, statuses } = snap();
+    return renderWith({
+      graph: { ...robberyGraph, events: robberyGraph.events.map((e) => (inferred.includes(e.id) ? { ...e, tConfidence: "inferred" as const } : e)) },
+      resolved,
+      statuses: { ...statuses, e2: "overridden" },
+      duration: resolved!.durationS,
+      t: 0,
+      selectedEventId,
+    });
+  };
+
   test("the selected event has a white outline", () => {
-    const html = render();
-    expect(block(html, "e5")).toMatch(/<rect [^>]*fill="none" stroke="#fff"/);
+    const html = selectedRender("e9");
+    expect(block(html, "e9")).toMatch(/<rect [^>]*fill="none" stroke="#fff"/);
     expect(block(html, "e3")).not.toContain('stroke="#fff"');
   });
 
-  test("implausible keeps its red dashed border while playing and selected, with only a restrained tint", () => {
-    const e5 = block(render(), "e5");
+  test("implausible keeps its red dashed border while playing, with only a restrained tint", () => {
+    const { resolved, statuses } = snap();
+    const html = renderWith({ graph: robberyGraph, resolved, statuses, duration: resolved!.durationS, t: 10.5, selectedEventId: null });
+    const e5 = block(html, "e5");
     expect(e5).toContain('data-status="implausible"');
-    expect(border(e5)).toMatch(/stroke="#ff4d4f" stroke-opacity="1" stroke-dasharray="5 3"/);
-    expect(fill(e5)).toMatch(new RegExp(`fill="${WITNESS}" fill-opacity="0.32"`));
+    expect(border(e5)).toMatch(/stroke="#ff4d4f" stroke-opacity="1" stroke-dasharray="5 3" stroke-width="1.5"/);
+    expect(fill(e5)).toMatch(new RegExp(`fill="${WITNESS}" fill-opacity="0.24"`));
   });
 
   test("an inferred time has wavy start and end edges with its actor's fill and a solid border; stated times stay rectangles", () => {
@@ -275,17 +289,6 @@ describe("event state styling (regression)", () => {
     expect(xs.some((x) => x !== 100 && x !== 160)).toBe(true);
   });
 
-  const selectedRender = (selectedEventId: string, inferred: readonly string[] = []) => {
-    const { resolved, statuses } = snap();
-    return renderWith({
-      graph: { ...robberyGraph, events: robberyGraph.events.map((e) => (inferred.includes(e.id) ? { ...e, tConfidence: "inferred" as const } : e)) },
-      resolved,
-      statuses: { ...statuses, e2: "overridden" },
-      duration: resolved!.durationS,
-      t: 0,
-      selectedEventId,
-    });
-  };
 
   test("a selected estimated event keeps its waves, turns them white, and gets no rectangle outline", () => {
     const e8 = block(selectedRender("e8"), "e8");
@@ -302,12 +305,12 @@ describe("event state styling (regression)", () => {
     expect(e2).toMatch(/<polygon [^>]*fill="#ffb020"/);
   });
 
-  test("a selected estimated implausible event keeps its red dashes, with a thin white wave outside as the selection", () => {
+  test("a selected estimated implausible event keeps its waves, outlined solid red at the selection width", () => {
     const e5 = block(selectedRender("e5", ["e5"]), "e5");
-    expect(e5).toMatch(/<path d="M[^"]+" fill="none" stroke="#ff4d4f" stroke-opacity="1" stroke-dasharray="5 3"/);
-    const halo = e5.match(/<path [^>]*data-selection=""[^>]*>/)![0];
-    expect(halo).toMatch(/fill="none" stroke="#fff" stroke-opacity="0.8" stroke-width="1"/);
-    expect(e5).not.toMatch(/<rect [^>]*stroke="#fff"/);
+    expect(border(e5)).toMatch(/<path d="M[^"]+" fill="none" stroke="#ff4d4f" stroke-opacity="1" stroke-linejoin="round" stroke-width="2"/);
+    expect(e5).not.toContain("stroke-dasharray");
+    expect(e5).not.toContain("data-selection");
+    expect(e5).not.toContain('stroke="#fff"');
   });
 
   test("a selected stated event gets the same white border, width and tint as a selected estimated one, as a rectangle", () => {
@@ -322,16 +325,27 @@ describe("event state styling (regression)", () => {
     expect(fill(e9).match(/fill-opacity="([\d.]+)"/)![1]).toBe(fill(e8).match(/fill-opacity="([\d.]+)"/)![1]);
   });
 
-  test("a selected stated implausible event keeps red dashes, with the same thin white halo two units outside", () => {
+  test("a selected stated implausible event gets a solid red outline with the same geometry as a selected stated one", () => {
     const e5 = block(selectedRender("e5"), "e5");
-    expect(border(e5)).toMatch(/stroke="#ff4d4f" stroke-opacity="1" stroke-dasharray="5 3" stroke-width="2"/);
-    const halo = e5.match(/<rect [^>]*data-selection=""[^>]*>/)![0];
-    const box = e5.match(/<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)"[^>]*class="rtl-fill"/)!;
+    const e9 = block(selectedRender("e9"), "e9");
+    expect(border(e5)).toMatch(/<rect [^>]*rx="3" fill="none" stroke="#ff4d4f" stroke-opacity="1" stroke-width="2"/);
+    expect(e5).not.toContain("stroke-dasharray");
+    expect(e5).not.toContain("data-selection");
+    expect(e5).not.toContain('stroke="#fff"');
+    const geometry = (m: string) => border(m).replace(/ (x|y|width|stroke)="[^"]*"/g, "");
+    expect(geometry(e5)).toBe(geometry(e9));
+  });
+
+  test("proposed keeps its white dashes when selected, with the thin white halo two units outside", () => {
+    const { resolved, statuses } = snap();
+    const html = renderWith({ graph: robberyGraph, resolved, statuses: { ...statuses, e9: "proposed" }, duration: resolved!.durationS, t: 0, selectedEventId: "e9" });
+    const e9 = block(html, "e9");
+    expect(border(e9)).toMatch(/stroke="#ffffff" stroke-opacity="0.4" stroke-dasharray="5 3" stroke-width="2"/);
+    const halo = e9.match(/<rect [^>]*data-selection=""[^>]*>/)![0];
+    const box = e9.match(/<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)"[^>]*class="rtl-fill"/)!;
     const hx = halo.match(/x="([\d.]+)" y="([\d.]+)" width="([\d.]+)"/)!;
     expect(Number(box[1]) - Number(hx[1])).toBeCloseTo(SELECTION.gap, 5);
-    expect(Number(box[2]) - Number(hx[2])).toBeCloseTo(SELECTION.gap, 5);
     expect(Number(hx[3]) - Number(box[3])).toBeCloseTo(2 * SELECTION.gap, 5);
-    expect(halo).toMatch(/fill="none" stroke="#fff" stroke-opacity="0.8" stroke-width="1"/);
   });
 
   test("an inferred implausible event keeps its red dashes on the wavy shape", () => {
