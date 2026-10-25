@@ -1,4 +1,4 @@
-import type { Actor, Event, EventGraph, Patch, PropInstance, SceneManifest } from "@rashomon/schema";
+import { STYLE_ACTION, type Actor, type Event, type EventGraph, type Patch, type PropInstance, type SceneManifest } from "@rashomon/schema";
 import { storeScene } from "@rashomon/schema/fixtures";
 import { gatedSnapshot } from "./gatedSnapshot";
 
@@ -65,9 +65,15 @@ function addEvent(graph: EventGraph, draft: Omit<Event, "id" | "status" | "flags
   return { ...graph, events: [...graph.events, event] };
 }
 
+function withFittingStyle(event: Event): Event {
+  if (event.style === undefined || STYLE_ACTION[event.style] === event.action) return event;
+  const { style: _style, ...rest } = event;
+  return rest;
+}
+
 function updateEvent(graph: EventGraph, id: string, changes: object, sources: readonly string[]): EventGraph {
   const events = replaceById(graph.events, id, "event", (event) => {
-    const merged = merge(event, changes, EVENT_KEYS_PATCHES_CANNOT_WRITE, EVENT_KEYS_REQUIRED);
+    const merged = withFittingStyle(merge(event, changes, EVENT_KEYS_PATCHES_CANNOT_WRITE, EVENT_KEYS_REQUIRED));
     return { ...merged, sources: appendSources(merged.sources, [...changedSources(changes), ...sources]) };
   });
   return { ...graph, events };

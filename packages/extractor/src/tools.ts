@@ -65,6 +65,13 @@ const style = nullable({
     "How the action was done, only when the witness said so: sneak with walk, scared with run, forward with fall, outward with open_door, behind with look. Else null.",
 });
 
+const changeStyle = nullable({
+  type: "string",
+  enum: [...ACTION_STYLES, "none"],
+  description:
+    "A new style for the event's action, as for add_event; none removes a style the witness took back (\"he was just walking\"). Else null for no change.",
+});
+
 const verb = nullable({
   type: "string",
   description: `When actionApproximated is true, the witness's own verb as they said it, at most ${MAX_VERB_CHARS} characters, e.g. ducked. Else null.`,
@@ -110,7 +117,7 @@ const changeProps = {
   facing: nullable({ type: "string" }),
   target: nullable({ type: "string" }),
   prop: nullable({ type: "string" }),
-  style,
+  style: changeStyle,
   actionApproximated: nullable({ type: "boolean", description: actionApproximatedDescription }),
   verb,
   t_start: nullable({ type: "number" }),

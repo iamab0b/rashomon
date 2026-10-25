@@ -44,7 +44,7 @@ const VECTOR3_STRIDE = 3;
 
 const clipCache = new Map<string, AnimationClip>();
 let loadingAll: Promise<ReadonlyMap<string, AnimationClip>> | null = null;
-let optionalTried = false;
+let loadingOptional: Promise<ReadonlyMap<string, AnimationClip>> | null = null;
 
 function clipUrl(name: string): string {
   return `/clips/${name}.fbx`;
@@ -69,23 +69,12 @@ async function loadClip(name: string): Promise<AnimationClip> {
   return prepareClip(name, first);
 }
 
-const isOptional = (name: string): boolean => (OPTIONAL_CLIP_NAMES as readonly string[]).includes(name);
-
-function clipsToLoad(): string[] {
-  const required = CLIP_NAMES.filter((name) => !clipCache.has(name));
-  const retryOptional = !optionalTried || required.length > 0;
-  const optional = retryOptional ? OPTIONAL_CLIP_NAMES.filter((name) => !clipCache.has(name)) : [];
-  optionalTried = true;
-  return [...required, ...optional];
-}
-
-async function loadMissingClips(): Promise<ReadonlyMap<string, AnimationClip>> {
-  const missing = clipsToLoad();
-  const results = await Promise.allSettled(missing.map(loadClip));
+async function loadInto(names: readonly string[], optional: boolean): Promise<ReadonlyMap<string, AnimationClip>> {
+  const results = await Promise.allSettled(names.map(loadClip));
   results.forEach((result, index) => {
-    const name = missing[index];
+    const name = names[index];
     if (result.status === "rejected") {
-      if (name !== undefined && isOptional(name)) console.info(`optional clip ${name} not loaded, its action falls back`);
+      if (optional) console.info(`optional clip ${name} not loaded, its action falls back`);
       else console.warn(`clip ${name} failed to load`, result.reason);
       return;
     }
@@ -94,6 +83,15 @@ async function loadMissingClips(): Promise<ReadonlyMap<string, AnimationClip>> {
     console.info(`clip ${clip.name}: ${clip.duration.toFixed(2)} s, ${clip.tracks.length} tracks`);
   });
   return clipCache;
+}
+
+function loadMissingClips(): Promise<ReadonlyMap<string, AnimationClip>> {
+  return loadInto(CLIP_NAMES.filter((name) => !clipCache.has(name)), false);
+}
+
+export function loadOptionalClips(): Promise<ReadonlyMap<string, AnimationClip>> {
+  loadingOptional ??= loadInto(OPTIONAL_CLIP_NAMES.filter((name) => !clipCache.has(name)), true);
+  return loadingOptional;
 }
 
 export function loadClips(): Promise<ReadonlyMap<string, AnimationClip>> {

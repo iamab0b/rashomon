@@ -265,10 +265,16 @@ const updateEvent = (
   if (target) changes.target = requireActor(target, ctx, "target");
   const prop = optString(input, "prop");
   if (prop) changes.prop = checkPropRef(prop, ctx, pendingTypes);
+  const cleared: Partial<Record<"style" | "verb", null>> = {};
+  const nextAction = changes.action ?? existing.action;
   const style = optString(input, "style");
-  if (style) changes.style = checkStyle(style, changes.action ?? existing.action);
+  if (style === "none") {
+    if (existing.style) cleared.style = null;
+  } else if (style) changes.style = checkStyle(style, nextAction);
+  else if (existing.style && STYLE_ACTION[existing.style] !== nextAction) cleared.style = null;
   const approximated = optBoolean(input, "actionApproximated");
   if (approximated !== undefined) changes.actionApproximated = approximated;
+  if (approximated === false && existing.verb) cleared.verb = null;
   const rawVerb = optString(input, "verb");
   if (rawVerb !== undefined || approximated === true) {
     const nowApproximated = approximated ?? existing.actionApproximated === true;
@@ -283,12 +289,12 @@ const updateEvent = (
       end ?? existing.t[1],
       "t",
     );
-  if (Object.keys(changes).length === 0)
+  if (Object.keys(changes).length === 0 && Object.keys(cleared).length === 0)
     throw new Invalid("update_event changed nothing; every field was null");
   return {
     op: "update_event",
     id,
-    changes,
+    changes: { ...changes, ...cleared } as Partial<Event>,
     sources: buildSources(input, segment, ctx),
   };
 };

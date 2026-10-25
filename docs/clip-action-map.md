@@ -33,7 +33,7 @@ Durations are the resolver's when the witness gave no time (`FIXED_DURATION_S` i
 
 ## Styles
 
-An event's optional `style` picks a variant clip on the same action. A style is valid only with its own action; the extractor and the module refuse it on any other. When the variant file is missing, the action's own clip plays.
+An event's optional `style` picks a variant clip on the same action. A style is valid only with its own action; the extractor and the module refuse it on any other. A change of action drops a style that no longer fits, in the module and in both local patch paths, and `update_event` with `style: null` clears it (the extractor's tool spells that `none`). When the variant file is missing, the action's own clip plays.
 
 | Style | Action | Clip (FBX) | Falls back to |
 | --- | --- | --- | --- |
@@ -47,7 +47,7 @@ An event's optional `style` picks a variant clip on the same action. A style is 
 
 When the witness's verb is not one of the actions, the extractor picks the nearest action, sets `actionApproximated` and keeps the witness's word in `verb` (at most 40 characters), for example `dodge` from "ducked". The gate judges it like any other event of that action. The timeline draws its block with a dashed outline (`2 3`), and the block carries `data-approximated` and `data-verb`; the resolved event carries `actionApproximated` and `verb` for the event card.
 
-`?debug=rig` plays each new clip on the Y Bot from 12 s, one every 3 s, and its panel lists each clip with its window and, when the file is missing, the clip that plays instead.
+Required clips load first and playback starts on them; the optional files load in the background and each actor switches to them once they settle. `?debug=rig` plays each new clip on the Y Bot from 12 s, one every 3 s, and its panel lists each clip with its window and, when the file is missing, the clip that plays instead.
 
 ## Rules the agent must follow
 

@@ -645,6 +645,59 @@ describe("approximated verbs and styles", () => {
     expect(isPatchList([...(approx?.patches ?? []), ...(styled?.patches ?? [])])).toBe(true);
   });
 
+  test("a witness can take a style back, a changed action drops a misfit style, and false clears the verb", () => {
+    const sneaking = {
+      id: "e1",
+      witnessId: "w1",
+      actor: "suspect",
+      action: "walk" as const,
+      style: "sneak" as const,
+      actionApproximated: true,
+      verb: "crept",
+      t: [0, 5] as [number, number],
+      tConfidence: "inferred" as const,
+      confidence: 0.9,
+      sources: ["utt_2"],
+      status: "proposed" as const,
+      flags: [],
+    };
+    const ctx = { ...baseCtx(), events: [sneaking] };
+    const nulls = { action: null, from: null, to: null, at: null, facing: null, target: null, prop: null, style: null, actionApproximated: null, verb: null, t_start: null, t_end: null, sources: [] };
+    const results = validateToolUses(
+      [
+        use("update_event", { ...nulls, id: "e1", style: "none" }, "none"),
+        use("update_event", { ...nulls, id: "e1", action: "run" }, "run"),
+        use("update_event", { ...nulls, id: "e1", action: "run", style: "scared" }, "scared"),
+        use("update_event", { ...nulls, id: "e1", actionApproximated: false }, "known"),
+      ],
+      utt("utt_2"),
+      ctx,
+    );
+    const changes = results.map((r) => (r.patches[0]?.op === "update_event" ? r.patches[0].changes : r.error));
+    expect(changes).toEqual([
+      { style: null },
+      { action: "run", style: null },
+      { action: "run", style: "scared" },
+      { actionApproximated: false, verb: null },
+    ]);
+    expect(isPatchList(results.flatMap((r) => r.patches))).toBe(true);
+
+    const graph = { ...expected, events: [sneaking] } as EventGraph;
+    const after = (i: number) => applyPatchesLocal(graph, results[i]!.patches).events[0]!;
+    expect(after(0)).not.toHaveProperty("style");
+    expect(after(0).action).toBe("walk");
+    expect(after(1)).not.toHaveProperty("style");
+    expect(after(2).style).toBe("scared");
+    expect(after(3)).not.toHaveProperty("verb");
+    expect(after(3).actionApproximated).toBe(false);
+  });
+
+  test("applyPatchesLocal drops a style that no longer fits a changed action", () => {
+    const graph = { ...expected, events: expected.events.map((e) => (e.id === "e1" ? { ...e, style: "sneak" as const } : e)) };
+    const out = applyPatchesLocal(graph, [{ op: "update_event", id: "e1", changes: { action: "run" }, sources: ["utt_2"] }]);
+    expect(out.events.find((e) => e.id === "e1")).not.toHaveProperty("style");
+  });
+
   test("the event tools are strict and type the new fields", () => {
     const req = buildRequest(utt("utt_1"), baseCtx());
     const add = req.tools.find((t) => t.name === "add_event")!;
@@ -654,6 +707,8 @@ describe("approximated verbs and styles", () => {
     expect(update.input_schema.required).toEqual(expect.arrayContaining(["style", "actionApproximated", "verb"]));
     expect(props.actionApproximated).toMatchObject({ type: "boolean" });
     expect(JSON.stringify(props.style)).toContain('"enum":["sneak","scared","forward","outward","behind"]');
+    const updateProps = update.input_schema.properties as Record<string, Record<string, unknown>>;
+    expect(JSON.stringify(updateProps.style)).toContain('"enum":["sneak","scared","forward","outward","behind","none"]');
     expect(JSON.stringify(props.action)).toContain('"dodge"');
   });
 });

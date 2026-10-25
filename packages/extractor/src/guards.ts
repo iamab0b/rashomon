@@ -35,14 +35,17 @@ const anchorsOk = (o: Record<string, unknown>): boolean =>
     (k) => o[k] === undefined || isAnchor(o[k]),
   );
 
-const styleOk = (style: unknown, action: unknown): boolean =>
+const styleOk = (style: unknown, action: unknown, clearable = false): boolean =>
   style === undefined ||
+  (clearable && style === null) ||
   (ACTION_STYLES.includes(style as never) &&
     (action === undefined || STYLE_ACTION[style as keyof typeof STYLE_ACTION] === action));
 
-const verbOk = (o: Record<string, unknown>): boolean =>
+const verbOk = (o: Record<string, unknown>, clearable = false): boolean =>
   (o.actionApproximated === undefined || typeof o.actionApproximated === "boolean") &&
-  (o.verb === undefined || (typeof o.verb === "string" && o.verb.length <= MAX_VERB_CHARS));
+  (o.verb === undefined ||
+    (clearable && o.verb === null) ||
+    (typeof o.verb === "string" && o.verb.length <= MAX_VERB_CHARS));
 
 export const isPatch = (v: unknown): v is Patch => {
   if (!isRecord(v)) return false;
@@ -70,8 +73,8 @@ export const isPatch = (v: unknown): v is Patch => {
         isRecord(v.changes) &&
         sourcesOk(v.sources) &&
         anchorsOk(v.changes) &&
-        styleOk(v.changes.style, v.changes.action) &&
-        verbOk(v.changes)
+        styleOk(v.changes.style, v.changes.action, true) &&
+        verbOk(v.changes, true)
       );
     case "retract_event":
       return typeof v.id === "string" && sourcesOk(v.sources);

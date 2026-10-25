@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSceneStore } from "../store";
 import { AnimatedCharacter } from "./AnimatedCharacter";
 import type { CharacterHandle } from "./Character";
-import { getClip, loadClips } from "./clips";
+import { getClip, loadClips, loadOptionalClips } from "./clips";
 import { measureRig } from "./measureRig";
 import { RIG_DEBUG_ACTORS, RIG_DEBUG_GRAPH, rigDebugClipLines } from "./rigDebugGraph";
 import { useRigReportStore } from "./rigReportStore";
@@ -60,7 +60,7 @@ export function RigDebug() {
 
   useEffect(() => {
     let cancelled = false;
-    loadClips()
+    Promise.all([loadClips(), loadOptionalClips()])
       .then(() => {
         if (cancelled) return;
         setClipLines(rigDebugClipLines((name) => getClip(name) !== undefined));
