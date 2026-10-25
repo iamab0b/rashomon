@@ -163,8 +163,8 @@ export const ACTION_MAP: Readonly<Record<Action, ActionSpec>> = {
   drink: {
     clip: "clip_drink",
     fallbackClip: "clip_idle",
-    loop: true,
-    holdLastFrame: false,
+    loop: false,
+    holdLastFrame: true,
     blendInS: 0.3,
     blendOutS: 0.3,
   },
