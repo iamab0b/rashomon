@@ -1,5 +1,5 @@
 import { gate, resolve } from "@rashomon/engine";
-import { storeScene } from "@rashomon/schema/fixtures";
+import { roomScene, storeScene } from "@rashomon/schema/fixtures";
 import type { SceneManifest } from "@rashomon/schema";
 import { ScheduleAt, t } from "spacetimedb/server";
 import type { ReducerCtx } from "spacetimedb/server";
@@ -39,7 +39,7 @@ type Ctx = ReducerCtx<ModuleSchema>;
 
 export const key = (sessionId: string, id: string): string => `${sessionId}/${id}`;
 
-const MANIFESTS: Record<string, SceneManifest> = { store_v1: storeScene };
+const MANIFESTS: Record<string, SceneManifest> = { store_v1: storeScene, room_v1: roomScene };
 
 export function manifestFor(sceneId: string): SceneManifest {
   return MANIFESTS[sceneId] ?? fail(`unknown sceneId ${sceneId}; known scenes: ${Object.keys(MANIFESTS).join(", ")}`);
