@@ -11,6 +11,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { SceneManifest } from "@rashomon/schema";
 import { storeScene } from "@rashomon/schema/fixtures";
 import { ownMaterials } from "../characters/materials";
+import { specGlossPlugin } from "./specGlossPlugin";
 
 export type LoadedScene = {
   manifest: SceneManifest;
@@ -86,12 +87,16 @@ export function buildPlaceholder(manifest: SceneManifest): Group {
 }
 
 export async function loadGlb(url: string): Promise<Object3D> {
-  const gltf = await new GLTFLoader().loadAsync(url);
+  const loader = new GLTFLoader().register((parser) => specGlossPlugin(parser));
+  const gltf = await loader.loadAsync(url);
   return gltf.scene;
 }
 
 export async function loadScene(fixture: string): Promise<LoadedScene> {
-  const manifest = loadManifest(fixture);
+  return loadSceneFromManifest(loadManifest(fixture));
+}
+
+export async function loadSceneFromManifest(manifest: SceneManifest): Promise<LoadedScene> {
   try {
     const model = await loadGlb(manifest.meshUrl);
     tagCollision(model);

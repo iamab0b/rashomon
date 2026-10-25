@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { isCameraPreset, POV_CAM, Scene, Timeline, useCamera } from "./scene";
+import { isCameraPreset, isLandmarkEditing, POV_CAM, Scene, Timeline, useCamera } from "./scene";
 import { RightPanel } from "./ui/RightPanel";
 import { TopBar } from "./ui/TopBar";
 import { ViewSwitcher } from "./ui/ViewSwitcher";
@@ -11,6 +11,7 @@ export function App() {
   const cam = params.get("cam");
   const tParam = params.get("t");
   const t = tParam !== null && Number.isFinite(Number(tParam)) ? Number(tParam) : undefined;
+  const editing = isLandmarkEditing(window.location.search);
   const { setPreset, setFollowing } = useCamera();
 
   useEffect(() => {
@@ -27,7 +28,7 @@ export function App() {
             <Scene fixture={fixture} debug={debug} t={t} />
             <ViewSwitcher />
           </div>
-          <Timeline />
+          {editing ? null : <Timeline />}
         </div>
         <RightPanel />
       </div>

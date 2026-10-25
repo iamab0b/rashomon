@@ -2,7 +2,7 @@ import { ACTIONS, ACTION_STYLES, ACTOR_BODIES, MAX_HEIGHT_M, MAX_VERB_CHARS, MIN
 import { CLOTHING_COLOR_NAMES } from "./colors";
 import type { ToolDef } from "./types";
 
-export const STRICT_TOOLS = true;
+export const LOOSE_TOOL_NAMES: readonly string[] = ["add_event", "update_event"];
 
 export const CONFIDENCE_MAP = { low: 0.3, medium: 0.6, high: 0.9 } as const;
 
@@ -132,7 +132,7 @@ const tool = (
 ): ToolDef => ({
   name,
   description,
-  strict: STRICT_TOOLS,
+  strict: !LOOSE_TOOL_NAMES.includes(name),
   input_schema: {
     type: "object",
     properties,

@@ -24,6 +24,10 @@ export function scanSceneFailure(search: string, scanLoaded: boolean, hasGraphSo
   return scanFailure(search) ?? (scanLoaded && !hasGraphSource ? noGraphMessage(SCAN_FIXTURE, scenarioFromSearch(search)) : null);
 }
 
+export function failureSkipped(state: { isRigDebug: boolean; graphless: boolean; liveScan: string | null }): boolean {
+  return state.isRigDebug || (state.graphless && state.liveScan === null);
+}
+
 export function shouldSignalReady(state: { hasGraph: boolean; actorsReady: boolean; failure: string | null }): boolean {
   return state.failure === null && (!state.hasGraph || state.actorsReady);
 }
