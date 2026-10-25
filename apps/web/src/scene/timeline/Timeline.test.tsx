@@ -13,6 +13,14 @@ import {
   fillOpacityFor,
   hits,
   implausibleStarts,
+  inferredBlockPath,
+  WAVE_AMPLITUDE,
+  SELECTION,
+  borderFor,
+  APPROXIMATED_DASH,
+  IMPLAUSIBLE_STROKE,
+  SELECTED_IMPLAUSIBLE_STROKE,
+  WAVE_INSET,
   LANE_H,
   rowHeight,
   rowTops,
@@ -179,6 +187,7 @@ describe("event state styling (regression)", () => {
   const render = () => {
     const { resolved, statuses } = snap();
     return renderWith({
+      graph: robberyGraph,
       resolved,
       statuses: { ...statuses, e2: "overridden" },
       duration: resolved!.durationS,
@@ -187,8 +196,8 @@ describe("event state styling (regression)", () => {
     });
   };
   const block = (html: string, id: string) => html.match(new RegExp(`<g data-block="${id}"[^>]*>(.*?)</g>`))![0];
-  const fill = (markup: string) => markup.match(/<rect [^>]*class="rtl-fill"[^>]*>/)![0];
-  const border = (markup: string) => markup.match(/<rect [^>]*fill="none" stroke="[^"]*" stroke-opacity[^>]*>/)![0];
+  const fill = (markup: string) => markup.match(/<(?:rect|path) [^>]*class="rtl-fill"[^>]*>/)![0];
+  const border = (markup: string) => markup.match(/<(?:rect|path) [^>]*fill="none" stroke="[^"]*" stroke-opacity[^>]*>/)![0];
 
   test("overlapping events from one actor sit on separate lanes; later events reuse lane 0", () => {
     const html = render();
@@ -216,17 +225,171 @@ describe("event state styling (regression)", () => {
     expect(html).not.toContain("#4f8cff");
   });
 
+  const selectedRender = (selectedEventId: string, inferred: readonly string[] = []) => {
+    const { resolved, statuses } = snap();
+    return renderWith({
+      graph: { ...robberyGraph, events: robberyGraph.events.map((e) => (inferred.includes(e.id) ? { ...e, tConfidence: "inferred" as const } : e)) },
+      resolved,
+      statuses: { ...statuses, e2: "overridden" },
+      duration: resolved!.durationS,
+      t: 0,
+      selectedEventId,
+    });
+  };
+
   test("the selected event has a white outline", () => {
-    const html = render();
-    expect(block(html, "e5")).toMatch(/<rect [^>]*fill="none" stroke="#fff"/);
+    const html = selectedRender("e9");
+    expect(block(html, "e9")).toMatch(/<rect [^>]*fill="none" stroke="#fff"/);
     expect(block(html, "e3")).not.toContain('stroke="#fff"');
   });
 
   test("implausible keeps its red dashed border while playing, with only a restrained tint", () => {
-    const e5 = block(render(), "e5");
+    const { resolved, statuses } = snap();
+    const html = renderWith({ graph: robberyGraph, resolved, statuses, duration: resolved!.durationS, t: 10.5, selectedEventId: null });
+    const e5 = block(html, "e5");
     expect(e5).toContain('data-status="implausible"');
-    expect(border(e5)).toMatch(/stroke="#ff4d4f" stroke-opacity="1" stroke-dasharray="5 3"/);
+    expect(border(e5)).toMatch(/stroke="#ff4d4f" stroke-opacity="1" stroke-dasharray="5 3" stroke-width="1.5"/);
     expect(fill(e5)).toMatch(new RegExp(`fill="${WITNESS}" fill-opacity="0.24"`));
+  });
+
+  test("an inferred time has wavy start and end edges with its actor's fill and a solid border; stated times stay rectangles", () => {
+    const html = render();
+    const e8 = block(html, "e8");
+    expect(e8).toContain("data-inferred");
+    expect(e8.match(/<rect /g)).toHaveLength(1);
+    expect(e8).toMatch(new RegExp(`<path d="M[^"]+Q[^"]+Z" fill="${CLERK}" fill-opacity="[0-9.]+" class="rtl-fill"`));
+    expect(e8).toMatch(new RegExp(`<path d="M[^"]+" fill="none" stroke="${CLERK}" stroke-opacity="[0-9.]+" stroke-linejoin="round"`));
+    expect(e8).not.toContain("stroke-dasharray");
+    expect(e8).toContain("<title>e8 · estimated time: the witness gave no time</title>");
+    const e9 = block(html, "e9");
+    expect(e9).not.toContain("data-inferred");
+    expect(e9).not.toContain("<path");
+    expect(border(e9)).not.toContain("stroke-dasharray");
+    expect(e9).not.toContain("<title>");
+  });
+
+  test("the waves sit a few units inside the event's box, which still takes the clicks", () => {
+    const { resolved } = snap();
+    const html = render();
+    const e8 = block(html, "e8");
+    const hit = e8.match(/<rect x="([\d.]+)" y="[\d.]+" width="([\d.]+)" height="[\d.]+" fill="transparent" class="rtl-hit"/)!;
+    const x = Number(hit[1]);
+    const w = Number(hit[2]);
+    const e8event = resolved!.events.find((e) => e.id === "e8")!;
+    expect(x).toBeCloseTo(xOf(e8event.tStart, resolved!.durationS), 1);
+    expect(x + w).toBeCloseTo(xOf(e8event.tEnd, resolved!.durationS), 1);
+    const start = Number(fill(e8).match(/d="M([\d.]+),/)![1]);
+    expect(start - x).toBeCloseTo(WAVE_INSET, 1);
+    expect(WAVE_INSET - WAVE_AMPLITUDE).toBeGreaterThan(0);
+    expect(WAVE_INSET).toBeLessThanOrEqual(4);
+  });
+
+  test("the wavy edges sit only on the start and end; top and bottom stay straight", () => {
+    const d = inferredBlockPath(100, 10, 60, 24);
+    expect(d.startsWith("M100,10 L160,10 Q")).toBe(true);
+    expect(d).toContain(" L100,34 Q");
+    const xs = [...d.matchAll(/Q([\d.]+),[\d.]+ ([\d.]+),/g)].flatMap((m) => [Number(m[1]), Number(m[2])]);
+    expect(xs.every((x) => Math.abs(x - 160) <= WAVE_AMPLITUDE || Math.abs(x - 100) <= WAVE_AMPLITUDE)).toBe(true);
+    expect(xs.some((x) => x !== 100 && x !== 160)).toBe(true);
+  });
+
+
+  test("a selected estimated event keeps its waves, turns them white, and gets no rectangle outline", () => {
+    const e8 = block(selectedRender("e8"), "e8");
+    expect(border(e8)).toMatch(/<path d="M[^"]+" fill="none" stroke="#fff" stroke-opacity="1" stroke-linejoin="round" stroke-width="2"/);
+    expect(fill(e8)).toMatch(new RegExp(`fill="${CLERK}" fill-opacity="0.22"`));
+    expect(e8).not.toMatch(/<rect [^>]*stroke="#fff"/);
+    expect(e8).not.toContain("data-selection");
+  });
+
+  test("a selected estimated overridden event keeps its amber corner under the white waves", () => {
+    const e2 = block(selectedRender("e2"), "e2");
+    expect(e2).toContain('data-status="overridden"');
+    expect(border(e2)).toMatch(/stroke="#fff"/);
+    expect(e2).toMatch(/<polygon [^>]*fill="#ffb020"/);
+  });
+
+  test("a selected estimated implausible event keeps its waves, outlined solid red at the selection width", () => {
+    const e5 = block(selectedRender("e5", ["e5"]), "e5");
+    expect(border(e5)).toMatch(/<path d="M[^"]+" fill="none" stroke="#ff999a" stroke-opacity="1" stroke-linejoin="round" stroke-width="2"/);
+    expect(e5).not.toContain("stroke-dasharray");
+    expect(e5).not.toContain("data-selection");
+    expect(e5).not.toContain('stroke="#fff"');
+  });
+
+  test("a selected stated event gets the same white border, width and tint as a selected estimated one, as a rectangle", () => {
+    const html = selectedRender("e9");
+    const e9 = block(html, "e9");
+    expect(border(e9)).toMatch(/<rect [^>]*fill="none" stroke="#fff" stroke-opacity="1" stroke-width="2"/);
+    expect(e9.match(/stroke="#fff"/g)).toHaveLength(1);
+    expect(e9).not.toContain("<path");
+    const e8 = block(selectedRender("e8"), "e8");
+    const width = (m: string) => border(m).match(/stroke-width="([\d.]+)"/)![1];
+    expect(width(e9)).toBe(width(e8));
+    expect(fill(e9).match(/fill-opacity="([\d.]+)"/)![1]).toBe(fill(e8).match(/fill-opacity="([\d.]+)"/)![1]);
+  });
+
+  test("a selected stated implausible event gets a solid red outline with the same geometry as a selected stated one", () => {
+    const e5 = block(selectedRender("e5"), "e5");
+    const e9 = block(selectedRender("e9"), "e9");
+    expect(border(e5)).toMatch(/<rect [^>]*rx="3" fill="none" stroke="#ff999a" stroke-opacity="1" stroke-width="2"/);
+    expect(e5).not.toContain("stroke-dasharray");
+    expect(e5).not.toContain("data-selection");
+    expect(e5).not.toContain('stroke="#fff"');
+    const geometry = (m: string) => border(m).replace(/ (x|y|width|stroke)="[^"]*"/g, "");
+    expect(geometry(e5)).toBe(geometry(e9));
+  });
+
+  test("an approximated action keeps its dashes when selected, in the selection color and width", () => {
+    expect(borderFor("plausible", WITNESS, false, false, true)).toMatchObject({ dash: APPROXIMATED_DASH, stroke: WITNESS, width: 1.5 });
+    expect(borderFor("plausible", WITNESS, false, true, true)).toMatchObject({ dash: APPROXIMATED_DASH, stroke: "#fff", width: SELECTION.width, halo: false });
+    expect(borderFor("plausible", WITNESS, false, true, false).dash).toBeUndefined();
+  });
+
+  test("the selected implausible red is the default red, only lighter", () => {
+    const hsl = (hex: string) => {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [number, number, number];
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const l = (max + min) / 2;
+      const d = max - min;
+      const s = d / (1 - Math.abs(2 * l - 1));
+      const h = max === r ? (((g - b) / d) % 6) * 60 : max === g ? ((b - r) / d + 2) * 60 : ((r - g) / d + 4) * 60;
+      return { h: (h + 360) % 360, s, l };
+    };
+    const base = hsl(IMPLAUSIBLE_STROKE);
+    const selected = hsl(SELECTED_IMPLAUSIBLE_STROKE);
+    expect(Math.abs(selected.h - base.h)).toBeLessThan(1);
+    expect(selected.s).toBeCloseTo(base.s, 2);
+    expect(selected.l).toBeCloseTo(0.8, 2);
+    expect(selected.l).toBeGreaterThan(base.l);
+    expect(strokeFor("implausible")).toMatchObject({ dash: "5 3", stroke: IMPLAUSIBLE_STROKE });
+  });
+
+  test("proposed keeps its white dashes when selected, with the thin white halo two units outside", () => {
+    const { resolved, statuses } = snap();
+    const html = renderWith({ graph: robberyGraph, resolved, statuses: { ...statuses, e9: "proposed" }, duration: resolved!.durationS, t: 0, selectedEventId: "e9" });
+    const e9 = block(html, "e9");
+    expect(border(e9)).toMatch(/stroke="#ffffff" stroke-opacity="0.4" stroke-dasharray="5 3" stroke-width="2"/);
+    const halo = e9.match(/<rect [^>]*data-selection=""[^>]*>/)![0];
+    const box = e9.match(/<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)"[^>]*class="rtl-fill"/)!;
+    const hx = halo.match(/x="([\d.]+)" y="([\d.]+)" width="([\d.]+)"/)!;
+    expect(Number(box[1]) - Number(hx[1])).toBeCloseTo(SELECTION.gap, 5);
+    expect(Number(hx[3]) - Number(box[3])).toBeCloseTo(2 * SELECTION.gap, 5);
+  });
+
+  test("an inferred implausible event keeps its red dashes on the wavy shape", () => {
+    const { resolved, statuses } = snap();
+    const html = renderWith({
+      graph: { ...robberyGraph, events: robberyGraph.events.map((e) => (e.id === "e5" ? { ...e, tConfidence: "inferred" as const } : e)) },
+      resolved,
+      statuses,
+      duration: resolved!.durationS,
+      t: 0,
+    });
+    const e5 = block(html, "e5");
+    expect(e5).toContain('data-status="implausible"');
+    expect(e5).toMatch(/<path d="M[^"]+" fill="none" stroke="#ff4d4f" stroke-opacity="1" stroke-dasharray="5 3"/);
   });
 
   test("non-overlapping events from one actor share a lane", () => {

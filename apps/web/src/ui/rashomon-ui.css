@@ -181,7 +181,7 @@
 .rui .investigation-event.status-overridden { border-left: 3px solid var(--status-overridden); }
 .rui .investigation-event.selected { outline: 2px solid var(--selection); outline-offset: 2px; }
 .rui .investigation-event__top { gap: 8px; }
-.rui .event-inferred { color: var(--text-secondary); font-size: var(--fs-2xs); }
+.rui .time-estimated { margin-left: 6px; padding: 0 6px; color: var(--text-secondary); border: 1px solid var(--border); border-radius: 999px; font-size: var(--fs-2xs); line-height: 16px; white-space: nowrap; }
 .rui .event-place--missing { color: var(--text-secondary); font-style: italic; }
 .rui .event-flag { display: grid; gap: 5px; margin-top: 9px; padding: 7px 8px; border: 1px dashed color-mix(in srgb, var(--status-implausible) 60%, transparent); border-radius: 3px; font-size: var(--fs-xs); line-height: 1.4; }
 .rui .event-flag p { margin: 0; color: var(--status-implausible); }

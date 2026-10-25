@@ -8,6 +8,7 @@ import {
   eventHolding,
   eventTarget,
   eventTime,
+  TimeBasisLabel,
   PendingNote,
   PlaybackDot,
   SourceMeta,
@@ -25,6 +26,7 @@ export function EventsTab({
   playbackActive,
   playing,
   placeOf,
+  timeBasisOf,
   jumpTo,
   openSource,
   openHistory,
@@ -60,7 +62,7 @@ export function EventsTab({
                 <span className="playback-when">
                   <PlaybackDot active={playbackActive.has(event.id)} playing={playing} />
                   <time className="mono">{eventTime(event)}</time>
-                  {event.tInferred && <small className="event-inferred">time inferred</small>}
+                  <TimeBasisLabel basis={timeBasisOf(event)} />
                 </span>
                 <StatusToken status={status} pending={isPending(event)} />
               </div>
