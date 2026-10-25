@@ -126,7 +126,9 @@ function snapshot(io: Io, sessionId: string, segmentId: string): Snapshot {
       source: s.source as Segment["source"],
       ...(s.supersedes !== undefined ? { supersedes: s.supersedes } : {}),
     });
-    const recent = [...ctx.db.segments.sessionId.filter(sessionId)].map(toSegment);
+    const recent = [...ctx.db.segments.sessionId.filter(sessionId)]
+      .filter((s) => s.id === segmentId || s.text.length <= MAX_SEGMENT_TEXT_CHARS)
+      .map(toSegment);
     return {
       segment: toSegment(row),
       utteranceIds: [...ctx.db.utterances.segmentKey.filter(key(sessionId, segmentId))].map((u) => u.id),

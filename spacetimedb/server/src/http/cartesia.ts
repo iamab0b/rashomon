@@ -4,7 +4,7 @@ import { eventGraphFromRow } from "../convert";
 import { fnv1a64 } from "../extract/hash";
 import { EXTRACTION_FAILED, UNKNOWN_SESSION, openHardFlags, runExtraction, type Extraction, type Io } from "../extract/run";
 import { buildGraph, type ModuleSchema, type ReadDb } from "../graph";
-import { MAX_BODY_BYTES, MAX_UTTERANCES } from "../limits";
+import { MAX_BODY_BYTES, MAX_SEGMENT_TEXT_CHARS, MAX_UTTERANCES } from "../limits";
 import { insertSegmentRow, key, manifestFor } from "../reducers";
 import { spacetimedb } from "../tables";
 
@@ -13,6 +13,7 @@ export type WebhookIo = Io & { webhookSecret: () => string | undefined };
 export const SECRET_HEADER = "x-rashomon-webhook-secret";
 export const SECONDS_PER_WORD = 0.4;
 export const RECENT_EVENTS = 5;
+export const RETRY_WINDOW_MICROS = 15_000_000n;
 
 export type SceneContext = {
   landmarks: { id: string; label: string }[];
@@ -75,19 +76,35 @@ export const defaultSegmentId = (
 ): string =>
   `seg_${fnv1a64(JSON.stringify([sessionId, witnessId, priorSegments, utterances.map((u) => [u.text, u.tStart ?? null, u.tEnd ?? null])]))}`;
 
+const segmentCount = (db: ReadDb, sessionId: string): number => {
+  let n = 0;
+  for (const s of db.segments.sessionId.filter(sessionId)) if (s.sessionId === sessionId) n++;
+  return n;
+};
+
 export function resolveSegmentId(
   db: ReadDb,
   sessionId: string,
   witnessId: string,
   parts: { text: string; tStart?: number; tEnd?: number }[],
 ): string {
-  let prior = 0;
-  for (const s of db.segments.sessionId.filter(sessionId)) if (s.sessionId === sessionId) prior++;
+  const prior = segmentCount(db, sessionId);
   if (prior > 0) {
     const previous = defaultSegmentId(sessionId, witnessId, parts, prior - 1);
     if (db.segments.rowKey.find(key(sessionId, previous))) return previous;
   }
   return defaultSegmentId(sessionId, witnessId, parts, prior);
+}
+
+export function plainSegmentId(ctx: ReducerCtx<ModuleSchema>, sessionId: string, witnessId: string, text: string): string {
+  let latest: { segmentId: string; seq: number; text: string; storedAt: { microsSinceUnixEpoch: bigint } } | undefined;
+  for (const w of ctx.db.webhookStatements.sessionId.filter(sessionId)) {
+    if (w.sessionId !== sessionId || w.witnessId !== witnessId) continue;
+    if (!latest || w.seq > latest.seq) latest = w;
+  }
+  if (latest && latest.text === text && ctx.timestamp.microsSinceUnixEpoch - latest.storedAt.microsSinceUnixEpoch < RETRY_WINDOW_MICROS)
+    return latest.segmentId;
+  return defaultSegmentId(sessionId, witnessId, [{ text }], segmentCount(ctx.db, sessionId));
 }
 
 type Authorized = { body: Record<string, unknown>; sessionId: string };
@@ -144,10 +161,13 @@ export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
     text = parsed.map((u) => u.text).join(" ");
   }
 
+  if (text.length > MAX_SEGMENT_TEXT_CHARS)
+    return { status: 413, body: { error: `the text must be at most ${MAX_SEGMENT_TEXT_CHARS} characters` } };
+
   let segmentId: string;
   try {
     segmentId = io.withTx((ctx) => {
-      const id = givenId ?? resolveSegmentId(ctx.db, sessionId, witnessId, parsed ?? [{ text }]);
+      const id = givenId ?? (parsed ? resolveSegmentId(ctx.db, sessionId, witnessId, parsed) : plainSegmentId(ctx, sessionId, witnessId, text));
       const existing = ctx.db.segments.rowKey.find(key(sessionId, id));
       if (existing && existing.sessionId === sessionId && existing.text === text) return id;
       let lines: { id: string; text: string; tStart: number; tEnd: number }[];
@@ -178,6 +198,16 @@ export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
         supersedes: undefined,
         utterances: lines,
       });
+      ctx.db.webhookStatements.insert({
+        rowKey: key(sessionId, id),
+        sessionId,
+        segmentId: id,
+        seq: segmentCount(ctx.db, sessionId),
+        witnessId,
+        text,
+        storedAt: ctx.timestamp,
+        askFlagId: undefined,
+      });
       return id;
     });
   } catch {
@@ -187,71 +217,106 @@ export function handleCartesia(io: WebhookIo, req: Request): WebhookOutcome {
   if (result.error === EXTRACTION_FAILED) return { status: 502, body: { error: EXTRACTION_FAILED } };
   let askNext: AskBack | null;
   try {
-    askNext = io.withTx((ctx) => takeNextQuestion(ctx, sessionId));
+    askNext = io.withTx((ctx) => askFor(ctx, sessionId, segmentId));
   } catch {
     askNext = null;
   }
   return { status: 200, body: { ...result, askNext } };
 }
 
+const toAskBack = (f: { id: string; eventId: string; suggestedQuestion: string }): AskBack => ({
+  flagId: f.id,
+  eventId: f.eventId,
+  question: f.suggestedQuestion,
+});
+
+export function peekNextQuestion(db: ReadDb, sessionId: string): AskBack | null {
+  const next = openHardFlags(db, sessionId).find((f) => !db.askedFlags.rowKey.find(key(sessionId, f.id)));
+  return next ? toAskBack(next) : null;
+}
+
 export function takeNextQuestion(ctx: ReducerCtx<ModuleSchema>, sessionId: string): AskBack | null {
-  const next = openHardFlags(ctx.db, sessionId).find((f) => !ctx.db.askedFlags.rowKey.find(key(sessionId, f.id)));
-  if (!next) return null;
-  ctx.db.askedFlags.insert({ rowKey: key(sessionId, next.id), sessionId, flagId: next.id, askedAt: ctx.timestamp });
-  return { flagId: next.id, eventId: next.eventId, question: next.suggestedQuestion };
+  const next = peekNextQuestion(ctx.db, sessionId);
+  if (next) ctx.db.askedFlags.insert({ rowKey: key(sessionId, next.flagId), sessionId, flagId: next.flagId, askedAt: ctx.timestamp });
+  return next;
+}
+
+export function askFor(ctx: ReducerCtx<ModuleSchema>, sessionId: string, segmentId: string): AskBack | null {
+  const statement = ctx.db.webhookStatements.rowKey.find(key(sessionId, segmentId));
+  if (statement?.askFlagId !== undefined) {
+    const kept = openHardFlags(ctx.db, sessionId).find((f) => f.id === statement.askFlagId);
+    return kept ? toAskBack(kept) : null;
+  }
+  const next = takeNextQuestion(ctx, sessionId);
+  if (statement && next) ctx.db.webhookStatements.rowKey.update({ ...statement, askFlagId: next.flagId });
+  return next;
 }
 
 const anchorLandmark = (a: Anchor | undefined): string | undefined =>
   a === undefined || a.kind === "xyz" ? undefined : a.kind === "between" ? a.a : a.landmark;
 
-export function handleSceneContext(io: WebhookIo, req: Request): WebhookOutcome {
-  const auth = authorize(io, req);
-  if (isOutcome(auth)) return auth;
-  const { sessionId } = auth;
-  const context = io.withTx((ctx): SceneContext | undefined => {
-    const row = buildGraph(ctx.db, sessionId);
-    if (!row) return undefined;
-    const graph = eventGraphFromRow(row);
-    const manifest = manifestFor(row.sceneId);
-    const labels = new Map(manifest.landmarks.map((l) => [l.id, l.label]));
-    const actors = new Map(graph.actors.map((a) => [a.id, a.label]));
-    const live = graph.events.filter((e) => e.status !== "superseded" && e.supersededBy === undefined);
-    const recentEvents = live.slice(-RECENT_EVENTS).map((e) => {
-      const landmark = anchorLandmark(e.at) ?? anchorLandmark(e.to) ?? anchorLandmark(e.from);
-      return {
-        id: e.id,
-        actor: actors.get(e.actor) ?? e.actor,
-        action: e.action,
-        where: landmark === undefined ? null : (labels.get(landmark) ?? landmark),
-        status: e.status,
-      };
-    });
-    const openQuestions = openHardFlags(ctx.db, sessionId).map((f) => ({ eventId: f.eventId, question: f.suggestedQuestion }));
+function sceneContextOf(ctx: ReducerCtx<ModuleSchema>, sessionId: string): SceneContext | undefined {
+  const row = buildGraph(ctx.db, sessionId);
+  if (!row) return undefined;
+  const graph = eventGraphFromRow(row);
+  const manifest = manifestFor(row.sceneId);
+  const labels = new Map(manifest.landmarks.map((l) => [l.id, l.label]));
+  const actors = new Map(graph.actors.map((a) => [a.id, a.label]));
+  const live = graph.events.filter((e) => e.status !== "superseded" && e.supersededBy === undefined);
+  const recentEvents = live.slice(-RECENT_EVENTS).map((e) => {
+    const landmark = anchorLandmark(e.at) ?? anchorLandmark(e.to) ?? anchorLandmark(e.from);
     return {
-      landmarks: manifest.landmarks.map((l) => ({ id: l.id, label: l.label })),
-      recentEvents,
-      openQuestions,
-      nextQuestion: takeNextQuestion(ctx, sessionId)?.question ?? null,
+      id: e.id,
+      actor: actors.get(e.actor) ?? e.actor,
+      action: e.action,
+      where: landmark === undefined ? null : (labels.get(landmark) ?? landmark),
+      status: e.status,
     };
   });
-  if (!context) return bad(UNKNOWN_SESSION);
-  return { status: 200, body: context };
+  const openQuestions = openHardFlags(ctx.db, sessionId).map((f) => ({ eventId: f.eventId, question: f.suggestedQuestion }));
+  return {
+    landmarks: manifest.landmarks.map((l) => ({ id: l.id, label: l.label })),
+    recentEvents,
+    openQuestions,
+    nextQuestion: peekNextQuestion(ctx.db, sessionId)?.question ?? null,
+  };
+}
+
+function interviewSummaryOf(ctx: ReducerCtx<ModuleSchema>, sessionId: string): InterviewSummary | undefined {
+  if (!ctx.db.sessions.id.find(sessionId)) return undefined;
+  const statements = [...ctx.db.segments.sessionId.filter(sessionId)].filter((s) => s.speaker === "witness").length;
+  const events = [...ctx.db.events.sessionId.filter(sessionId)].filter((e) => e.status !== "superseded").length;
+  const openQuestions = openHardFlags(ctx.db, sessionId).length;
+  return { ended: true, statements, events, openQuestions };
+}
+
+const READ_FAILED: WebhookOutcome = { status: 500, body: { error: "the session could not be read" } };
+
+function readSession<T extends SceneContext | InterviewSummary>(
+  io: WebhookIo,
+  req: Request,
+  read: (ctx: ReducerCtx<ModuleSchema>, sessionId: string) => T | undefined,
+): { outcome: WebhookOutcome; sessionId?: string; value?: T } {
+  const auth = authorize(io, req);
+  if (isOutcome(auth)) return { outcome: auth };
+  let value: T | undefined;
+  try {
+    value = io.withTx((ctx) => read(ctx, auth.sessionId));
+  } catch {
+    return { outcome: READ_FAILED };
+  }
+  if (!value) return { outcome: bad(UNKNOWN_SESSION) };
+  return { outcome: { status: 200, body: value }, sessionId: auth.sessionId, value };
+}
+
+export function handleSceneContext(io: WebhookIo, req: Request): WebhookOutcome {
+  return readSession(io, req, sceneContextOf).outcome;
 }
 
 export function handleEndInterview(io: WebhookIo, req: Request): WebhookOutcome {
-  const auth = authorize(io, req);
-  if (isOutcome(auth)) return auth;
-  const { sessionId } = auth;
-  const summary = io.withTx((ctx): InterviewSummary | undefined => {
-    if (!ctx.db.sessions.id.find(sessionId)) return undefined;
-    const statements = [...ctx.db.segments.sessionId.filter(sessionId)].filter((s) => s.speaker === "witness").length;
-    const events = [...ctx.db.events.sessionId.filter(sessionId)].filter((e) => e.status !== "superseded").length;
-    const openQuestions = openHardFlags(ctx.db, sessionId).length;
-    return { ended: true, statements, events, openQuestions };
-  });
-  if (!summary) return bad(UNKNOWN_SESSION);
-  console.log(`interview ended for ${sessionId}: ${summary.statements} statements, ${summary.events} events`);
-  return { status: 200, body: summary };
+  const { outcome, sessionId, value } = readSession(io, req, interviewSummaryOf);
+  if (value) console.log(`interview ended for ${sessionId}: ${value.statements} statements, ${value.events} events`);
+  return outcome;
 }
 
 const respond = (handle: (io: WebhookIo, req: Request) => WebhookOutcome) =>

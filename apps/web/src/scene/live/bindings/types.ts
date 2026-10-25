@@ -39,6 +39,14 @@ export const Anchor = __t.object("Anchor", {
 });
 export type Anchor = __Infer<typeof Anchor>;
 
+export const AskedFlags = __t.object("AskedFlags", {
+  rowKey: __t.string(),
+  sessionId: __t.string(),
+  flagId: __t.string(),
+  askedAt: __t.timestamp(),
+});
+export type AskedFlags = __Infer<typeof AskedFlags>;
+
 export const Event = __t.object("Event", {
   id: __t.string(),
   witnessId: __t.string(),
@@ -293,6 +301,18 @@ export const Utterances = __t.object("Utterances", {
   tEnd: __t.f64(),
 });
 export type Utterances = __Infer<typeof Utterances>;
+
+export const WebhookStatements = __t.object("WebhookStatements", {
+  rowKey: __t.string(),
+  sessionId: __t.string(),
+  segmentId: __t.string(),
+  seq: __t.u32(),
+  witnessId: __t.string(),
+  text: __t.string(),
+  storedAt: __t.timestamp(),
+  askFlagId: __t.option(__t.string()),
+});
+export type WebhookStatements = __Infer<typeof WebhookStatements>;
 
 export const Witness = __t.object("Witness", {
   id: __t.string(),

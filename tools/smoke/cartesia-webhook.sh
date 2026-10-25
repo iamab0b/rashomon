@@ -2,8 +2,9 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: tools/smoke/cartesia-webhook.sh <base-url> <session-id>" >&2
+  echo "usage: tools/smoke/cartesia-webhook.sh <base-url> <scratch-session-id>" >&2
   echo "Posts to the Cartesia webhook routes with the right secret and a wrong one." >&2
+  echo "Use a scratch session that no interview is using; seed one with tools/smoke/seed.sh." >&2
   echo "base-url is the tunnel (https://...trycloudflare.com) or http://127.0.0.1:3000. Reads CARTESIA_WEBHOOK_SECRET from .env.local." >&2
   exit 2
 }
