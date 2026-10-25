@@ -185,6 +185,17 @@ describe("statement section", () => {
     expect(failed).toContain("Token server returned 502");
   });
 
+  test("with voiceEnabled false a voice object changes nothing in the markup", () => {
+    const voice = { status: "idle", error: null, active: false, toggle: () => {} };
+    const without = renderToStaticMarkup(<StatementSectionView {...props({ kind: "idle" })} />);
+    for (const v of [voice, { ...voice, status: "error", error: "Token server returned 502" }, { ...voice, status: "speaking", active: true }]) {
+      expect(renderToStaticMarkup(<StatementSectionView {...props({ kind: "idle" }, { voice: v })} />)).toBe(without);
+    }
+    expect(without).not.toContain("Talk to the interviewer");
+    expect(without).not.toContain("voice-control");
+    expect(without).not.toContain("coming soon");
+  });
+
   test("Submit is disabled while the text is empty", () => {
     expect(renderToStaticMarkup(<StatementSectionView {...props({ kind: "idle" })} />)).toMatch(/disabled=""[^>]*>Submit/);
     expect(renderToStaticMarkup(<StatementSectionView {...props({ kind: "idle" }, { text: "x" })} />)).not.toMatch(/disabled=""[^>]*>Submit/);
