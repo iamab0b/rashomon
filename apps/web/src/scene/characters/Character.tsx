@@ -19,7 +19,6 @@ export type CharacterHandle = {
   body: ActorBody | undefined;
   name: string;
   scale: number;
-  restHipsY: number | undefined;
   root: Object3D;
   skinnedMeshes: readonly SkinnedMesh[];
   mixer: AnimationMixer;
@@ -48,17 +47,15 @@ export function instantiate(look: CharacterLook, loaded: LoadedLook): CharacterH
   const skinnedMeshes = findSkinnedMeshes(root);
   const mixerRoot = findPrimarySkinnedMesh(skinnedMeshes);
   if (!mixerRoot) throw new Error(`rig ${name} has no SkinnedMesh with a primary skeleton`);
-  const hips = findHipBone(mixerRoot);
   return {
     rig: look.rig,
     body: loaded.body,
     name,
     scale,
-    restHipsY: hips?.position.y,
     root,
     skinnedMeshes,
     mixer: new AnimationMixer(mixerRoot),
-    hips,
+    hips: findHipBone(mixerRoot),
     rightHand: findRightHand(mixerRoot),
     ownedMaterials,
   };

@@ -74,6 +74,17 @@ export function bodyScale(body: ActorBody | undefined, heightM: number | undefin
   return body !== undefined && heightM !== undefined ? heightM / BODY_SPECS[body].baseHeightM : 1;
 }
 
+export function strideLookup(
+  cycleDistanceOf: (clip: string) => number | undefined,
+  scale: number,
+): (clip: string) => number | undefined {
+  if (scale === 1) return cycleDistanceOf;
+  return (clip) => {
+    const distance = cycleDistanceOf(clip);
+    return distance === undefined ? undefined : distance * scale;
+  };
+}
+
 export function skeletonProblem(root: Group): string | null {
   const meshes = findSkinnedMeshes(root);
   if (meshes.length === 0) return "it has no skinned mesh and no skeleton";

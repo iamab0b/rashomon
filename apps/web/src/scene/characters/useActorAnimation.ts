@@ -4,9 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { AnimationAction } from "three";
 import { statusOf } from "../playback/useGraph";
 import { useSceneStore } from "../store";
-import { IDLE_CLIP } from "./actionMap";
 import { buildClipWindows, createClipSampler, EMPTY_WINDOW_SET } from "./blend";
-import { bodyMotion, clipForBody, clipRestHipsY, UNCHANGED_MOTION } from "./bodyMotion";
+import { strideLookup } from "./bodies";
 import type { CharacterHandle } from "./Character";
 import { cycleDistanceOf, getClip, loadClips, loadOptionalClips } from "./clips";
 import { poseActorFrame } from "./procedural/applyProcedural";
@@ -74,27 +73,11 @@ export function useActorAnimation(
     [actorId, events, statuses, clipsLoaded, optionalSettled],
   );
 
-  const motion = useMemo(
-    () => (character && clipsLoaded ? bodyMotion(character, clipRestHipsY(getClip(IDLE_CLIP))) : UNCHANGED_MOTION),
-    [character, clipsLoaded],
+  const stride = character?.scale ?? 1;
+  const timeOf = useMemo(
+    () => (clipsLoaded && events ? locomotionTimer(events, strideLookup(cycleDistanceOf, stride)) : undefined),
+    [events, clipsLoaded, stride],
   );
-
-  const clipOf = useMemo(
-    () => (name: string) => {
-      const clip = getClip(name);
-      return clip ? clipForBody(clip, motion.hipsRatio) : undefined;
-    },
-    [motion],
-  );
-
-  const timeOf = useMemo(() => {
-    if (!clipsLoaded || !events) return undefined;
-    const stride = motion.strideScale;
-    return locomotionTimer(events, (name) => {
-      const distance = cycleDistanceOf(name);
-      return distance === undefined ? undefined : distance * stride;
-    });
-  }, [events, clipsLoaded, motion]);
   const rig = useMemo(() => (character ? rigFromCharacter(character) : null), [character]);
   const scene = useMemo(
     () => (resolved ? proceduralSceneFor(resolved, statuses, graph, manifest, actorId) : null),
@@ -124,7 +107,7 @@ export function useActorAnimation(
         sampler,
         windowSet,
         durationOf,
-        clipOf,
+        clipOf: getClip,
         actions: touched.current,
         timeOf,
         rig,
