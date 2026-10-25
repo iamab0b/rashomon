@@ -1,15 +1,23 @@
+import type { SceneGeom } from "@rashomon/engine";
 import { extractSegment, type CallModel, type ExtractContext } from "@rashomon/extractor";
 import propsJson from "@rashomon/props";
 import type { Event, EventGraph, Patch, PropType, SceneManifest, Segment } from "@rashomon/schema";
 import { robberyClerkPatches, robberyClerkWitness, robberyGraph, storeScene } from "@rashomon/schema/fixtures";
 import type { GraphSnapshot } from "../store";
 import { applyPatches } from "./applyPatches";
-import { gatedSnapshot } from "./gatedSnapshot";
+import { gatedSnapshot, NO_GEOM } from "./gatedSnapshot";
 import { RECORDED_NOTE, recordedToolCalls } from "./recordedStatements";
 import { checkStatement, statementSegmentId } from "./statementId";
 import { NO_STATEMENTS, type StatementStatus, type StatementStatuses, type SubmittedStatement } from "./statementStatus";
 
-export { gatedSnapshot } from "./gatedSnapshot";
+export { gatedSnapshot, NO_GEOM } from "./gatedSnapshot";
+
+export type GateScene = {
+  readonly manifest: SceneManifest;
+  readonly geom: SceneGeom;
+};
+
+const STORE_GATE: GateScene = { manifest: storeScene, geom: NO_GEOM };
 
 export interface GraphSource {
   readonly kind: "fixture" | "live";
@@ -52,24 +60,60 @@ function memoized(key: string, build: () => FixtureState): () => FixtureState {
   };
 }
 
-function gatedState(graph: EventGraph, manifest: SceneManifest): FixtureState {
-  return { graph, snapshot: gatedSnapshot(graph, manifest) };
+function gatedState(graph: EventGraph, scene: GateScene): FixtureState {
+  return { graph, snapshot: gatedSnapshot(graph, scene.manifest, scene.geom) };
 }
 
-function twoWitnessGraph(): EventGraph {
-  const patched = applyPatches(robberyGraph, robberyClerkPatches, CORRECTION_TIME, storeScene);
+function baseGraph(manifest: SceneManifest): EventGraph {
+  return manifest.sceneId === robberyGraph.sceneId ? robberyGraph : { ...robberyGraph, sceneId: manifest.sceneId };
+}
+
+function twoWitnessGraph(manifest: SceneManifest): EventGraph {
+  const patched = applyPatches(baseGraph(manifest), robberyClerkPatches, CORRECTION_TIME, manifest);
   return { ...patched, witnesses: [...(robberyGraph.witnesses ?? []), { ...robberyClerkWitness }] };
 }
 
+function scenarioGraph(scenario: string | null | undefined, manifest: SceneManifest): EventGraph {
+  if (scenario === CORRECTED_SCENARIO) return applyPatches(baseGraph(manifest), robberyCorrectionPatches(), CORRECTION_TIME, manifest);
+  if (scenario === TWO_WITNESSES_SCENARIO) return twoWitnessGraph(manifest);
+  return baseGraph(manifest);
+}
+
 const FIXTURE_STATES: Readonly<Record<string, () => FixtureState>> = {
-  store: memoized("store", () => gatedState(robberyGraph, storeScene)),
+  store: memoized("store", () => gatedState(scenarioGraph(null, storeScene), STORE_GATE)),
   [`store:${CORRECTED_SCENARIO}`]: memoized(`store:${CORRECTED_SCENARIO}`, () =>
-    gatedState(applyPatches(robberyGraph, robberyCorrectionPatches(), CORRECTION_TIME, storeScene), storeScene),
+    gatedState(scenarioGraph(CORRECTED_SCENARIO, storeScene), STORE_GATE),
   ),
   [`store:${TWO_WITNESSES_SCENARIO}`]: memoized(`store:${TWO_WITNESSES_SCENARIO}`, () =>
-    gatedState(twoWitnessGraph(), storeScene),
+    gatedState(scenarioGraph(TWO_WITNESSES_SCENARIO, storeScene), STORE_GATE),
   ),
 };
+
+function emptyGraph(sceneId: string): EventGraph {
+  return { sceneId, actors: robberyGraph.actors, events: [], props: [], witnesses: robberyGraph.witnesses ?? [], version: 1 };
+}
+
+function scanState(scenario: string | null | undefined, scene: GateScene): FixtureState {
+  try {
+    return gatedState(scenarioGraph(scenario, scene.manifest), scene);
+  } catch {
+    const graph = emptyGraph(scene.manifest.sceneId);
+    try {
+      return gatedState(graph, scene);
+    } catch (error) {
+      console.error("scan manifest cannot be gated", error);
+      return { graph, snapshot: { resolved: null, statuses: {}, graph } };
+    }
+  }
+}
+
+function once<T>(build: () => T): () => T {
+  let value: { readonly built: T } | null = null;
+  return () => {
+    value ??= { built: build() };
+    return value.built;
+  };
+}
 
 const FIXTURE_SESSION = "fixture";
 const FIXTURE_WITNESS = "w1";
@@ -94,7 +138,8 @@ function statementSegment(text: string, witnessName: string): Segment {
   };
 }
 
-function patchableSource(initial: () => FixtureState, manifest: SceneManifest): FixtureGraphSource {
+function patchableSource(initial: () => FixtureState, scene: GateScene): FixtureGraphSource {
+  const { manifest, geom } = scene;
   let current: FixtureState | null = null;
   let statements: StatementStatuses = NO_STATEMENTS;
   const listeners = new Set<() => void>();
@@ -119,7 +164,7 @@ function patchableSource(initial: () => FixtureState, manifest: SceneManifest): 
     try {
       const result = await extractSegment(segment, context, recordedModelFor(segment.text));
       if (result.patches.length > 0) {
-        current = gatedState(applyPatches(graph, result.patches, Date.now(), manifest), manifest);
+        current = gatedState(applyPatches(graph, result.patches, Date.now(), manifest, geom), scene);
       }
       setStatement(segment.id, {
         state: "done",
@@ -156,7 +201,7 @@ function patchableSource(initial: () => FixtureState, manifest: SceneManifest): 
       };
     },
     apply(patches) {
-      current = gatedState(applyPatches(state().graph, patches, Date.now(), manifest), manifest);
+      current = gatedState(applyPatches(state().graph, patches, Date.now(), manifest, geom), scene);
       notify();
     },
   };
@@ -166,11 +211,16 @@ function fixtureKey(fixture: string, scenario: string | null | undefined): strin
   return scenario ? `${fixture}:${scenario}` : fixture;
 }
 
-export function fixtureGraphSource(fixture: string, scenario?: string | null): FixtureGraphSource | null {
+export function fixtureGraphSource(
+  fixture: string,
+  scenario?: string | null,
+  scan?: GateScene | null,
+): FixtureGraphSource | null {
   if (scenario && !SCENARIOS.has(scenario)) return null;
+  if (scan) return patchableSource(once(() => scanState(scenario, scan)), scan);
   const key = fixtureKey(fixture, scenario);
   const build = Object.hasOwn(FIXTURE_STATES, key) ? FIXTURE_STATES[key] : undefined;
-  return build ? patchableSource(build, storeScene) : null;
+  return build ? patchableSource(build, STORE_GATE) : null;
 }
 
 export function scenarioFromSearch(search: string): string | null {

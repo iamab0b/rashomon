@@ -1,6 +1,8 @@
 import { Canvas } from "@react-three/fiber";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import type { ThreeEvent } from "@react-three/fiber";
 import { CameraRig } from "./cameras/CameraRig";
+import { FrameObject } from "./cameras/FrameObject";
 import { PovRayLine } from "./cameras/PovRayLine";
 import { WitnessView } from "./cameras/WitnessView";
 import { CAMERA_PRESETS } from "./cameras/presets";
@@ -16,13 +18,21 @@ import { LabelLayer } from "./landmarks/LabelLayer";
 import { LabelProjector } from "./landmarks/LabelProjector";
 import { LandmarkMarkers } from "./landmarks/LandmarkMarkers";
 import { isKnownFixture, loadScene, type LoadedScene } from "./loaders/scene";
+import { storeDroppedScan, type LoadedScan } from "./loaders/scan";
+import { useScanAlignStore } from "./loaders/scanAlignStore";
+import { ScanDropHint } from "./loaders/ScanDropHint";
+import { ScanPanel } from "./loaders/ScanPanel";
+import { scanFailure, scanRequestFromSearch, searchWithScan, type ScanRequest } from "./loaders/scanRequest";
+import type { SceneSource } from "./loaders/sceneSource";
+import { failScan, useScanScene } from "./loaders/useScanScene";
+import { fixtureGraphSource, NO_GEOM, scenarioFromSearch, type GateScene } from "./playback/graphSource";
 import { Actors } from "./playback/Actors";
 import { Playhead } from "./playback/Playhead";
 import { Props } from "./props/Props";
 import { selectSource } from "./playback/selectSource";
 import { useGraphSource } from "./playback/useGraph";
 import { SceneErrorCard } from "./SceneErrorCard";
-import { sceneFailure, shouldSignalReady, unknownFixtureMessage } from "./sceneFailure";
+import { sceneFailure, scanSceneFailure, shouldSignalReady, unknownFixtureMessage } from "./sceneFailure";
 import { useSceneStore } from "./store";
 import { useSceneKeys } from "./useSceneKeys";
 
@@ -70,11 +80,21 @@ function useLoadedScene(fixture: string | undefined): LoadedScene | null {
   return loaded;
 }
 
-function useSceneFailure(fixture: string | undefined, skip: boolean, hasGraphSource: boolean): string | null {
+function useSceneFailure(
+  fixture: string | undefined,
+  skip: boolean,
+  hasGraphSource: boolean,
+  scan: { request: ScanRequest | null; loaded: boolean },
+): string | null {
   const setStatus = useSceneStore((state) => state.setStatus);
   const failure = useMemo(
-    () => (!fixture || skip ? null : sceneFailure(fixture, window.location.search, hasGraphSource)),
-    [fixture, skip, hasGraphSource],
+    () =>
+      !fixture || skip
+        ? null
+        : scan.request
+          ? scanSceneFailure(window.location.search, scan.loaded, hasGraphSource)
+          : sceneFailure(fixture, window.location.search, hasGraphSource),
+    [fixture, skip, hasGraphSource, scan.request, scan.loaded],
   );
   useEffect(() => {
     if (failure) setStatus("error", failure);
@@ -132,18 +152,100 @@ function useDebugPreset(debug: string | undefined): void {
   }, [debug, setPreset]);
 }
 
+function useScanRequest(): [ScanRequest | null, (file: File) => void] {
+  const [request, setRequest] = useState<ScanRequest | null>(() => scanRequestFromSearch(window.location.search));
+  const latestDrop = useRef(0);
+  const drop = useCallback((file: File) => {
+    const serial = ++latestDrop.current;
+    storeDroppedScan(file)
+      .then((hash) => {
+        if (serial !== latestDrop.current) return;
+        const search = searchWithScan(window.location.search, hash);
+        window.history.replaceState(window.history.state, "", search);
+        setRequest(scanRequestFromSearch(search));
+      })
+      .catch((error: unknown) => {
+        if (serial === latestDrop.current) failScan(error);
+      });
+  }, []);
+  return [request, drop];
+}
+
+function scanLoadedScene(scan: LoadedScan | null): LoadedScene | null {
+  return scan ? { manifest: scan.manifest, model: scan.model, isPlaceholder: false } : null;
+}
+
+function useSceneSourcePublisher(loaded: LoadedScene | null, scan: LoadedScan | null): void {
+  const setSceneSource = useSceneStore((state) => state.setSceneSource);
+  useEffect(() => {
+    const source: SceneSource | null = scan
+      ? { kind: "scan", manifest: scan.manifest, model: scan.model, geom: scan.geom }
+      : loaded
+        ? { kind: "fixture", manifest: loaded.manifest, model: loaded.model, geom: NO_GEOM }
+        : null;
+    setSceneSource(source);
+  }, [loaded, scan, setSceneSource]);
+  useEffect(() => () => setSceneSource(null), [setSceneSource]);
+}
+
+function useDropZone(onFile: (file: File) => void) {
+  const [dragging, setDragging] = useState(false);
+  return {
+    dragging,
+    handlers: {
+      onDragOver: (event: DragEvent<HTMLDivElement>) => {
+        if (!event.dataTransfer.types.includes("Files")) return;
+        event.preventDefault();
+        setDragging(true);
+      },
+      onDragLeave: (event: DragEvent<HTMLDivElement>) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        setDragging(false);
+      },
+      onDrop: (event: DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        setDragging(false);
+        const file = event.dataTransfer.files[0];
+        if (file) onFile(file);
+      },
+    },
+  };
+}
+
 export function Scene({ fixture, debug, t }: SceneProps) {
   useSceneKeys();
   useDebugPreset(debug);
   useInitialTime(t, debug);
   const isRigDebug = debug === RIG_DEBUG;
-  const loaded = useLoadedScene(isRigDebug ? undefined : fixture);
-  const graphSource = useMemo(
-    () => (!isRigDebug && fixture ? selectSource(window.location.search, fixture) : null),
-    [isRigDebug, fixture],
-  );
+  const [scanRequest, dropScan] = useScanRequest();
+  const liveScan = useMemo(() => (scanRequest ? scanFailure(window.location.search) : null), [scanRequest]);
+  const fixtureLoaded = useLoadedScene(isRigDebug || scanRequest ? undefined : fixture);
+  const { scan, alignAt, frameKey } = useScanScene(isRigDebug || liveScan ? null : scanRequest);
+  const loaded = useMemo(() => (scanRequest ? scanLoadedScene(scan) : fixtureLoaded), [scanRequest, scan, fixtureLoaded]);
+  const gateScene = useMemo<GateScene | null>(() => (scan ? { manifest: scan.manifest, geom: scan.geom } : null), [scan]);
+  const graphSource = useMemo(() => {
+    if (isRigDebug || !fixture) return null;
+    if (!scanRequest) return selectSource(window.location.search, fixture);
+    return gateScene && !liveScan ? fixtureGraphSource(fixture, scenarioFromSearch(window.location.search), gateScene) : null;
+  }, [isRigDebug, fixture, scanRequest, gateScene, liveScan]);
   useGraphSource(graphSource);
-  const failure = useSceneFailure(fixture, isRigDebug, graphSource !== null);
+  useSceneSourcePublisher(loaded, scan);
+  const failure = useSceneFailure(fixture, isRigDebug, graphSource !== null, { request: scanRequest, loaded: scan !== null });
+  const aligning = useScanAlignStore((state) => state.aligning);
+  const onAlignClick = useCallback(
+    (event: ThreeEvent<MouseEvent>) => {
+      if (event.faceIndex === undefined || event.faceIndex === null) return;
+      event.stopPropagation();
+      alignAt({
+        object: event.object,
+        faceIndex: event.faceIndex,
+        point: [event.point.x, event.point.y, event.point.z],
+        direction: [event.ray.direction.x, event.ray.direction.y, event.ray.direction.z],
+      });
+    },
+    [alignAt],
+  );
+  const drop = useDropZone(dropScan);
   const hasGraph = useSceneStore((state) => state.resolved !== null);
   const actorsReady = useSceneStore((state) => state.actorsReady);
   const status = useSceneStore((state) => state.status);
@@ -153,6 +255,7 @@ export function Scene({ fixture, debug, t }: SceneProps) {
     <div
       style={{ position: "relative", width: "100%", height: "100%" }}
       data-scene-ready={status === "ready" ? "true" : status === "error" ? "error" : "false"}
+      {...(isRigDebug ? {} : drop.handlers)}
     >
       <Canvas
         shadows="percentage"
@@ -167,7 +270,8 @@ export function Scene({ fixture, debug, t }: SceneProps) {
         {isRigDebug ? <RigDebug /> : null}
         {loaded ? (
           <>
-            <primitive object={loaded.model} />
+            <primitive object={loaded.model} onClick={scan && aligning ? onAlignClick : undefined} />
+            {scan ? <FrameObject object={scan.model} frameKey={frameKey} /> : null}
             {loaded.isPlaceholder && fixture === STORE_FIXTURE ? (
               <Dressing manifest={loaded.manifest} placeholder={loaded.model} />
             ) : null}
@@ -185,6 +289,8 @@ export function Scene({ fixture, debug, t }: SceneProps) {
       </Canvas>
       {loaded ? <LabelLayer landmarks={loaded.manifest.landmarks} /> : null}
       {isRigDebug ? <RigReportPanel /> : null}
+      {scan ? <ScanPanel scan={scan} /> : null}
+      {drop.dragging ? <ScanDropHint /> : null}
       <SceneErrorCard />
       <DebugOverlay />
       {import.meta.env.DEV && !isRigDebug ? <ShotButton /> : null}
