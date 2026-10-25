@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { client, listModels, type Client } from "./cartesia";
-import { TOOL_NAMES, agentBody, agentConfig, toolDefinition, webhookUrl, type Settings, type ToolName } from "./config";
+import { DEFAULT_SCENE_ID, TOOL_NAMES, agentBody, agentConfig, sceneFor, toolDefinition, webhookUrl, type Settings, type ToolName } from "./config";
 
 export const IDS_FILE = fileURLToPath(new URL("../.cartesia-ids.json", import.meta.url));
 
@@ -40,8 +40,10 @@ export async function settingsFrom(env: Env, api: Client): Promise<Settings> {
     witnessId: env.RASHOMON_WITNESS_ID?.trim() || "w1",
     webhookSecret: need(env, "CARTESIA_WEBHOOK_SECRET"),
     voiceId: env.CARTESIA_VOICE_ID?.trim() || undefined,
+    sceneId: env.RASHOMON_SCENE_ID?.trim() || DEFAULT_SCENE_ID,
   };
   webhookUrl(s, "record_statement");
+  sceneFor(s.sceneId);
   return { ...s, modelId: await pickModel(api, env) };
 }
 
