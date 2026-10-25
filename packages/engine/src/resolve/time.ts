@@ -1,4 +1,5 @@
 import type { Action } from "@rashomon/schema";
+import { RUN_MAX_MS, WALK_MAX_MS } from "../gate/timeDistance";
 
 export const WALK_SPEED_MS = 1.4;
 export const RUN_SPEED_MS = 4;
@@ -30,6 +31,35 @@ export function durationFor(action: Action, distanceM: number): number {
   if (action === "walk") return distanceM / WALK_SPEED_MS;
   if (action === "run") return distanceM / RUN_SPEED_MS;
   return FIXED_DURATION_S[action];
+}
+
+export type Interval = { tStart: number; tEnd: number; tInferred: boolean };
+
+export type StatedBounds = { floor: number; ceiling: number };
+
+const MIN_SPEED_MS: Partial<Record<Action, number>> = { walk: WALK_SPEED_MS, run: RUN_SPEED_MS };
+const MAX_SPEED_MS: Partial<Record<Action, number>> = { walk: WALK_MAX_MS, run: RUN_MAX_MS };
+
+export function realisticMovement(
+  interval: Interval,
+  action: Action,
+  pathLengthM: number,
+  bounds: StatedBounds,
+): Interval {
+  const speed = MIN_SPEED_MS[action];
+  const limit = MAX_SPEED_MS[action];
+  if (speed === undefined || limit === undefined || pathLengthM <= 0) return interval;
+  const needed = pathLengthM / speed;
+  let { tStart, tEnd } = interval;
+  if (tEnd - tStart < needed) {
+    tEnd = Math.max(tEnd, Math.min(tStart + needed, bounds.ceiling));
+    const missing = needed - (tEnd - tStart);
+    if (missing > 0) tStart = Math.min(tStart, Math.max(bounds.floor, tStart - missing));
+  }
+  const changed = tStart !== interval.tStart || tEnd !== interval.tEnd;
+  const seconds = tEnd - tStart;
+  const tooFast = seconds <= 0 || pathLengthM / seconds > limit;
+  return { tStart, tEnd, tInferred: interval.tInferred || changed || tooFast };
 }
 
 export const hasInterval = (t: unknown): t is [number, number] =>

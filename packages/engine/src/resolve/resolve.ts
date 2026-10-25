@@ -10,10 +10,24 @@ import { anchorToPoint } from "./anchors";
 import type { Box } from "./geometry";
 import { pathLength, shortestPath, straightLineClear } from "./portals";
 import { portalsFor } from "./walkable";
-import { hasInterval, resolveInterval } from "./time";
+import { hasInterval, realisticMovement, resolveInterval } from "./time";
 
 const MOVEMENT = new Set(["walk", "run"]);
 const TIME_EPS = 1e-9;
+
+const isStated = (e: Event): e is Event & { t: [number, number] } =>
+  e.tConfidence === "stated" && hasInterval(e.t) && !isRetracted(e);
+
+function statedBounds(events: readonly Event[], self: Event, t: [number, number]): { floor: number; ceiling: number } {
+  let floor = 0;
+  let ceiling = Number.POSITIVE_INFINITY;
+  for (const other of events) {
+    if (other === self || other.actor !== self.actor || !isStated(other)) continue;
+    if (other.t[0] < t[0]) floor = Math.max(floor, other.t[1]);
+    else if (other.t[0] > t[0]) ceiling = Math.min(ceiling, other.t[0]);
+  }
+  return { floor, ceiling };
+}
 
 const handoffRank = (action: string): number => (action === "drop" ? 0 : 1);
 
@@ -158,7 +172,11 @@ export function resolve(
       ? routeBetween(from, to, portals, obstacles)
       : { path: [], reachable: true, travelM: 0 };
 
-    const t = resolveInterval(e.t, e.action, route.travelM, previousEnd);
+    const given = resolveInterval(e.t, e.action, route.travelM, previousEnd);
+    const t =
+      isMove && e.tConfidence === "inferred" && hasInterval(e.t)
+        ? realisticMovement(given, e.action, pathLength(route.path), statedBounds(graph.events, e, e.t))
+        : given;
     previousEndByActor.set(e.actor, t.tEnd);
     const arrivedAt = isMove ? (route.reachable ? to : from) : at;
     if (!isRetracted(e)) {

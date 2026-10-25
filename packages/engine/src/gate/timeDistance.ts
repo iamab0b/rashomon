@@ -31,7 +31,7 @@ export function timeDistanceFlags(resolved: ResolvedGraph): FlagDraft[] {
     flags.push({
       eventId: e.id,
       check: "time_distance",
-      severity: "hard",
+      severity: e.tInferred ? "soft" : "hard",
       detail: `${lead} ${meters.toFixed(1)} m${between} in ${seconds.toFixed(1)} s, ${speed.toFixed(1)} m/s, over the ${limit.toFixed(1)} m/s limit.`,
       evidence: {
         distanceM: Number(meters.toFixed(2)),
