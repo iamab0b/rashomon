@@ -7,6 +7,7 @@ import type { EventGraph, PropType, Segment } from "@rashomon/schema";
 import { NO_TOOL_CALL, NO_TOOL_CALL_NUDGE, SYSTEM_PROMPT, TRUNCATED } from "./prompt";
 import { TINT_PATTERN } from "@rashomon/schema";
 import {
+  EXTRACTOR_TOOLS,
   CLOTHING_COLORS,
   CLOTHING_COLOR_NAMES,
   applyPatchesLocal,
@@ -19,6 +20,7 @@ import {
 } from "./index";
 import type {
   CallModel,
+  ToolDef,
   ExtractContext,
   ModelResponse,
   ToolUseBlock,
@@ -291,7 +293,7 @@ describe("buildRequest", () => {
     expect(body).not.toHaveProperty("thinking");
     expect(body.output_config).toEqual({ effort: "low" });
     expect(body.max_tokens).toBe(16000);
-    expect(buildRequest(utt("utt_1"), baseCtx()).tools.every((t) => t.strict === true)).toBe(true);
+    expect(buildRequest(utt("utt_1"), baseCtx()).tools.filter((t) => !t.strict).map((t) => t.name)).toEqual(["add_event", "update_event"]);
     expect(SYSTEM_PROMPT).toContain("Every reply must contain at least one tool call");
   });
 });
@@ -701,10 +703,11 @@ describe("approximated verbs and styles", () => {
     expect(out.events.find((e) => e.id === "e1")).not.toHaveProperty("style");
   });
 
-  test("the event tools are strict and type the new fields", () => {
+  test("the event tools are not strict but still type the new fields", () => {
     const req = buildRequest(utt("utt_1"), baseCtx());
     const add = req.tools.find((t) => t.name === "add_event")!;
     const update = req.tools.find((t) => t.name === "update_event")!;
+    expect([add.strict, update.strict]).toEqual([false, false]);
     const props = add.input_schema.properties as Record<string, Record<string, unknown>>;
     expect(add.input_schema.required).toEqual(expect.arrayContaining(["style", "actionApproximated", "verb"]));
     expect(update.input_schema.required).toEqual(expect.arrayContaining(["style", "actionApproximated", "verb"]));
@@ -811,5 +814,87 @@ describe("actor bodies from the witness's description", () => {
     expect(isPatchList([{ op: "add_actor", actor: { ...actor, body: "huge" } }])).toBe(false);
     expect(isPatchList([{ op: "add_actor", actor: { ...actor, heightM: 2.5 } }])).toBe(false);
     expect(isPatchList([{ op: "add_actor", actor: { ...actor, tint: "red" } }])).toBe(false);
+  });
+});
+
+describe("strict tool limits", () => {
+  type Schema = Record<string, unknown>;
+  type Counts = { unions: number; optional: number; strictTools: number };
+
+  const isUnion = (schema: Schema): boolean => Array.isArray(schema.anyOf) || Array.isArray(schema.type);
+
+  const countSchema = (schema: Schema, counts: Counts): void => {
+    const properties = (schema.properties ?? {}) as Record<string, Schema>;
+    const required = new Set((schema.required ?? []) as string[]);
+    for (const [key, property] of Object.entries(properties)) {
+      if (!required.has(key)) counts.optional += 1;
+      if (isUnion(property)) counts.unions += 1;
+      countSchema(property, counts);
+    }
+    for (const branch of (schema.anyOf ?? []) as Schema[]) countSchema(branch, counts);
+    if (schema.items && typeof schema.items === "object") countSchema(schema.items as Schema, counts);
+  };
+
+  const countStrict = (tools: readonly ToolDef[]): Counts => {
+    const counts: Counts = { unions: 0, optional: 0, strictTools: 0 };
+    for (const tool of tools.filter((t) => t.strict)) {
+      counts.strictTools += 1;
+      countSchema(tool.input_schema, counts);
+    }
+    return counts;
+  };
+
+  test("the strict tool schemas fit the API's combined limits", () => {
+    const counts = countStrict(buildRequest(utt("utt_1"), baseCtx()).tools);
+    expect(counts.unions).toBeLessThanOrEqual(12);
+    expect(counts.optional).toBeLessThanOrEqual(20);
+    expect(counts.strictTools).toBeLessThanOrEqual(20);
+    expect(counts.unions).toBeLessThanOrEqual(16);
+    expect(counts.optional).toBeLessThanOrEqual(24);
+    expect(counts).toEqual({ unions: 12, optional: 0, strictTools: 5 });
+  });
+
+  test("the count would have caught the all-strict tools: 44 union-typed parameters against the API's 16", () => {
+    const allStrict = EXTRACTOR_TOOLS.map((tool) => ({ ...tool, strict: true }));
+    expect(countStrict(allStrict).unions).toBe(44);
+    const perTool = Object.fromEntries(allStrict.map((tool) => [tool.name, countStrict([tool]).unions]));
+    expect(perTool).toEqual({ add_event: 14, update_event: 18, retract_event: 0, add_prop: 4, update_prop: 5, add_actor: 3, no_events: 0 });
+  });
+
+  test("a non-strict add_event with a wrong-typed field is dropped by the validator, and an unknown key never reaches the patch", async () => {
+    const replies = [
+      [
+        use("add_event", walkInput({ t_start: "0" }), "string_time"),
+        use("add_event", walkInput({ actionApproximated: "yes" }), "string_flag"),
+        use("add_event", walkInput({ confidence: 0.9 }), "numeric_confidence"),
+        use("add_event", walkInput({ from: { kind: "xyz", landmark: "front_door", position: [1, 0, 1] } }), "coordinates"),
+        use("add_event", { ...walkInput(), status: "plausible", position: [1, 0, 1] }, "extra_keys"),
+      ],
+      [use("no_events", { reason: "the rest was rejected" }, "retry")],
+    ];
+    let call = 0;
+    const model: CallModel = async () => ({ content: replies[call++] ?? [], stop_reason: "tool_use" });
+    const r = await extractSegment(utt("utt_2"), baseCtx(), model);
+    expect(call).toBe(2);
+    expect(r.patches).toHaveLength(1);
+    const p = r.patches[0];
+    if (p?.op !== "add_event") throw new Error("expected add_event");
+    expect(Object.keys(p.event).sort()).toEqual(["action", "actor", "confidence", "from", "sources", "t", "tConfidence", "to", "witnessId"]);
+    expect(isPatchList(r.patches)).toBe(true);
+    expect(r.unparsed).toEqual([]);
+    const results = validateToolUses(replies[0]!, utt("utt_2"), baseCtx());
+    expect(results.map((x) => x.error === undefined)).toEqual([false, false, false, false, true]);
+    expect(results[0]?.error).toBe("t_start must be a finite number or null");
+    expect(results[1]?.error).toBe("actionApproximated must be true, false or null");
+    expect(results[2]?.error).toBe("confidence must be low, medium or high");
+    expect(results[3]?.error).toContain("from.kind must be at, near, behind or between");
+    const once = await extractSegment(utt("utt_2"), baseCtx(), async () => ({ content: replies[0]!, stop_reason: "tool_use" }), { maxRetries: 0 });
+    expect(once.patches).toHaveLength(1);
+    expect(once.unparsed).toEqual([
+      "add_event: t_start must be a finite number or null",
+      "add_event: actionApproximated must be true, false or null",
+      "add_event: confidence must be low, medium or high",
+      "add_event: from.kind must be at, near, behind or between",
+    ]);
   });
 });
