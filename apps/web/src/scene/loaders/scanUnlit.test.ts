@@ -1,4 +1,4 @@
-import { BoxGeometry, DoubleSide, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, Texture, type Object3D } from "three";
+import { BoxGeometry, Color, DoubleSide, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, Texture, type Object3D } from "three";
 import { describe, expect, test } from "vitest";
 import { IDENTITY_ALIGNMENT } from "./alignment";
 import { loadScan } from "./scan";
@@ -69,6 +69,27 @@ describe("unlit scans", () => {
       expect(mesh.castShadow).toBe(false);
       expect(mesh.receiveShadow).toBe(false);
     });
+  });
+
+  test("a converted scan material is not tone mapped", async () => {
+    const scan = await loadWith(false);
+    expect((meshNamed(scan.raw, "floor").material as MeshBasicMaterial).toneMapped).toBe(false);
+    expect((meshNamed(scan.raw, "wall").material as MeshBasicMaterial).toneMapped).toBe(false);
+  });
+
+  test("an emissive-only material keeps its emissive map and colour", () => {
+    const emissiveMap = new Texture();
+    const root = new Group();
+    const mesh = new Mesh(
+      new BoxGeometry(1, 1, 1),
+      new MeshStandardMaterial({ emissiveMap, emissive: new Color(0.5, 0.25, 1) }),
+    );
+    root.add(mesh);
+    makeScanUnlit(root);
+    const material = mesh.material as unknown as MeshBasicMaterial;
+    expect(material).toBeInstanceOf(MeshBasicMaterial);
+    expect(material.map).toBe(emissiveMap);
+    expect(material.color.equals(new Color(0.5, 0.25, 1))).toBe(true);
   });
 
   test("the old material is disposed", () => {

@@ -1,4 +1,4 @@
-import { Mesh, MeshBasicMaterial, type Material, type Object3D } from "three";
+import { Color, Mesh, MeshBasicMaterial, type Material, type Object3D, type Texture } from "three";
 
 export const SCAN_LIT_PARAM = "scanlit";
 
@@ -8,11 +8,20 @@ export function scanLitFromSearch(search: string): boolean {
 
 function unlitCopy(source: Material): MeshBasicMaterial {
   const basic = new MeshBasicMaterial();
-  const from = source as Material & Partial<Pick<MeshBasicMaterial, "map" | "color" | "alphaMap">>;
+  const from = source as Material & Partial<Pick<MeshBasicMaterial, "map" | "color" | "alphaMap">> & {
+    emissiveMap?: Texture | null;
+    emissive?: Color;
+  };
   basic.name = source.name;
-  basic.map = from.map ?? null;
+  basic.toneMapped = false;
   basic.alphaMap = from.alphaMap ?? null;
-  if (from.color) basic.color.copy(from.color);
+  if (!from.map && from.emissiveMap) {
+    basic.map = from.emissiveMap;
+    if (from.emissive) basic.color.copy(from.emissive);
+  } else {
+    basic.map = from.map ?? null;
+    if (from.color) basic.color.copy(from.color);
+  }
   basic.vertexColors = source.vertexColors;
   basic.side = source.side;
   basic.transparent = source.transparent;
