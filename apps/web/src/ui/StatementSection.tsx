@@ -31,6 +31,7 @@ import {
   type WitnessOption,
 } from "./statement";
 import "./statement-section.css";
+import { useVoiceInterview } from "../adapters/voice";
 
 export type { StatementView } from "./statement";
 export type CopyState = "idle" | "copied" | "manual";
@@ -45,6 +46,7 @@ export type StatementSectionViewProps = {
   text: string;
   view: StatementView;
   voiceEnabled: boolean;
+  voice?: { status: string; error: string | null; active: boolean; toggle: () => void };
   onWitness: (value: string) => void;
   onText: (value: string) => void;
   onSubmit: () => void;
@@ -81,6 +83,7 @@ export function StatementSectionView({
   text,
   view,
   voiceEnabled,
+  voice,
   onWitness,
   onText,
   onSubmit,
@@ -159,15 +162,26 @@ export function StatementSectionView({
 
       <div className="statement-actions">
         {voiceEnabled && (
-          <button type="button" className="button button--quiet" title="Voice interview coming soon" aria-disabled="true">
-            Start voice interview
-          </button>
+          voice ? (
+            <>
+              <span className="statement-note" aria-live="polite" title={voice.error ?? undefined}>
+                {voice.error ? `error: ${voice.error}` : voice.status}
+              </span>
+              <button type="button" className="button button--quiet" onClick={voice.toggle}>
+                {voice.active ? "Stop voice interview" : "Start voice interview"}
+              </button>
+            </>
+          ) : (
+            <button type="button" className="button button--quiet" title="Voice interview coming soon" aria-disabled="true">
+              Start voice interview
+            </button>
+          )
         )}
         <button type="button" className="button button--primary" disabled={!canSubmit} onClick={onSubmit} aria-keyshortcuts="Control+Enter Meta+Enter">
           Submit
         </button>
       </div>
-      {voiceEnabled && <p className="statement-note">Voice interview coming soon.</p>}
+      {voiceEnabled && !voice && <p className="statement-note">Voice interview coming soon.</p>}
 
       <div className="statement-status" aria-live="polite">
         {view.kind === "extracting" && (
@@ -263,6 +277,7 @@ export function StatementSection({
   const [run, setRun] = useState<StatementRun | null>(null);
   const [slow, setSlow] = useState(false);
   const [copyState, setCopyState] = useState<CopyState>("idle");
+  const voice = useVoiceInterview();
   const status = useStatementStatus(run?.segmentId ?? null);
   const statuses = useStatementStatuses();
   const view = statementView(run, status, graph, identity, slow, live);
@@ -337,6 +352,7 @@ export function StatementSection({
       text={text}
       view={view}
       voiceEnabled={voiceInterviewEnabled(typeof window === "undefined" ? "" : window.location.search)}
+      voice={voice}
       onWitness={setChoice}
       onText={setText}
       onSubmit={onSubmit}
