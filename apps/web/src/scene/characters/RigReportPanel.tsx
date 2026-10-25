@@ -1,4 +1,7 @@
+import type { SceneManifest } from "@rashomon/schema";
 import { useRigReportStore } from "./rigReportStore";
+
+const GATE_EYE_HEIGHT_M: SceneManifest["eyeHeight"] = 1.6;
 
 const panelStyle = {
   position: "absolute",
@@ -15,12 +18,21 @@ const panelStyle = {
 
 export function RigReportPanel() {
   const reports = useRigReportStore((state) => state.reports);
+  const clipLines = useRigReportStore((state) => state.clipLines);
   return (
     <div style={panelStyle}>
-      <div>debug=rig · ruler 1.75 m, tick at 1.0 m</div>
+      <div>debug=rig · ruler 1.75 m, tick at 1.0 m · the gate's sightline uses eye height {GATE_EYE_HEIGHT_M} m for everyone</div>
       {reports.map((report) => (
-        <div key={report.rig}>
-          {report.rig}: {report.hipBone} · hip y {report.hipY.toFixed(2)} m · height {report.height.toFixed(2)} m
+        <div key={report.name} data-rig={report.name}>
+          {report.name}: {report.bones} bones · {report.hipBone} · hip y {report.hipY.toFixed(2)} m · eye y{" "}
+          {report.eyeY.toFixed(2)} m{report.eyeEstimated ? " (est.)" : ""} · height {report.height.toFixed(2)} m
+        </div>
+      ))}
+      {clipLines.map((line) => (
+        <div key={line.clip} data-clip={line.clip}>
+          {line.tStart}–{line.tEnd} s · {line.action}
+          {line.style ? ` ${line.style}` : ""} · {line.clip}
+          {line.plays === line.clip ? "" : ` missing, plays ${line.plays}`}
         </div>
       ))}
     </div>

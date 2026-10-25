@@ -1,0 +1,37 @@
+.rui .statement-section { display: grid; gap: 10px; }
+.rui .statement-section .section-title { margin-bottom: 2px; }
+.rui .statement-field { display: grid; gap: 4px; }
+.rui .statement-field .field-label { margin: 0; }
+.rui .statement-field input,
+.rui .statement-field textarea { width: 100%; color: var(--text-primary); border: 1px solid var(--border); border-radius: 3px; background: var(--surface); font: var(--fs-md)/1.45 inherit; font-family: inherit; }
+.rui .statement-field input { height: 30px; padding: 0 9px; }
+.rui .statement-field textarea { min-height: 96px; padding: 8px 9px; resize: vertical; }
+.rui .statement-field textarea.is-sent { color: var(--text-secondary); }
+.rui .statement-field input:focus,
+.rui .statement-field textarea:focus { outline: 0; border-color: var(--text-secondary); box-shadow: 0 0 0 1px var(--text-secondary); }
+.rui .statement-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.rui .statement-actions .button:disabled { opacity: .45; cursor: default; }
+.rui .statement-actions .button:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+.rui .statement-note { margin: 0; color: var(--text-secondary); font-size: var(--fs-sm); }
+.rui .statement-status:empty { display: none; }
+.rui .statement-progress p { display: flex; align-items: center; gap: 7px; margin: 0; color: var(--text-primary); font-size: var(--fs-md); }
+.rui .statement-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--status-proposed); }
+.rui .statement-sent { margin: 6px 0 0; padding: 7px 9px; color: var(--text-secondary); border-left: 2px solid var(--border); background: var(--surface); font-size: var(--fs-sm); }
+.rui .statement-result { display: grid; gap: 6px; }
+.rui .statement-result__label { margin: 0; color: var(--text-primary); font-size: var(--fs-md); font-weight: 600; }
+.rui .statement-events,
+.rui .statement-flags { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.rui .statement-event,
+.rui .statement-flag { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; color: var(--text-primary); text-align: left; border: 1px solid var(--border); border-radius: 3px; background: var(--surface-raised); font: var(--fs-sm) inherit; font-family: inherit; cursor: pointer; }
+.rui .statement-event:hover,
+.rui .statement-flag:hover { background: #1e2732; }
+.rui .statement-event:focus-visible,
+.rui .statement-flag:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 1px; }
+.rui .statement-event__kind { flex: none; color: var(--text-secondary); font: 500 var(--fs-2xs) var(--mono); text-transform: uppercase; letter-spacing: .04em; }
+.rui .statement-event__what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rui .statement-flag span:last-child { color: var(--status-implausible); }
+.rui .statement-error { margin: 0; padding: 7px 9px; color: var(--status-implausible); border: 1px dashed color-mix(in srgb, var(--status-implausible) 60%, transparent); border-radius: 3px; font-size: var(--fs-sm); }
+.rui .statement-refused { display: grid; gap: 6px; color: var(--text-primary); font-size: var(--fs-sm); }
+.rui .statement-refused p { margin: 0; }
+.rui .statement-identity { display: flex; align-items: center; gap: 8px; }
+.rui .statement-identity code { flex: 1; min-width: 0; overflow: hidden; padding: 4px 6px; color: var(--text-secondary); border: 1px solid var(--border); border-radius: 3px; background: var(--surface); font: var(--fs-2xs) var(--mono); text-overflow: ellipsis; white-space: nowrap; user-select: all; cursor: text; }

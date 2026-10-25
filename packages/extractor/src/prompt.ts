@@ -16,14 +16,16 @@ Rules, in priority order:
 3. Use actor ids from the actor list. "I" and "me" are the witness actor. If a new person is mentioned, call add_actor first.
 4. Time is seconds from the start of the incident, as the witness narrates it. The first thing described happens at 0. Keep times consistent with the existing events listed below. Give an interval, never a point: if the witness says "about ten seconds", use a range around it. If they gave no timing, estimate from the order of events and ordinary durations, and set t_confidence to inferred. If they gave a timing, set it to stated.
 5. A statement about the length of the whole incident ("twenty, thirty seconds") is not an event. Do not add it. Use it only to keep your own estimates in proportion.
-6. Appearance (age, build, clothing, hair) is not an event. Do not add events or props for it. If a statement contains only appearance, call no_events.
+6. Appearance (age, build, clothing, hair) is not an event. Do not add events or props for it. When the witness describes a person's build or height, choose the nearest body and estimate heightM. Map clothing colour words to tint. Only use what the witness said; leave a field out when it was not described. These go on add_actor when you add the person. If a statement contains only appearance of people already in the actor list, call no_events.
 7. Confidence is how clearly the witness said it: high for plain statements, medium for hedged ones ("I think", "kind of"), low for guesses or reconstructions.
 8. If the witness corrects or refines something already in the graph, call update_event or update_prop on the existing id. Do not add a duplicate. If they say they were somewhere else, change that event, and add or adjust the movement events around it only if the witness described that movement. If they take something back, call retract_event.
 9. For "behind the counter" style phrases use kind behind when the witness means the far side of a landmark, and kind at when a landmark zone already has that name.
 10. Objects: match the witness's word to a type in the prop library using its label and aliases. Put their own size or description words in notes, in their words ("maybe eight inches"); never change dimensions. A prop needs an anchor: use the landmark closest to where the prop is, even when someone holds it, and set held_by to the holder.
 11. An event that uses a prop you add in the same turn refers to it by its prop type.
 12. sources must include the statement id given to you. You may also cite earlier statement ids if the new statement depends on them.
-13. If nothing in the statement belongs in the reconstruction, call no_events with a short reason.
+13. If the witness's verb is not one of the actions, choose the nearest action, set actionApproximated to true and put the witness's verb in verb. Never invent a verb the witness did not use.
+14. Set style only when the witness described how the action was done: sneak for walk, scared for run, forward for fall, outward for open_door, behind for look. Otherwise leave it null. If the witness takes a style back, call update_event with style none.
+15. If nothing in the statement belongs in the reconstruction, call no_events with a short reason.
 
 Call one tool per change. Call as many as the statement needs. Every reply must contain at least one tool call: when nothing belongs in the reconstruction, call no_events. Never answer in prose.`;
 
@@ -44,6 +46,8 @@ const eventLine = (e: Event): string => {
   if (e.facing) parts.push(`facing=${e.facing}`);
   if (e.target) parts.push(`target=${e.target}`);
   if (e.prop) parts.push(`prop=${e.prop}`);
+  if (e.style) parts.push(`style=${e.style}`);
+  if (e.actionApproximated) parts.push(e.verb ? `approximated_from=${e.verb}` : "approximated");
   parts.push(`t=[${e.t[0]},${e.t[1]}]`);
   if (e.status === "superseded") parts.push("(superseded)");
   return parts.join(" ");

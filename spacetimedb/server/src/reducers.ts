@@ -4,14 +4,18 @@ import type { SceneManifest } from "@rashomon/schema";
 import { ScheduleAt, t } from "spacetimedb/server";
 import type { ReducerCtx } from "spacetimedb/server";
 import {
+  actorLookFrom,
   MIN_OVERRIDE_REASON_CHARS,
   SEGMENT_SOURCES,
   SPEAKERS,
   RIGS,
   ROLES,
   STATUSES,
+  checkStyleFits,
   eventChangesFrom,
   eventFieldsFrom,
+  OVERRIDE_SAFE_CHANGE_KEYS,
+  styleFits,
   eventGraphFromRow,
   fail,
   idOf,
@@ -26,7 +30,7 @@ import {
   validateFlag,
 } from "./convert";
 import { buildGraph, type ModuleSchema } from "./graph";
-import { NOT_AN_EDITOR, isEditor } from "./editors";
+import { NOT_AN_EDITOR, NOT_AN_EDITOR_EDIT, isEditor } from "./editors";
 import { fnv1a64 } from "./extract/hash";
 import { MAX_BODY_BYTES, MAX_SEGMENT_TEXT_CHARS, MAX_UTTERANCES, MAX_WITNESS_NAME_CHARS, utf8Bytes } from "./limits";
 import { EventGraphT, FlagT, StatusEntryT, UtteranceInputT, spacetimedb } from "./tables";
@@ -159,6 +163,7 @@ function applyPatch(ctx: Ctx, sessionId: string, patch: unknown): string[] {
   switch (patch.op) {
     case "add_event": {
       const f = eventFieldsFrom(patch.event);
+      checkStyleFits(f.style, f.action, "event.style");
       const existing = [...ctx.db.events.sessionId.filter(sessionId)];
       const id = idFor("e", optionalId((patch.event as Record<string, unknown>).id, "event.id"), existing, "event");
       ctx.db.events.insert({
@@ -177,11 +182,15 @@ function applyPatch(ctx: Ctx, sessionId: string, patch: unknown): string[] {
       const event = requireEvent(ctx, sessionId, id);
       if (isRetracted(event)) return fail(`event ${id} was retracted and cannot be updated`);
       const { keys, fields } = eventChangesFrom(patch.changes);
-      const onlyTime = keys.every((k) => k === "t");
-      if (!onlyTime) ctx.db.overrides.rowKey.delete(key(sessionId, id));
+      const action = fields.action ?? event.action;
+      if ("style" in fields) checkStyleFits(fields.style, action, "changes.style");
+      const style = "style" in fields ? fields.style : event.style;
+      const keepsOverride = keys.every((k) => OVERRIDE_SAFE_CHANGE_KEYS.has(k));
+      if (!keepsOverride) ctx.db.overrides.rowKey.delete(key(sessionId, id));
       ctx.db.events.rowKey.update({
         ...event,
         ...fields,
+        style: styleFits(style, action) ? style : undefined,
         sources: union(event.sources, sources),
       });
       return sources;
@@ -224,6 +233,7 @@ function applyPatch(ctx: Ctx, sessionId: string, patch: unknown): string[] {
         label: nonEmptyString(a.label, "actor.label"),
         role: oneOf(a.role, ROLES, "actor.role"),
         rig: oneOf(a.rig, RIGS, "actor.rig"),
+        ...actorLookFrom(a),
       });
       return [];
     }
@@ -430,6 +440,7 @@ export function applyPatchBatch(ctx: Ctx, sessionId: string, baseVersion: number
 export const applyPatches = spacetimedb.reducer(
   { sessionId: t.string(), baseVersion: t.u32(), patchesJson: t.string() },
   (ctx, { sessionId, baseVersion, patchesJson }) => {
+    if (!isEditor(ctx)) fail(NOT_AN_EDITOR_EDIT);
     let patches: unknown;
     try {
       patches = JSON.parse(patchesJson);
@@ -443,6 +454,7 @@ export const applyPatches = spacetimedb.reducer(
 export const override = spacetimedb.reducer(
   { sessionId: t.string(), eventId: t.string(), reason: t.string(), by: t.string() },
   (ctx, { sessionId, eventId, reason, by }) => {
+    if (!isEditor(ctx)) fail(NOT_AN_EDITOR_EDIT);
     requireSession(ctx, sessionId);
     applyOverride(ctx, sessionId, eventId, reason, by);
     regate(ctx, sessionId);

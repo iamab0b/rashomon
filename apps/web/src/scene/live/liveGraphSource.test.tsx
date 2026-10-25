@@ -8,7 +8,7 @@ import { useSceneStore } from "../store";
 import { robberyGatedSnapshot } from "../playback/graphSource";
 import { modeFromSearch, selectSource } from "../playback/selectSource";
 import type { Anchor as AnchorRow, Event as EventRow, Flag as FlagRow } from "./bindings/types";
-import type { LiveGraphRow } from "./convert";
+import { convertGraphRow, type LiveGraphRow } from "./convert";
 import { DEFAULT_LIVE_OPTIONS, graphQuery, liveOptionsFromSearch, type LiveConnector, type LiveHandlers } from "./liveConnection";
 import { liveGraphSource } from "./liveGraphSource";
 
@@ -50,6 +50,9 @@ function eventRow(event: Event, status: Status, flags: readonly Flag[]): EventRo
     flags: flags.map(flagRow),
     override: status === "overridden" ? { by: "investigator", reason: REASON, at: 1, flagIds: ["sightline:e5"] } : undefined,
     supersededBy: event.supersededBy,
+    style: event.style,
+    actionApproximated: event.actionApproximated,
+    verb: event.verb,
   };
 }
 
@@ -58,7 +61,7 @@ function robberyRow(e5Status: Status, version: number): LiveGraphRow {
   const graph: EventGraph = robberyGraph;
   return {
     sceneId: graph.sceneId,
-    actors: graph.actors.map((actor) => ({ ...actor })),
+    actors: graph.actors.map((actor) => ({ ...actor, body: actor.body, heightM: actor.heightM, tint: actor.tint })),
     props: graph.props.map((prop) => ({
       id: prop.id,
       type: prop.type,
@@ -276,6 +279,20 @@ describe("live GraphSource applying patches", () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
+  it("a refused edit from a non-editor says this browser can't edit the event graph", async () => {
+    const fake = fakeConnector();
+    fake.applyPatches.mockRejectedValueOnce(new Error("only editors can change the event graph"));
+    const source = liveGraphSource(DEFAULT_LIVE_OPTIONS, fake.connect);
+    source.subscribe(vi.fn());
+    fake.current().onRow(robberyRow("implausible", 1));
+
+    source.apply([MOVE_E5]);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(source.actionError).toBe("This browser can't edit the event graph");
+  });
+
   it("an updated row replaces the snapshot and clears the action error", async () => {
     const fake = fakeConnector();
     fake.applyPatches.mockRejectedValueOnce(new Error("stale baseVersion 1; the graph is at version 2"));
@@ -424,5 +441,37 @@ describe("live GraphSource applying patches", () => {
     source.subscribe(() => undefined);
     fake.current().onRow(robberyRow("implausible", 3));
     expect(() => source.apply([MOVE_E5])).not.toThrow();
+  });
+});
+
+describe("live rows carry the action vocabulary", () => {
+  it("style, actionApproximated and verb convert, and an unknown style is refused", () => {
+    const row = robberyRow("implausible", 1);
+    const e1 = row.events[0]!;
+    const styled: LiveGraphRow = {
+      ...row,
+      events: [{ ...e1, action: "dodge", style: undefined, actionApproximated: true, verb: "ducked" }, { ...e1, id: "e2", style: "sneak" }],
+    };
+    const graph = convertGraphRow(styled);
+    expect(graph.events[0]).toMatchObject({ action: "dodge", actionApproximated: true, verb: "ducked" });
+    expect(graph.events[0]).not.toHaveProperty("style");
+    expect(graph.events[1]).toMatchObject({ style: "sneak" });
+    expect(convertGraphRow(row).events.some((e) => "style" in e || "verb" in e || "actionApproximated" in e)).toBe(false);
+    expect(() => convertGraphRow({ ...row, events: [{ ...e1, style: "limping" }] })).toThrow(/style/);
+  });
+});
+
+describe("live rows carry actor bodies", () => {
+  it("body, heightM and tint convert, actors without them keep four fields, and an unknown body is refused", () => {
+    const row = robberyRow("implausible", 1);
+    const suspect = row.actors[0]!;
+    const described: LiveGraphRow = {
+      ...row,
+      actors: [{ ...suspect, body: "heavy_tall", heightM: 1.88, tint: "#b22222" }, ...row.actors.slice(1)],
+    };
+    const graph = convertGraphRow(described);
+    expect(graph.actors[0]).toMatchObject({ body: "heavy_tall", heightM: 1.88, tint: "#b22222" });
+    for (const actor of convertGraphRow(row).actors) expect(Object.keys(actor).sort()).toEqual(["id", "label", "rig", "role"]);
+    expect(() => convertGraphRow({ ...row, actors: [{ ...suspect, body: "muscular" }] })).toThrow(/body/);
   });
 });

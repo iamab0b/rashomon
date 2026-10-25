@@ -1,5 +1,7 @@
 import {
   ACTIONS,
+  ACTION_STYLES,
+  ACTOR_BODIES,
   type Actor,
   type Anchor,
   type Event,
@@ -137,6 +139,9 @@ function convertEvent(row: EventRow): Event {
     flags: row.flags.map(convertFlag),
     ...(present(row.override) ? { override: convertOverride(row.override) } : {}),
     ...(present(row.supersededBy) ? { supersededBy: row.supersededBy } : {}),
+    ...(present(row.style) ? { style: oneOf(row.style, ACTION_STYLES, `${field}.style`) } : {}),
+    ...(present(row.actionApproximated) ? { actionApproximated: row.actionApproximated } : {}),
+    ...(present(row.verb) ? { verb: row.verb } : {}),
   };
 }
 
@@ -146,6 +151,9 @@ function convertActor(row: ActorRow): Actor {
     label: row.label,
     role: oneOf(row.role, ROLES, `actor ${row.id}.role`),
     rig: oneOf(row.rig, RIGS, `actor ${row.id}.rig`),
+    ...(present(row.body) ? { body: oneOf(row.body, ACTOR_BODIES, `actor ${row.id}.body`) } : {}),
+    ...(present(row.heightM) ? { heightM: row.heightM } : {}),
+    ...(present(row.tint) ? { tint: row.tint } : {}),
   };
 }
 

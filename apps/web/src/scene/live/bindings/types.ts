@@ -15,6 +15,9 @@ export const Actor = __t.object("Actor", {
   label: __t.string(),
   role: __t.string(),
   rig: __t.string(),
+  body: __t.option(__t.string()),
+  heightM: __t.option(__t.f64()),
+  tint: __t.option(__t.string()),
 });
 export type Actor = __Infer<typeof Actor>;
 
@@ -26,6 +29,9 @@ export const Actors = __t.object("Actors", {
   label: __t.string(),
   role: __t.string(),
   rig: __t.string(),
+  body: __t.option(__t.string()),
+  heightM: __t.option(__t.f64()),
+  tint: __t.option(__t.string()),
 });
 export type Actors = __Infer<typeof Actors>;
 
@@ -76,6 +82,9 @@ export const Event = __t.object("Event", {
     return __t.option(OverrideRecord);
   },
   supersededBy: __t.option(__t.string()),
+  style: __t.option(__t.string()),
+  actionApproximated: __t.option(__t.bool()),
+  verb: __t.option(__t.string()),
 });
 export type Event = __Infer<typeof Event>;
 
@@ -124,6 +133,9 @@ export const Events = __t.object("Events", {
   sources: __t.array(__t.string()),
   status: __t.string(),
   supersededBy: __t.option(__t.string()),
+  style: __t.option(__t.string()),
+  actionApproximated: __t.option(__t.bool()),
+  verb: __t.option(__t.string()),
 });
 export type Events = __Infer<typeof Events>;
 

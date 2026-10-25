@@ -1,18 +1,20 @@
+import type { SceneManifest } from "@rashomon/schema";
 import { useCallback, useState } from "react";
+import type { CharacterLook } from "./bodies";
 import { Character, type CharacterHandle } from "./Character";
-import type { Rig } from "./rigs";
 import { useActorAnimation } from "./useActorAnimation";
 
 type Props = {
   actorId: string;
-  rig: Rig;
+  look: CharacterLook;
   position: readonly [number, number, number];
+  manifest?: SceneManifest;
   onReady?: (handle: CharacterHandle) => void;
 };
 
-export function AnimatedCharacter({ actorId, rig, position, onReady }: Props) {
+export function AnimatedCharacter({ actorId, look, position, manifest, onReady }: Props) {
   const [handle, setHandle] = useState<CharacterHandle | null>(null);
-  useActorAnimation(actorId, handle);
+  useActorAnimation(actorId, handle, manifest);
 
   const handleReady = useCallback(
     (ready: CharacterHandle) => {
@@ -22,5 +24,5 @@ export function AnimatedCharacter({ actorId, rig, position, onReady }: Props) {
     [onReady],
   );
 
-  return <Character rig={rig} position={position} onReady={handleReady} />;
+  return <Character look={look} position={position} onReady={handleReady} />;
 }

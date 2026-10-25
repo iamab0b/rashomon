@@ -103,11 +103,23 @@
       "id": "cartesia-agent-fixes",
       "from": "Sahil",
       "due": "15-18",
-      "todo": "PR #34 before merge: HIGH ask-back and cognitive-interview rules in apps/agent INSTRUCTIONS (one new unasked hard flag at a time, no judging words, answer recorded as a new statement) with tests; back-to-back identical answers not dropped; guard withTx in scene_context and end_interview; earlier-segment cap, 413, resend test name",
+      "todo": "PR #41 round 2: agent asks follow-ups only from askNext (nextQuestion is context only); 15 s retry window from extractedAt; insert missing webhook_statements row on retry; note the 413 and snapshot cap in the PR; askNext first in record_statement and the response under Cartesia's 16 KiB cap",
       "doc": "tools/status/requests/cartesia-agent-fixes.md",
-      "grep": "the agent asks each new hard flag once",
+      "grep": "follow-up questions come only from askNext",
       "paths": [
         "apps/agent",
+        "spacetimedb/server/src"
+      ]
+    },
+    {
+      "id": "extractor-speaker",
+      "from": "Sahil",
+      "due": "21-24",
+      "todo": "Extraction prompt gets the speaking witness's id, label and actorId; I/me/my resolve to that actor (the clerk's 'I' is never the customer); test on the clerk fixture; branch extractor-speaker after #48; a relocation carries forward (the correction also updates e9 to window_front, 4 patches as in the fixture)",
+      "doc": "tools/status/requests/extractor-speaker.md",
+      "grep": "The witness speaking is",
+      "paths": [
+        "packages/extractor",
         "spacetimedb/server/src"
       ]
     }
@@ -205,7 +217,7 @@
       "id": "interview-screen",
       "from": "Sahil",
       "due": "16-19",
-      "todo": "Statement box in the right panel: submitStatement(text, witnessName), 'Extracting…' until done, then new events and flags; not-an-editor shows the browser identity; voice button behind a flag until Eric's agent; branch interview-screen, PR to main",
+      "todo": "#35 merged 89b644e. Follow-up on a new branch statement-followups: resent only from the status saved at Submit (or a saved result); saved results keyed by graph source plus segmentId (both LOW)",
       "doc": "tools/status/requests/interview-screen.md",
       "grep": "submitStatement",
       "paths": [
@@ -241,6 +253,17 @@
       "todo": "PR #35 round 2: resubmitting a finished statement must show the saved result (no stuck Extracting), remove the code comments, live-mode freeze only past the baseline version",
       "doc": "tools/status/requests/statement-section-fixes-2.md",
       "grep": "Already added",
+      "paths": [
+        "apps/web/src/ui"
+      ]
+    },
+    {
+      "id": "scene-rail-item",
+      "from": "Sahil",
+      "due": "18-23",
+      "todo": "One rail item \"Scene\" (third ContextView) rendering the scene's SceneTools, shown only while useSceneToolsAvailable(); default URL keeps Transcript and History only; UI structure otherwise frozen; branch scene-rail, PR after #38",
+      "doc": "tools/status/requests/scene-rail-item.md",
+      "grep": "useSceneToolsAvailable",
       "paths": [
         "apps/web/src/ui"
       ]

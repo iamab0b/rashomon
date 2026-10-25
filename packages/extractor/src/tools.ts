@@ -1,7 +1,8 @@
-import { ACTIONS } from "@rashomon/schema";
+import { ACTIONS, ACTION_STYLES, ACTOR_BODIES, MAX_HEIGHT_M, MAX_VERB_CHARS, MIN_HEIGHT_M } from "@rashomon/schema";
+import { CLOTHING_COLOR_NAMES } from "./colors";
 import type { ToolDef } from "./types";
 
-export const STRICT_TOOLS = true;
+export const LOOSE_TOOL_NAMES: readonly string[] = ["add_event", "update_event"];
 
 export const CONFIDENCE_MAP = { low: 0.3, medium: 0.6, high: 0.9 } as const;
 
@@ -58,6 +59,28 @@ const tConfidence = {
     "stated if the witness gave the timing, inferred if you estimated it from order.",
 };
 
+const style = nullable({
+  type: "string",
+  enum: [...ACTION_STYLES],
+  description:
+    "How the action was done, only when the witness said so: sneak with walk, scared with run, forward with fall, outward with open_door, behind with look. Else null.",
+});
+
+const changeStyle = nullable({
+  type: "string",
+  enum: [...ACTION_STYLES, "none"],
+  description:
+    "A new style for the event's action, as for add_event; none removes a style the witness took back (\"he was just walking\"). Else null for no change.",
+});
+
+const verb = nullable({
+  type: "string",
+  description: `When actionApproximated is true, the witness's own verb as they said it, at most ${MAX_VERB_CHARS} characters, e.g. ducked. Else null.`,
+});
+
+const actionApproximatedDescription =
+  "true only when the witness's verb is not one of the actions and you chose the nearest action.";
+
 const eventProps = {
   actor: { type: "string", description: "Actor id from the actor list." },
   action: { type: "string", enum: [...ACTIONS] },
@@ -77,6 +100,9 @@ const eventProps = {
     description:
       "Prop id, or a prop type from the library if the prop was just added, or null.",
   }),
+  style,
+  actionApproximated: { type: "boolean", description: actionApproximatedDescription },
+  verb,
   t_start: { type: "number", description: "Seconds from incident start." },
   t_end: { type: "number", description: "Seconds from incident start." },
   t_confidence: tConfidence,
@@ -92,6 +118,9 @@ const changeProps = {
   facing: nullable({ type: "string" }),
   target: nullable({ type: "string" }),
   prop: nullable({ type: "string" }),
+  style: changeStyle,
+  actionApproximated: nullable({ type: "boolean", description: actionApproximatedDescription }),
+  verb,
   t_start: nullable({ type: "number" }),
   t_end: nullable({ type: "number" }),
 };
@@ -103,7 +132,7 @@ const tool = (
 ): ToolDef => ({
   name,
   description,
-  strict: STRICT_TOOLS,
+  strict: !LOOSE_TOOL_NAMES.includes(name),
   input_schema: {
     type: "object",
     properties,
@@ -166,6 +195,22 @@ export const EXTRACTOR_TOOLS: ToolDef[] = [
       },
       label: { type: "string" },
       role: { type: "string", enum: ["witness", "suspect", "victim", "other"] },
+      body: nullable({
+        type: "string",
+        enum: [...ACTOR_BODIES],
+        description:
+          "Only when the witness described the person's build or height: the nearest build (slim, average, heavy) and height class (short, tall). Else null.",
+      }),
+      heightM: nullable({
+        type: "number",
+        description: `Only when the witness described the person's height: your estimate in meters, ${MIN_HEIGHT_M} to ${MAX_HEIGHT_M}. For a man, short is about 1.65, average 1.76, tall 1.88; for a woman, short is about 1.52, average 1.63, tall 1.75. A stated height is used as given. Else null.`,
+      }),
+      tint: nullable({
+        type: "string",
+        enum: [...CLOTHING_COLOR_NAMES],
+        description:
+          "Only when the witness said a colour for the person's clothing: the nearest colour word. Else null.",
+      }),
     },
   ),
   tool(

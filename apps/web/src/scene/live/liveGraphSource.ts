@@ -25,6 +25,8 @@ export interface LiveGraphSource extends GraphSource {
   eventOf(id: string): Event | undefined;
 }
 
+const NOT_AN_EDITOR_EDIT = "only editors can change the event graph";
+const CANNOT_EDIT = "This browser can't edit the event graph";
 const CHANGE_IN_FLIGHT = "a change is still being applied; try again in a moment";
 
 const EMPTY_SNAPSHOT: GraphSnapshot = { resolved: null, statuses: {}, graph: null };
@@ -152,7 +154,8 @@ export function liveGraphSource(
         (rejected: unknown) => {
           if (mine !== generation) return;
           inFlight = false;
-          actionError = errorMessage(rejected);
+          const message = errorMessage(rejected);
+          actionError = message.includes(NOT_AN_EDITOR_EDIT) ? CANNOT_EDIT : message;
           notify();
         },
       );

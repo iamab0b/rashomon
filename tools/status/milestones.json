@@ -3,7 +3,7 @@
   "tracks": {
     "B": {
       "owner": "Sahil",
-      "aliases": ["Sahil", "Sahil Mehta", "iamab0b", "iamab0btwitch@gmail.com"],
+      "aliases": ["Sahil", "Sahil Mehta", "iamab0b", "iamab0btwitch@gmail.com", "Claude", "noreply@anthropic.com"],
       "folders": ["apps/web/src/scene", "packages/schema", "packages/engine", "spacetimedb", "apps/web/scripts"],
       "milestones": [
         {"hours": "0-2", "goal": "Box-model store renders with landmarks and camera presets; fixtures load", "signals": ["apps/web/src/scene/Scene.tsx", "apps/web/src/scene/cameras/*.ts"]},

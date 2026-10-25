@@ -1,7 +1,16 @@
 import { describe, expect, test } from "vitest";
 import storeJson from "../fixtures/store.scene.json";
 import robberyJson from "../fixtures/robbery.graph.json";
-import { ACTIONS } from "./index";
+import {
+  ACTIONS,
+  ACTION_STYLES,
+  ACTOR_BODIES,
+  MAX_HEIGHT_M,
+  MAX_VERB_CHARS,
+  MIN_HEIGHT_M,
+  STYLE_ACTION,
+  TINT_PATTERN,
+} from "./index";
 import type { Anchor, Event, EventGraph, SceneManifest } from "./index";
 import { robberyGraph, robberyResolved, storeScene } from "./fixtures";
 
@@ -141,5 +150,60 @@ describe("fixtures", () => {
     expect(robberyGraph.events).toHaveLength(10);
     expect(robberyResolved.sceneId).toBe("store_v1");
     expect(robberyResolved.events.map((e) => e.id)).toEqual(robberyGraph.events.map((e) => e.id));
+  });
+});
+
+describe("action vocabulary", () => {
+  test("the nine new actions are appended after the original thirteen", () => {
+    expect(ACTIONS).toHaveLength(22);
+    expect(ACTIONS.slice(13)).toEqual([
+      "hands_up",
+      "point",
+      "reach",
+      "kneel",
+      "stumble",
+      "jump",
+      "phone",
+      "drink",
+      "dodge",
+    ]);
+  });
+
+  test("each style belongs to exactly one existing action", () => {
+    expect(Object.keys(STYLE_ACTION).sort()).toEqual([...ACTION_STYLES].sort());
+    expect(STYLE_ACTION).toEqual({
+      sneak: "walk",
+      scared: "run",
+      forward: "fall",
+      outward: "open_door",
+      behind: "look",
+    });
+    for (const a of Object.values(STYLE_ACTION)) expect(ACTIONS).toContain(a);
+    expect(MAX_VERB_CHARS).toBe(40);
+  });
+});
+
+describe("actor bodies", () => {
+  test("six bodies, one per build and height class", () => {
+    expect(ACTOR_BODIES).toEqual([
+      "slim_short",
+      "slim_tall",
+      "average_short",
+      "average_tall",
+      "heavy_short",
+      "heavy_tall",
+    ]);
+    expect([MIN_HEIGHT_M, MAX_HEIGHT_M]).toEqual([1.4, 2.1]);
+  });
+
+  test("a tint is a lowercase #rrggbb colour", () => {
+    expect(TINT_PATTERN.test("#b22222")).toBe(true);
+    for (const bad of ["#B22222", "b22222", "#b222", "red", "#b22222ff"]) expect(TINT_PATTERN.test(bad)).toBe(false);
+  });
+
+  test("the robbery fixture's actors carry no body fields, so Actor.rig alone draws them", () => {
+    for (const actor of robberyGraph.actors) {
+      expect(Object.keys(actor).sort()).toEqual(["id", "label", "rig", "role"]);
+    }
   });
 });

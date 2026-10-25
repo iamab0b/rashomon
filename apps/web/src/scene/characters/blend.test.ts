@@ -416,3 +416,17 @@ describe("robbery.resolved.json, witness and suspect", () => {
     }
   });
 });
+
+describe("styles and new actions in the clip windows", () => {
+  test("a styled walk plays the style's clip when it is loaded and the plain clip when it is not", () => {
+    const sneak = [event("s1", "a", "walk", 0, 4, { style: "sneak" })];
+    const withSneak = buildClipWindows("a", sneak, (clip) => clip === "clip_sneak" || hasClip(clip));
+    expect(withSneak.windows.map((w) => w.clip)).toEqual(["clip_sneak"]);
+    expect(buildClipWindows("a", sneak, hasClip).windows.map((w) => w.clip)).toEqual(["clip_walk"]);
+  });
+
+  test("a new action with its file missing plays its fallback clip", () => {
+    const events = [event("k1", "a", "kneel", 0, 2), event("p1", "a", "phone", 3, 7)];
+    expect(buildClipWindows("a", events, hasClip).windows.map((w) => w.clip)).toEqual(["clip_crouch_idle", "clip_talk"]);
+  });
+});

@@ -14,6 +14,9 @@ export const ActorT = t.object("Actor", {
   label: t.string(),
   role: t.string(),
   rig: t.string(),
+  body: t.option(t.string()),
+  heightM: t.option(t.f64()),
+  tint: t.option(t.string()),
 });
 
 export const FlagT = t.object("Flag", {
@@ -53,6 +56,9 @@ export const EventT = t.object("Event", {
   flags: t.array(FlagT),
   override: t.option(OverrideT),
   supersededBy: t.option(t.string()),
+  style: t.option(t.string()),
+  actionApproximated: t.option(t.bool()),
+  verb: t.option(t.string()),
 });
 
 export const PropT = t.object("PropInstance", {
@@ -147,6 +153,9 @@ const actors = table(
     label: t.string(),
     role: t.string(),
     rig: t.string(),
+    body: t.option(t.string()).default(undefined),
+    heightM: t.option(t.f64()).default(undefined),
+    tint: t.option(t.string()).default(undefined),
   },
 );
 
@@ -173,6 +182,9 @@ const events = table(
     sources: t.array(t.string()),
     status: t.string(),
     supersededBy: t.option(t.string()),
+    style: t.option(t.string()).default(undefined),
+    actionApproximated: t.option(t.bool()).default(undefined),
+    verb: t.option(t.string()).default(undefined),
   },
 );
 

@@ -28,6 +28,32 @@ export function callHook<T>(use: () => T): T {
   }
 }
 
+type Cleanup = void | (() => void);
+
+export function callHookWithEffects<T>(use: () => T): { result: T; cleanup: () => void } {
+  const effects: Array<() => Cleanup> = [];
+  const host = internals();
+  const previous = host.H;
+  host.H = {
+    ...hostHooks,
+    useEffect: (effect: () => Cleanup) => void effects.push(effect),
+    useLayoutEffect: (effect: () => Cleanup) => void effects.push(effect),
+  };
+  let result: T;
+  try {
+    result = use();
+  } finally {
+    host.H = previous;
+  }
+  const cleanups = effects.map((effect) => effect());
+  return {
+    result,
+    cleanup: () => {
+      for (const cleanup of cleanups) if (typeof cleanup === "function") cleanup();
+    },
+  };
+}
+
 export function findElement(node: ReactNode, matches: (props: Record<string, unknown>) => boolean): ReactElement | null {
   if (Array.isArray(node)) {
     for (const child of node) {

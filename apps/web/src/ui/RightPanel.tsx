@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ComponentType, type CSSProperties, type ReactNode } from "react";
 import {
+  isGraphlessSearch,
   useGraph,
   useGraphActions,
   useGraphErrors,
@@ -13,15 +14,17 @@ import { EventsTab } from "./EventsTab";
 import { FlagsTab, openFlagCount } from "./FlagsTab";
 import { ContextDrawer, type ContextView } from "./ContextDrawer";
 import { OverrideDialog } from "./OverrideDialog";
+import { loadingCopy } from "./loadingCopy";
 import { eventDisplay, type PendingOverrides } from "./overridePending";
 import { anchorsFor, eventPlace } from "./places";
 import { playbackActiveIds } from "./playback";
 import { usePlaybackKeys } from "./usePlaybackKeys";
 import { PanelHeader } from "./PanelHeader";
-import type { PanelContext } from "./shared";
+import { timeBasis, type PanelContext } from "./shared";
 import { transcriptFor } from "./transcript";
 import { useGraphMode } from "./useGraphMode";
 import { WitnessesTab } from "./WitnessesTab";
+import { isStatementRejection } from "./statement";
 import "./rashomon-ui.css";
 import "./panel-layout.css";
 
@@ -101,7 +104,11 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
   }, [contextView, dialogEventId]);
 
   useEffect(() => {
-    if (actionError) setToast(`Couldn't apply the change: ${actionError}`);
+    if (!actionError) return;
+    const id = window.setTimeout(() => {
+      if (!isStatementRejection(actionError)) setToast(`Couldn't apply the change: ${actionError}`);
+    }, 0);
+    return () => window.clearTimeout(id);
   }, [actionError]);
 
   useEffect(() => {
@@ -123,7 +130,7 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
             </div>
           ) : (
             <div className="flags-empty">
-              <p>Loading the reconstruction…</p>
+              <p>{loadingCopy(isGraphlessSearch(window.location.search))}</p>
             </div>
           )}
         </div>
@@ -152,6 +159,7 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
     playbackActive: playbackActiveIds(resolved.events, t, statusOf),
     playing,
     placeOf: (event) => eventPlace(resolved.sceneId, event.action, anchorsFor(graph, event)),
+    timeBasisOf: (event) => timeBasis(graph, event),
     jumpTo,
     openOverride: setDialogEventId,
     openSource: (id) => {
@@ -186,6 +194,7 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
             graph={resolved}
             selectedEventId={selectedEventId}
             placeOf={context.placeOf}
+            timeBasisOf={context.timeBasisOf}
             onJump={jumpTo}
           />
 

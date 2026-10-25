@@ -1,10 +1,11 @@
 import { useFrame } from "@react-three/fiber";
+import type { SceneManifest } from "@rashomon/schema";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Group } from "three";
 import { AnimatedCharacter } from "../characters/AnimatedCharacter";
+import type { CharacterLook } from "../characters/bodies";
 import type { CharacterHandle } from "../characters/Character";
 import { setOpacity } from "../characters/materials";
-import type { Rig } from "../characters/rigs";
 import { followedActorId } from "../cameras/povSightline";
 import { DIMMED_OPACITY } from "../cameras/visibility";
 import { useSceneStore } from "../store";
@@ -16,12 +17,13 @@ const ORIGIN = [0, 0, 0] as const;
 
 type Props = {
   playback: ActorPlayback;
-  rig: Rig;
+  look: CharacterLook;
   positionOf: PositionLookup;
+  manifest?: SceneManifest;
   onReady: (id: string) => void;
 };
 
-export function ActorRig({ playback, rig, positionOf, onReady }: Props) {
+export function ActorRig({ playback, look, positionOf, manifest, onReady }: Props) {
   const group = useRef<Group>(null);
   const [handle, setHandle] = useState<CharacterHandle | null>(null);
   const appliedOpacity = useRef(1);
@@ -64,7 +66,13 @@ export function ActorRig({ playback, rig, positionOf, onReady }: Props) {
 
   return (
     <group ref={group}>
-      <AnimatedCharacter actorId={playback.actorId} rig={rig} position={ORIGIN} onReady={handleReady} />
+      <AnimatedCharacter
+        actorId={playback.actorId}
+        look={look}
+        position={ORIGIN}
+        manifest={manifest}
+        onReady={handleReady}
+      />
     </group>
   );
 }

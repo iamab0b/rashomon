@@ -14,3 +14,27 @@ Done-check:
 - `pnpm -F web typecheck` and `pnpm -F web test` pass.
 - `git grep -nE "^\s*//|/\*" -- apps/web/src/ui/StatementSection.tsx apps/web/src/ui/statement.ts apps/web/src/ui/RightPanel.tsx` prints nothing.
 - Greptile reviews the push; the leader reviews and merges.
+
+## Round 3 (Sat 5:20 PM): one fix before merge
+
+522507a: an Opus review is clean (no comments left, live freeze on version only, the earlier behaviour holds). Greptile (3/5) still holds the merge on one finding, which the review confirms as MEDIUM. Its second finding (finished results absorb other users' edits) is not valid: a set result is frozen (statement.ts line 150). Push to `interview-screen`; no force-push.
+
+1. **A fresh live result is mistaken for a resubmit** (StatementSection.tsx line 198).
+   - `resent` is set from the first status seen. In live mode, if another editor's change bumps the version before this statement's row arrives, the status reads done, the fresh statement is marked resent, and it shows "Already added: no events found" for good.
+   - Count a submission as resent only when a result was already saved for that segment id in this tab, or the segment row already existed before this submit (useStatementStatus had a patchCount for it before you called submitStatement). Otherwise go through resultOf as usual.
+   - Test: a fresh submit whose status is done on its first reading, with no saved result, shows its own result, not "Already added".
+2. **LOW:** with patchCount 0, show an empty outcome, never "Added N events" from another editor's change (statement.ts lines 121 to 136).
+
+Greptile reviews the push; the leader reviews and merges.
+
+## Round 4 (Sat 6:10 PM; Sat 6:50 PM: now a follow-up, not a blocker)
+
+Sat 6:50 PM: PR #35 merged at 6dce3f9 as 89b644e over Greptile's 3/5, on Sahil's decision. The items below are a follow-up: do them on a new branch `statement-followups` from main and open a PR to main. Do not push to interview-screen again.
+
+6dce3f9: a fresh Opus review is clean. Both round 3 items are in, the revert checks fail their tests, earlier rounds hold, and the branch merges cleanly. Greptile (3/5) still holds the merge on two findings. The review rates one of them LOW and the other is new; both are small. No force-push.
+
+1. **A fresh live result can still read as a resubmit** (StatementSection.tsx lines 195-201, statement.ts line 109). "First reading is done with a patchCount" stands in for "the row existed before submit". When extraction finishes before the first render that sees the segment, the statement shows "Already added". Fix: compute the segment id when Submit is pressed, read the store's status for that id at that moment, and keep it. A submission is resent only if that saved status already had a patchCount, or if this tab saved a result for the id. Test: a fresh submit that is done on its first reading, and had no status before submit, shows its own result.
+2. **Old results survive a scene change** (statement.ts lines 108-109). The saved results are keyed by segmentId only. After a dropped scan replaces the graph in the same tab, submitting the same witness and text shows the previous graph's result. Fix: key the saved results by graph source (scene id plus mode) and segmentId, or clear them when the graph source changes. Test it.
+3. **LOW, optional:** one mounted test of StatementSection's wiring, if happy-dom is already set up for the web tests. Skip it otherwise.
+
+Greptile reviews the new PR; the leader reviews and merges.

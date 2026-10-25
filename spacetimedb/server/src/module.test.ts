@@ -55,6 +55,14 @@ const graph = () =>
     mod.graphForScene(h.anonymousViewContext(), { sessionId: SESSION }) as never,
   );
 
+const asEditor = (who: TestAuth, fn: (ctx: never) => unknown) =>
+  h.withReducerTx(who, ((ctx: { sender: { toHexString(): string } }) =>
+    fn(
+      new Proxy(ctx, {
+        get: (target, prop) => (prop === "env" ? { EDITOR_IDENTITIES: target.sender.toHexString() } : Reflect.get(target, prop, target)),
+      }) as never,
+    )) as never);
+
 const eventRow = (id: string) =>
   h.db.events.rowKey.find(`${SESSION}/${id}`);
 
@@ -603,6 +611,71 @@ describe("clearing optional fields", () => {
   });
 });
 
+describe("action vocabulary", () => {
+  const base = robberyGraph.events.find((e) => e.id === "e1")!;
+  const addEvent = (id: string, over: Record<string, unknown>): Patch => {
+    const { status: _s, flags: _f, ...event } = base;
+    return { op: "add_event", event: { ...event, id, ...over } as never };
+  };
+
+  test("the new actions, style, actionApproximated and verb round-trip through graphForScene", () => {
+    apply(eventPatches(), 0);
+    apply(
+      [
+        addEvent("n1", { action: "dodge", from: undefined, to: undefined, at: { kind: "behind", landmark: "cooler" }, actionApproximated: true, verb: "ducked" }),
+        addEvent("n2", { action: "walk", style: "sneak" }),
+        addEvent("n3", { action: "phone", from: undefined, to: undefined, at: { kind: "at", landmark: "counter" } }),
+      ],
+      1,
+    );
+    const events = graph().events;
+    expect(events.find((e) => e.id === "n1")).toMatchObject({ action: "dodge", actionApproximated: true, verb: "ducked" });
+    expect(events.find((e) => e.id === "n1")).not.toHaveProperty("style");
+    expect(events.find((e) => e.id === "n2")).toMatchObject({ action: "walk", style: "sneak" });
+    expect(events.find((e) => e.id === "n3")).toMatchObject({ action: "phone" });
+    for (const e of events.filter((x) => x.id.startsWith("e"))) {
+      expect(e).not.toHaveProperty("style");
+      expect(e).not.toHaveProperty("actionApproximated");
+      expect(e).not.toHaveProperty("verb");
+    }
+  });
+
+  test("a style on the wrong action, an unknown style, a long verb and a non-boolean flag are refused", () => {
+    apply(eventPatches(), 0);
+    expect(() => apply([addEvent("n1", { action: "walk", style: "scared" })], 1)).toThrow(/scared goes with run, not walk/);
+    expect(() => apply([addEvent("n1", { action: "walk", style: "limping" })], 1)).toThrow(/event.style/);
+    expect(() => apply([addEvent("n1", { actionApproximated: true, verb: "x".repeat(41) })], 1)).toThrow(/at most 40/);
+    expect(() => apply([addEvent("n1", { actionApproximated: "yes" })], 1)).toThrow(/actionApproximated/);
+    expect(() => apply([{ op: "update_event", id: "e1", changes: { style: "behind" }, sources: ["utt_6"] }], 1)).toThrow(
+      /behind goes with look, not walk/,
+    );
+  });
+
+  test("update_event sets and clears the new fields, and a changed action drops a style that no longer fits", () => {
+    apply(eventPatches(), 0);
+    apply([{ op: "update_event", id: "e1", changes: { style: "sneak", actionApproximated: true, verb: "crept" }, sources: ["utt_6"] }], 1);
+    expect(graph().events.find((e) => e.id === "e1")).toMatchObject({ style: "sneak", actionApproximated: true, verb: "crept" });
+    apply([{ op: "update_event", id: "e1", changes: { action: "run" }, sources: ["utt_6"] }], 2);
+    expect(graph().events.find((e) => e.id === "e1")).not.toHaveProperty("style");
+    apply([{ op: "update_event", id: "e1", changes: { style: "scared" }, sources: ["utt_6"] }], 3);
+    expect(graph().events.find((e) => e.id === "e1")).toMatchObject({ style: "scared" });
+    apply([{ op: "update_event", id: "e1", changes: { style: null, verb: null } as never, sources: ["utt_6"] }], 4);
+    const e1 = graph().events.find((e) => e.id === "e1")!;
+    expect(e1).not.toHaveProperty("style");
+    expect(e1).not.toHaveProperty("verb");
+    expect(e1.actionApproximated).toBe(true);
+  });
+
+  test("a style, actionApproximated or verb change keeps an override, like a time change", () => {
+    apply(eventPatches(), 0);
+    call((ctx) =>
+      mod.override(ctx, { sessionId: SESSION, eventId: "e5", reason: "Investigator measured the aisle", by: "investigator:u1" }),
+    );
+    apply([{ op: "update_event", id: "e5", changes: { style: "behind", actionApproximated: true, verb: "glanced" }, sources: ["utt_14"] }], 1);
+    expect(graph().events.find((e) => e.id === "e5")).toMatchObject({ status: "overridden", style: "behind", verb: "glanced" });
+  });
+});
+
 describe("retracting an overridden event", () => {
   test("keeps the override row but graphForScene no longer reports it", () => {
     apply(eventPatches(), 0);
@@ -662,8 +735,8 @@ describe("identity", () => {
 
   test("an override records the sender's identity beside the display name", () => {
     apply(eventPatches(), 0);
-    h.withReducerTx(stranger, ((ctx: never) =>
-      mod.override(ctx, { sessionId: SESSION, eventId: "e5", reason: "written reason here", by: "Investigator Ruiz" })) as never);
+    asEditor(stranger, (ctx) =>
+      mod.override(ctx, { sessionId: SESSION, eventId: "e5", reason: "written reason here", by: "Investigator Ruiz" }));
     const row = h.db.overrides.rowKey.find(`${SESSION}/e5`)!;
     expect(row.by).toBe("Investigator Ruiz");
     expect(row.sender).toMatch(/^[0-9a-f]{64}$/);
@@ -675,8 +748,7 @@ describe("identity", () => {
 describe("the module judges its own writes", () => {
   const robbery = () => apply(eventPatches(), 0);
   const doOverride = (reason: string, by = "Investigator Ruiz", who: TestAuth = auth) =>
-    h.withReducerTx(who, ((ctx: never) =>
-      mod.override(ctx, { sessionId: SESSION, eventId: "e5", reason, by })) as never);
+    asEditor(who, (ctx) => mod.override(ctx, { sessionId: SESSION, eventId: "e5", reason, by }));
 
   test("applyPatches alone makes e5 implausible with one sightline flag and the rest plausible", () => {
     robbery();
@@ -844,5 +916,43 @@ describe("the module judges its own writes", () => {
   test("an unknown sceneId is refused when the session is created", () => {
     expect(() => call((ctx) => mod.createSession(ctx, { id: "s9", sceneId: "mall_v2" }))).toThrow(/unknown sceneId mall_v2/);
     expect(h.db.sessions.id.find("s9")).toBeNull();
+  });
+});
+
+describe("actor bodies", () => {
+  const look = { body: "heavy_tall", heightM: 1.88, tint: "#b22222" } as const;
+  const lookout = (over: Record<string, unknown> = {}): Patch => ({
+    op: "add_actor",
+    actor: { id: "lookout", label: "Lookout", role: "other", rig: "mixamo_ybot", ...look, ...over } as never,
+  });
+
+  test("body, heightM and tint round-trip through the actors table and graphForScene", () => {
+    apply(eventPatches(), 0);
+    apply([lookout()], 1);
+    expect(h.db.actors.rowKey.find(`${SESSION}/lookout`)).toMatchObject(look);
+    expect(graph().actors.find((a) => a.id === "lookout")).toEqual({
+      id: "lookout",
+      label: "Lookout",
+      role: "other",
+      rig: "mixamo_ybot",
+      ...look,
+    });
+  });
+
+  test("actors without them keep exactly the four fields", () => {
+    apply(eventPatches(), 0);
+    expect(graph().actors).toEqual(robberyGraph.actors);
+    for (const a of graph().actors) expect(Object.keys(a).sort()).toEqual(["id", "label", "rig", "role"]);
+    expect(h.db.actors.rowKey.find(`${SESSION}/suspect`)).toMatchObject({ body: undefined, heightM: undefined, tint: undefined });
+  });
+
+  test("an unknown body, an out-of-range height and a malformed tint are refused", () => {
+    apply(eventPatches(), 0);
+    expect(() => apply([lookout({ body: "muscular_tall" })], 1)).toThrow(/actor.body/);
+    expect(() => apply([lookout({ heightM: 2.4 })], 1)).toThrow(/actor.heightM/);
+    expect(() => apply([lookout({ heightM: "tall" })], 1)).toThrow(/actor.heightM/);
+    expect(() => apply([lookout({ tint: "red" })], 1)).toThrow(/actor.tint/);
+    expect(() => apply([lookout({ tint: "#B22222" })], 1)).toThrow(/actor.tint/);
+    expect(h.db.actors.rowKey.find(`${SESSION}/lookout`)).toBeNull();
   });
 });

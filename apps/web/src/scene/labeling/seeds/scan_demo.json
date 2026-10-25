@@ -1,0 +1,161 @@
+{
+  "sceneId": "scan_demo",
+  "meshUrl": "/scenes/scan_demo/scan_demo.glb",
+  "up": "y",
+  "unitsPerMeter": 1,
+  "eyeHeight": 1.6,
+  "interior": {
+    "min": [
+      0,
+      0,
+      0
+    ],
+    "max": [
+      9,
+      3,
+      7
+    ]
+  },
+  "landmarks": [
+    {
+      "id": "door",
+      "label": "door",
+      "aliases": [
+        "the door",
+        "entrance",
+        "front door"
+      ],
+      "position": [
+        1.5,
+        0,
+        0.0
+      ],
+      "bounds": {
+        "min": [
+          0.9,
+          0,
+          0.0
+        ],
+        "max": [
+          2.1,
+          2.1,
+          0.6
+        ]
+      },
+      "kind": "door",
+      "occludes": false
+    },
+    {
+      "id": "counter",
+      "label": "counter",
+      "aliases": [
+        "the counter",
+        "the till",
+        "checkout"
+      ],
+      "position": [
+        7.6,
+        0,
+        1.0
+      ],
+      "bounds": {
+        "min": [
+          7.3,
+          0,
+          1.0
+        ],
+        "max": [
+          7.9,
+          1.0,
+          4.0
+        ]
+      },
+      "kind": "furniture",
+      "occludes": true
+    },
+    {
+      "id": "shelf_a",
+      "label": "first shelf",
+      "aliases": [
+        "shelf a",
+        "the first shelf",
+        "left shelf"
+      ],
+      "position": [
+        2.9,
+        0,
+        1.6
+      ],
+      "bounds": {
+        "min": [
+          2.4,
+          0,
+          1.6
+        ],
+        "max": [
+          3.4,
+          1.8,
+          5.0
+        ]
+      },
+      "kind": "furniture",
+      "occludes": true
+    },
+    {
+      "id": "shelf_b",
+      "label": "second shelf",
+      "aliases": [
+        "shelf b",
+        "the second shelf",
+        "middle shelf"
+      ],
+      "position": [
+        5.5,
+        0,
+        2.0
+      ],
+      "bounds": {
+        "min": [
+          5.0,
+          0,
+          2.0
+        ],
+        "max": [
+          6.0,
+          1.8,
+          5.0
+        ]
+      },
+      "kind": "furniture",
+      "occludes": true
+    },
+    {
+      "id": "cooler",
+      "label": "cooler",
+      "aliases": [
+        "the fridge",
+        "the coolers",
+        "the back wall"
+      ],
+      "position": [
+        4.5,
+        0,
+        6.4
+      ],
+      "bounds": {
+        "min": [
+          1.0,
+          0,
+          6.4
+        ],
+        "max": [
+          8.0,
+          2.0,
+          7.0
+        ]
+      },
+      "kind": "appliance",
+      "occludes": true
+    }
+  ]
+}
