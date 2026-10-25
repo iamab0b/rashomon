@@ -40,60 +40,89 @@ function debugEvent(
   };
 }
 
-export type RigDebugClip = {
+type RigDebugClipSpec = {
   readonly clip: ActionClipName;
   readonly action: Action;
   readonly style?: ActionStyle;
+};
+
+export const RIG_DEBUG_CLIP_SPECS: readonly RigDebugClipSpec[] = [
+  { clip: "clip_hands_up", action: "hands_up" },
+  { clip: "clip_pointing", action: "point" },
+  { clip: "clip_reach", action: "reach" },
+  { clip: "clip_throw", action: "throw" },
+  { clip: "clip_kneel", action: "kneel" },
+  { clip: "clip_sneak", action: "walk", style: "sneak" },
+  { clip: "clip_stumble_back", action: "stumble" },
+  { clip: "clip_fall_forward", action: "fall", style: "forward" },
+  { clip: "clip_run_scared", action: "run", style: "scared" },
+  { clip: "clip_jump_over", action: "jump" },
+  { clip: "clip_phone", action: "phone" },
+  { clip: "clip_open_door_out", action: "open_door", style: "outward" },
+  { clip: "clip_drink", action: "drink" },
+  { clip: "clip_look_behind", action: "look", style: "behind" },
+  { clip: "clip_dodge", action: "dodge" },
+];
+
+export type ClipDuration = (name: string) => number | undefined;
+
+export const RIG_DEBUG_FIRST_SLOT_S = 12;
+export const RIG_DEBUG_SLOT_GAP_S = 0.5;
+export const RIG_DEBUG_DEFAULT_SLOT_S = 2.5;
+export const RIG_DEBUG_TAIL_S = 1;
+
+export type RigDebugClip = RigDebugClipSpec & {
   readonly tStart: number;
   readonly tEnd: number;
 };
 
-export const RIG_DEBUG_NEW_CLIPS: readonly RigDebugClip[] = [
-  { clip: "clip_hands_up", action: "hands_up", tStart: 12, tEnd: 14.5 },
-  { clip: "clip_pointing", action: "point", tStart: 15, tEnd: 17.5 },
-  { clip: "clip_reach", action: "reach", tStart: 18, tEnd: 20.5 },
-  { clip: "clip_throw", action: "throw", tStart: 21, tEnd: 23.5 },
-  { clip: "clip_kneel", action: "kneel", tStart: 24, tEnd: 26.5 },
-  { clip: "clip_sneak", action: "walk", style: "sneak", tStart: 27, tEnd: 29.5 },
-  { clip: "clip_stumble_back", action: "stumble", tStart: 30, tEnd: 32.5 },
-  { clip: "clip_fall_forward", action: "fall", style: "forward", tStart: 33, tEnd: 35.5 },
-  { clip: "clip_run_scared", action: "run", style: "scared", tStart: 36, tEnd: 38.5 },
-  { clip: "clip_jump_over", action: "jump", tStart: 39, tEnd: 41.5 },
-  { clip: "clip_phone", action: "phone", tStart: 42, tEnd: 44.5 },
-  { clip: "clip_open_door_out", action: "open_door", style: "outward", tStart: 45, tEnd: 47.5 },
-  { clip: "clip_drink", action: "drink", tStart: 48, tEnd: 50.5 },
-  { clip: "clip_look_behind", action: "look", style: "behind", tStart: 51, tEnd: 53.5 },
-  { clip: "clip_dodge", action: "dodge", tStart: 54, tEnd: 56.5 },
-];
+export type RigDebugLayout = {
+  readonly clips: readonly RigDebugClip[];
+  readonly durationS: number;
+};
+
+export function layoutRigDebugClips(durationOf: ClipDuration): RigDebugLayout {
+  const hasClip = (name: string) => durationOf(name) !== undefined;
+  let cursor = RIG_DEBUG_FIRST_SLOT_S;
+  const clips = RIG_DEBUG_CLIP_SPECS.map((spec): RigDebugClip => {
+    const played = chooseClip(ACTION_MAP[spec.action], hasClip, spec.style);
+    const length = durationOf(played) ?? RIG_DEBUG_DEFAULT_SLOT_S;
+    const slot = { ...spec, tStart: cursor, tEnd: cursor + length };
+    cursor = slot.tEnd + RIG_DEBUG_SLOT_GAP_S;
+    return slot;
+  });
+  const last = clips[clips.length - 1];
+  return { clips, durationS: (last?.tEnd ?? RIG_DEBUG_FIRST_SLOT_S) + RIG_DEBUG_TAIL_S };
+}
 
 export type RigDebugClipLine = RigDebugClip & {
   readonly eventId: string;
   readonly plays: string;
 };
 
-const newClipEvents: readonly ResolvedEvent[] = RIG_DEBUG_NEW_CLIPS.map((entry, index) =>
-  debugEvent(`n${index + 1}`, "debug_ybot", entry.action, entry.tStart, entry.tEnd, entry.style),
-);
-
-export function rigDebugClipLines(hasClip: (name: string) => boolean): readonly RigDebugClipLine[] {
-  return RIG_DEBUG_NEW_CLIPS.map((entry, index) => ({
+export function rigDebugClipLines(layout: RigDebugLayout, hasClip: (name: string) => boolean): readonly RigDebugClipLine[] {
+  return layout.clips.map((entry, index) => ({
     ...entry,
-    eventId: newClipEvents[index]!.id,
+    eventId: `n${index + 1}`,
     plays: chooseClip(ACTION_MAP[entry.action], hasClip, entry.style),
   }));
 }
 
-export const RIG_DEBUG_GRAPH: ResolvedGraph = {
-  sceneId: "rig_debug",
-  version: 1,
-  durationS: 57,
-  actors: RIG_DEBUG_ACTORS.map((actor) => ({ id: actor.id, label: actor.id, role: "other", rig: actor.rig })),
-  events: [
-    debugEvent("d1", "debug_ybot", "walk", 0, 6),
-    debugEvent("d2", "debug_ybot", "fall", 6, 8),
-    debugEvent("d3", "debug_xbot", "walk", 0, 6),
-    debugEvent("d4", "debug_xbot", "speak", 6, 12),
-    ...newClipEvents,
-  ],
-  props: [],
-};
+export function buildRigDebugGraph(layout: RigDebugLayout): ResolvedGraph {
+  return {
+    sceneId: "rig_debug",
+    version: 1,
+    durationS: layout.durationS,
+    actors: RIG_DEBUG_ACTORS.map((actor) => ({ id: actor.id, label: actor.id, role: "other", rig: actor.rig })),
+    events: [
+      debugEvent("d1", "debug_ybot", "walk", 0, 6),
+      debugEvent("d2", "debug_ybot", "fall", 6, 8),
+      debugEvent("d3", "debug_xbot", "walk", 0, 6),
+      debugEvent("d4", "debug_xbot", "speak", 6, 12),
+      ...layout.clips.map((entry, index) =>
+        debugEvent(`n${index + 1}`, "debug_ybot", entry.action, entry.tStart, entry.tEnd, entry.style),
+      ),
+    ],
+    props: [],
+  };
+}

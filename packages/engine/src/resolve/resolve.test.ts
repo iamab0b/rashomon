@@ -102,8 +102,29 @@ describe("time", () => {
   test("the nine new actions have fixed durations", () => {
     for (const a of ["hands_up", "point", "reach", "jump", "dodge"] as const) expect(durationFor(a, 0)).toBe(1.5);
     for (const a of ["kneel", "stumble"] as const) expect(durationFor(a, 0)).toBe(2);
-    expect(durationFor("drink", 0)).toBe(3);
-    expect(durationFor("phone", 0)).toBe(4);
+    expect(durationFor("drink", 0)).toBe(8.867);
+    expect(durationFor("phone", 0)).toBe(6);
+  });
+  test("an inferred phone lasts 6 s and an inferred drink 8.867 s; explicit intervals are kept", () => {
+    expect(resolveInterval(undefined, "phone", 0, 4)).toEqual({ tStart: 4, tEnd: 10, tInferred: true });
+    expect(resolveInterval(undefined, "drink", 0, 4)).toEqual({ tStart: 4, tEnd: 12.867, tInferred: true });
+    expect(resolveInterval([2, 3], "phone", 0, 4)).toEqual({ tStart: 2, tEnd: 3, tInferred: false });
+    expect(resolveInterval([2, 30], "drink", 0, 4)).toEqual({ tStart: 2, tEnd: 30, tInferred: false });
+    const g = {
+      sceneId: "store_v1",
+      version: 1,
+      actors: robbery.actors,
+      props: [],
+      events: [
+        { ...robbery.events[1]!, id: "p", action: "phone", t: undefined },
+        { ...robbery.events[1]!, id: "d", action: "drink", t: undefined },
+        { ...robbery.events[1]!, id: "q", action: "phone", t: [40, 41] },
+      ],
+    } as unknown as EventGraph;
+    const r = resolve(g, store);
+    expect(r.events[0]).toMatchObject({ tStart: 0, tEnd: 6, tInferred: true });
+    expect(r.events[1]!.tEnd - r.events[1]!.tStart).toBeCloseTo(8.867, 9);
+    expect(r.events[2]).toMatchObject({ tStart: 40, tEnd: 41, tInferred: false });
   });
   test("resolve starts an inferred event when the same actor's previous event ends", () => {
     const g = {

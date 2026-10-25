@@ -22,8 +22,8 @@ const FIXED_DURATION_S: Record<Exclude<Action, "walk" | "run">, number> = {
   dodge: 1.5,
   kneel: 2,
   stumble: 2,
-  drink: 3,
-  phone: 4,
+  drink: 8.867,
+  phone: 6,
 };
 
 export function durationFor(action: Action, distanceM: number): number {

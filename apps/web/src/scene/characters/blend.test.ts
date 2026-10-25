@@ -150,6 +150,15 @@ describe("single actor blending", () => {
     expect(samples).toEqual([{ clip: "clip_fall_back", time: 2.6, weight: 1 }]);
   });
 
+  test("a drink longer than its clip holds the last frame instead of looping", () => {
+    const drinkDurations: Readonly<Record<string, number>> = { ...DURATIONS, clip_drink: 8.867 };
+    const windows = buildClipWindows("x", [event("a", "x", "drink", 0, 12)], (clip) => clip in drinkDurations);
+    const early = sampleClips(windows, 4, (clip) => drinkDurations[clip]);
+    expect(early).toEqual([{ clip: "clip_drink", time: 4, weight: 1 }]);
+    const late = sampleClips(windows, 11, (clip) => drinkDurations[clip]);
+    expect(late).toEqual([{ clip: "clip_drink", time: 8.867, weight: 1 }]);
+  });
+
   test("three overlapping events render only the latest and report a conflict", () => {
     const three = [event("a", "x", "walk", 0, 10), event("b", "x", "speak", 2, 10), event("c", "x", "look", 4, 10)];
     const set = buildClipWindows("x", three, hasClip);
