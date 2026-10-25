@@ -4,6 +4,7 @@ import { statusOf } from "../playback/useGraph";
 
 export const W = 1000;
 export const LABEL_W = 120;
+export const LABEL_COLUMN_W = LABEL_W - 8;
 export const ROW_H = 34;
 export const TOP = 22;
 export const TRACK_W = W - LABEL_W - 10;
