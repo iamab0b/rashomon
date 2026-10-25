@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useEffect, type CSSProperties } from "react";
 import type { LabelingAdapter } from "./adapter";
 import { useProposalStore, type ScanInput, type SuggestDeps } from "./proposalStore";
 import { renderCandidateViews } from "./render";
@@ -22,6 +22,11 @@ export function SuggestLandmarks({ scan, adapter, deps = defaultDeps }: SuggestL
   const store = useProposalStore();
   const running = store.status === "running";
   const ready = scan !== null && adapter !== null && deps !== null;
+  const geom = scan?.geom ?? null;
+  useEffect(() => {
+    const { source, clear } = useProposalStore.getState();
+    if (source !== null && source !== geom) clear();
+  }, [geom]);
 
   return (
     <div style={sectionStyle} data-testid="suggest-landmarks">
