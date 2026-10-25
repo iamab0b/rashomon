@@ -13,7 +13,8 @@ import {
   W,
   buildRows,
   implausibleStarts,
-  INFERRED_DASH,
+  inferredBlockPath,
+  WAVY_MIN_W,
   inferredTimes,
   neighborFlag,
   playheadHitAreas,
@@ -205,7 +206,9 @@ export function Timeline({ onOpen }: TimelineProps) {
                 const selected = b.id !== null && b.id === selectedEventId;
                 const y = rowY + b.lane * LANE_H;
                 const playingNow = b.id !== null && b.tStart <= t && t < b.tEnd;
-                const s = strokeFor(b.status, b.color, playingNow, b.inferred);
+                const s = strokeFor(b.status, b.color, playingNow);
+                const h = ROW_H - 10;
+                const wavy = b.inferred && w >= WAVY_MIN_W ? inferredBlockPath(x, y + 5, w, h) : null;
                 return (
                   <g
                     key={b.key}
@@ -220,26 +223,42 @@ export function Timeline({ onOpen }: TimelineProps) {
                     onClick={() => b.id && select(b.id)}
                     onDoubleClick={() => b.id && onOpen?.(b.id)}
                   >
-                    <rect x={x} y={y + 5} width={w} height={ROW_H - 10} rx={3} fill={b.color} fillOpacity={fillOpacityFor(b.status, playingNow)} className="rtl-fill" />
-                    <rect
-                      x={x}
-                      y={y + 5}
-                      width={w}
-                      height={ROW_H - 10}
-                      rx={3}
-                      fill="none"
-                      stroke={s.stroke}
-                      strokeOpacity={s.opacity}
-                      strokeDasharray={s.dash}
-                      strokeLinecap={s.dash === INFERRED_DASH ? "round" : undefined}
-                      strokeWidth={selected ? 3 : 1.5}
-                    />
+                    {wavy ? (
+                      <>
+                        <path d={wavy} fill={b.color} fillOpacity={fillOpacityFor(b.status, playingNow)} className="rtl-fill" />
+                        <path
+                          d={wavy}
+                          fill="none"
+                          stroke={s.stroke}
+                          strokeOpacity={s.opacity}
+                          strokeDasharray={s.dash}
+                          strokeLinejoin="round"
+                          strokeWidth={selected ? 3 : 1.5}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <rect x={x} y={y + 5} width={w} height={h} rx={3} fill={b.color} fillOpacity={fillOpacityFor(b.status, playingNow)} className="rtl-fill" />
+                        <rect
+                          x={x}
+                          y={y + 5}
+                          width={w}
+                          height={h}
+                          rx={3}
+                          fill="none"
+                          stroke={s.stroke}
+                          strokeOpacity={s.opacity}
+                          strokeDasharray={s.dash}
+                          strokeWidth={selected ? 3 : 1.5}
+                        />
+                      </>
+                    )}
                     {selected && <rect x={x - 2} y={y + 3} width={w + 4} height={ROW_H - 6} rx={4} fill="none" stroke="#fff" />}
                     {b.status === "overridden" && <polygon points={`${x + w - 9},${y + 5} ${x + w},${y + 5} ${x + w},${y + 14}`} fill={AMBER} />}
                     <text x={x + 5} y={y + ROW_H / 2 + 4} fill="#e6ebf5" fontSize={10} pointerEvents="none">
                       {b.label}
                     </text>
-                    {b.inferred && <title>{`${b.label} · time inferred`}</title>}
+                    {b.inferred && <title>{`${b.label} · estimated time: the witness gave no time`}</title>}
                   </g>
                 );
               })}

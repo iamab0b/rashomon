@@ -172,17 +172,35 @@ export function fillOpacityFor(status: Status | undefined, playing: boolean): nu
   return status === "implausible" || status === "overridden" ? 0.24 : 0.34;
 }
 
-export const INFERRED_DASH = "1.5 3";
-
 export function strokeFor(
   status?: Status,
   color: string = QUIET_STROKE,
   playing = false,
-  inferred = false,
 ): { dash?: string; stroke: string; opacity: number } {
   if (status === undefined) return { stroke: PROP_COLOR, opacity: 1 };
   if (status === "proposed") return { dash: "5 3", stroke: "#ffffff", opacity: 0.4 };
   if (status === "implausible") return { dash: "5 3", stroke: "#ff4d4f", opacity: 1 };
   const opacity = playing ? ACTIVE_STROKE_OPACITY : ACTOR_STROKE_OPACITY;
-  return inferred ? { dash: INFERRED_DASH, stroke: color, opacity } : { stroke: color, opacity };
+  return { stroke: color, opacity };
+}
+
+export const WAVE_AMPLITUDE = 1.6;
+export const WAVE_STEP = 4;
+export const WAVY_MIN_W = 8;
+
+const r1 = (n: number) => Number(n.toFixed(1));
+
+function wavyEdge(x: number, yFrom: number, yTo: number): string {
+  const n = Math.max(2, Math.round(Math.abs(yTo - yFrom) / WAVE_STEP));
+  const seg = (yTo - yFrom) / n;
+  let d = "";
+  for (let i = 0; i < n; i++) {
+    const cx = x + (i % 2 === 0 ? WAVE_AMPLITUDE : -WAVE_AMPLITUDE);
+    d += ` Q${r1(cx)},${r1(yFrom + seg * (i + 0.5))} ${r1(x)},${r1(yFrom + seg * (i + 1))}`;
+  }
+  return d;
+}
+
+export function inferredBlockPath(x: number, y: number, w: number, h: number): string {
+  return `M${r1(x)},${r1(y)} L${r1(x + w)},${r1(y)}${wavyEdge(x + w, y, y + h)} L${r1(x)},${r1(y + h)}${wavyEdge(x, y + h, y)} Z`;
 }

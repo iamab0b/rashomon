@@ -13,6 +13,8 @@ import {
   fillOpacityFor,
   hits,
   implausibleStarts,
+  inferredBlockPath,
+  WAVE_AMPLITUDE,
   LANE_H,
   rowHeight,
   rowTops,
@@ -188,8 +190,8 @@ describe("event state styling (regression)", () => {
     });
   };
   const block = (html: string, id: string) => html.match(new RegExp(`<g data-block="${id}"[^>]*>(.*?)</g>`))![0];
-  const fill = (markup: string) => markup.match(/<rect [^>]*class="rtl-fill"[^>]*>/)![0];
-  const border = (markup: string) => markup.match(/<rect [^>]*fill="none" stroke="[^"]*" stroke-opacity[^>]*>/)![0];
+  const fill = (markup: string) => markup.match(/<(?:rect|path) [^>]*class="rtl-fill"[^>]*>/)![0];
+  const border = (markup: string) => markup.match(/<(?:rect|path) [^>]*fill="none" stroke="[^"]*" stroke-opacity[^>]*>/)![0];
 
   test("overlapping events from one actor sit on separate lanes; later events reuse lane 0", () => {
     const html = render();
@@ -230,23 +232,43 @@ describe("event state styling (regression)", () => {
     expect(fill(e5)).toMatch(new RegExp(`fill="${WITNESS}" fill-opacity="0.24"`));
   });
 
-  test("an inferred time gets a dotted border in its actor's color; stated times stay solid", () => {
+  test("an inferred time has wavy start and end edges with its actor's fill and a solid border; stated times stay rectangles", () => {
     const html = render();
-    const e2 = block(html, "e2");
-    expect(e2).toContain("data-inferred");
-    expect(border(e2)).toMatch(new RegExp(`stroke="${CLERK}" stroke-opacity="[0-9.]+" stroke-dasharray="1.5 3" stroke-linecap="round"`));
-    expect(e2).toContain("<title>e2 · time inferred</title>");
+    const e8 = block(html, "e8");
+    expect(e8).toContain("data-inferred");
+    expect(e8).not.toContain("<rect");
+    expect(e8).toMatch(new RegExp(`<path d="M[^"]+Q[^"]+Z" fill="${CLERK}" fill-opacity="[0-9.]+" class="rtl-fill"`));
+    expect(e8).toMatch(new RegExp(`<path d="M[^"]+" fill="none" stroke="${CLERK}" stroke-opacity="[0-9.]+" stroke-linejoin="round"`));
+    expect(e8).not.toContain("stroke-dasharray");
+    expect(e8).toContain("<title>e8 · estimated time: the witness gave no time</title>");
     const e9 = block(html, "e9");
     expect(e9).not.toContain("data-inferred");
+    expect(e9).not.toContain("<path");
     expect(border(e9)).not.toContain("stroke-dasharray");
     expect(e9).not.toContain("<title>");
   });
 
-  test("a status border wins over the inferred dots", () => {
-    expect(strokeFor("implausible", WITNESS, false, true)).toMatchObject({ dash: "5 3", stroke: "#ff4d4f" });
-    expect(strokeFor("proposed", WITNESS, false, true)).toMatchObject({ dash: "5 3", stroke: "#ffffff" });
-    expect(strokeFor("plausible", WITNESS, false, true)).toMatchObject({ dash: "1.5 3", stroke: WITNESS });
-    expect(strokeFor("overridden", WITNESS, true, true)).toMatchObject({ dash: "1.5 3", stroke: WITNESS });
+  test("the wavy edges sit only on the start and end; top and bottom stay straight", () => {
+    const d = inferredBlockPath(100, 10, 60, 24);
+    expect(d.startsWith("M100,10 L160,10 Q")).toBe(true);
+    expect(d).toContain(" L100,34 Q");
+    const xs = [...d.matchAll(/Q([\d.]+),[\d.]+ ([\d.]+),/g)].flatMap((m) => [Number(m[1]), Number(m[2])]);
+    expect(xs.every((x) => Math.abs(x - 160) <= WAVE_AMPLITUDE || Math.abs(x - 100) <= WAVE_AMPLITUDE)).toBe(true);
+    expect(xs.some((x) => x !== 100 && x !== 160)).toBe(true);
+  });
+
+  test("an inferred implausible event keeps its red dashes on the wavy shape", () => {
+    const { resolved, statuses } = snap();
+    const html = renderWith({
+      graph: { ...robberyGraph, events: robberyGraph.events.map((e) => (e.id === "e5" ? { ...e, tConfidence: "inferred" as const } : e)) },
+      resolved,
+      statuses,
+      duration: resolved!.durationS,
+      t: 0,
+    });
+    const e5 = block(html, "e5");
+    expect(e5).toContain('data-status="implausible"');
+    expect(e5).toMatch(/<path d="M[^"]+" fill="none" stroke="#ff4d4f" stroke-opacity="1" stroke-dasharray="5 3"/);
   });
 
   test("non-overlapping events from one actor share a lane", () => {
