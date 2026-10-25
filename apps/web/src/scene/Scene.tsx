@@ -1,7 +1,8 @@
 import { Canvas } from "@react-three/fiber";
-import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import { CameraRig } from "./cameras/CameraRig";
+import { FrameObject } from "./cameras/FrameObject";
 import { PovRayLine } from "./cameras/PovRayLine";
 import { WitnessView } from "./cameras/WitnessView";
 import { CAMERA_PRESETS } from "./cameras/presets";
@@ -153,14 +154,19 @@ function useDebugPreset(debug: string | undefined): void {
 
 function useScanRequest(): [ScanRequest | null, (file: File) => void] {
   const [request, setRequest] = useState<ScanRequest | null>(() => scanRequestFromSearch(window.location.search));
+  const latestDrop = useRef(0);
   const drop = useCallback((file: File) => {
+    const serial = ++latestDrop.current;
     storeDroppedScan(file)
       .then((hash) => {
+        if (serial !== latestDrop.current) return;
         const search = searchWithScan(window.location.search, hash);
         window.history.replaceState(window.history.state, "", search);
         setRequest(scanRequestFromSearch(search));
       })
-      .catch(failScan);
+      .catch((error: unknown) => {
+        if (serial === latestDrop.current) failScan(error);
+      });
   }, []);
   return [request, drop];
 }
@@ -214,7 +220,7 @@ export function Scene({ fixture, debug, t }: SceneProps) {
   const [scanRequest, dropScan] = useScanRequest();
   const liveScan = useMemo(() => (scanRequest ? scanFailure(window.location.search) : null), [scanRequest]);
   const fixtureLoaded = useLoadedScene(isRigDebug || scanRequest ? undefined : fixture);
-  const { scan, alignAt } = useScanScene(isRigDebug || liveScan ? null : scanRequest);
+  const { scan, alignAt, frameKey } = useScanScene(isRigDebug || liveScan ? null : scanRequest);
   const loaded = useMemo(() => (scanRequest ? scanLoadedScene(scan) : fixtureLoaded), [scanRequest, scan, fixtureLoaded]);
   const gateScene = useMemo<GateScene | null>(() => (scan ? { manifest: scan.manifest, geom: scan.geom } : null), [scan]);
   const graphSource = useMemo(() => {
@@ -265,6 +271,7 @@ export function Scene({ fixture, debug, t }: SceneProps) {
         {loaded ? (
           <>
             <primitive object={loaded.model} onClick={scan && aligning ? onAlignClick : undefined} />
+            {scan ? <FrameObject object={scan.model} frameKey={frameKey} /> : null}
             {loaded.isPlaceholder && fixture === STORE_FIXTURE ? (
               <Dressing manifest={loaded.manifest} placeholder={loaded.model} />
             ) : null}

@@ -28,7 +28,7 @@ import {
   tooLargeMessage,
   type ScanRequest,
 } from "./scanRequest";
-import { patchScan, readScan, writeScan } from "./scanStore";
+import { patchScan, putScanBytes, readScan } from "./scanStore";
 
 export const SCAN_ROOT = "scan_root";
 
@@ -166,7 +166,6 @@ export async function storeDroppedScan(file: File, deps: ScanDeps = {}): Promise
   if (tooLarge) throw new Error(tooLarge);
   const bytes = await file.arrayBuffer();
   const hash = await sha256Hex(bytes);
-  const existing = await readScan(hash, deps.idb);
-  if (!existing?.bytes) await writeScan({ ...existing, hash, name: file.name, bytes }, deps.idb);
+  await putScanBytes(hash, file.name, bytes, deps.idb);
   return hash;
 }

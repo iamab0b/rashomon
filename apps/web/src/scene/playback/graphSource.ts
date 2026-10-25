@@ -64,15 +64,19 @@ function gatedState(graph: EventGraph, scene: GateScene): FixtureState {
   return { graph, snapshot: gatedSnapshot(graph, scene.manifest, scene.geom) };
 }
 
+function baseGraph(manifest: SceneManifest): EventGraph {
+  return manifest.sceneId === robberyGraph.sceneId ? robberyGraph : { ...robberyGraph, sceneId: manifest.sceneId };
+}
+
 function twoWitnessGraph(manifest: SceneManifest): EventGraph {
-  const patched = applyPatches(robberyGraph, robberyClerkPatches, CORRECTION_TIME, manifest);
+  const patched = applyPatches(baseGraph(manifest), robberyClerkPatches, CORRECTION_TIME, manifest);
   return { ...patched, witnesses: [...(robberyGraph.witnesses ?? []), { ...robberyClerkWitness }] };
 }
 
 function scenarioGraph(scenario: string | null | undefined, manifest: SceneManifest): EventGraph {
-  if (scenario === CORRECTED_SCENARIO) return applyPatches(robberyGraph, robberyCorrectionPatches(), CORRECTION_TIME, manifest);
+  if (scenario === CORRECTED_SCENARIO) return applyPatches(baseGraph(manifest), robberyCorrectionPatches(), CORRECTION_TIME, manifest);
   if (scenario === TWO_WITNESSES_SCENARIO) return twoWitnessGraph(manifest);
-  return robberyGraph;
+  return baseGraph(manifest);
 }
 
 const FIXTURE_STATES: Readonly<Record<string, () => FixtureState>> = {
@@ -93,7 +97,13 @@ function scanState(scenario: string | null | undefined, scene: GateScene): Fixtu
   try {
     return gatedState(scenarioGraph(scenario, scene.manifest), scene);
   } catch {
-    return gatedState(emptyGraph(scene.manifest.sceneId), scene);
+    const graph = emptyGraph(scene.manifest.sceneId);
+    try {
+      return gatedState(graph, scene);
+    } catch (error) {
+      console.error("scan manifest cannot be gated", error);
+      return { graph, snapshot: { resolved: null, statuses: {}, graph } };
+    }
   }
 }
 
@@ -129,7 +139,7 @@ function statementSegment(text: string, witnessName: string): Segment {
 }
 
 function patchableSource(initial: () => FixtureState, scene: GateScene): FixtureGraphSource {
-  const { manifest } = scene;
+  const { manifest, geom } = scene;
   let current: FixtureState | null = null;
   let statements: StatementStatuses = NO_STATEMENTS;
   const listeners = new Set<() => void>();
@@ -154,7 +164,7 @@ function patchableSource(initial: () => FixtureState, scene: GateScene): Fixture
     try {
       const result = await extractSegment(segment, context, recordedModelFor(segment.text));
       if (result.patches.length > 0) {
-        current = gatedState(applyPatches(graph, result.patches, Date.now(), manifest), scene);
+        current = gatedState(applyPatches(graph, result.patches, Date.now(), manifest, geom), scene);
       }
       setStatement(segment.id, {
         state: "done",
@@ -191,7 +201,7 @@ function patchableSource(initial: () => FixtureState, scene: GateScene): Fixture
       };
     },
     apply(patches) {
-      current = gatedState(applyPatches(state().graph, patches, Date.now(), manifest), scene);
+      current = gatedState(applyPatches(state().graph, patches, Date.now(), manifest, geom), scene);
       notify();
     },
   };

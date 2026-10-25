@@ -62,8 +62,7 @@ async function withStore<T>(
         transaction.onerror = () => reject(transaction.error ?? new Error("transaction failed"));
         transaction.onabort = () => reject(transaction.error ?? new Error("transaction aborted"));
       });
-      const result = await run(transaction.objectStore(SCAN_STORE));
-      await done;
+      const [result] = await Promise.all([run(transaction.objectStore(SCAN_STORE)), done]);
       return result;
     } finally {
       db.close();
@@ -80,9 +79,12 @@ export function readScan(hash: string, factory?: IDBFactory): Promise<ScanRecord
   });
 }
 
-export function writeScan(record: ScanRecord, factory?: IDBFactory): Promise<void> {
+export function putScanBytes(hash: string, name: string, bytes: ArrayBuffer, factory?: IDBFactory): Promise<void> {
   return withStore("readwrite", factory, async (store) => {
-    await settle(store.put(record, scanKey(record.hash)));
+    const key = scanKey(hash);
+    const current = (await settle(store.get(key))) as ScanRecord | undefined;
+    if (current?.bytes) return;
+    await settle(store.put({ ...current, hash, name, bytes }, key));
   });
 }
 

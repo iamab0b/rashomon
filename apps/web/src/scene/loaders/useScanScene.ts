@@ -17,10 +17,12 @@ export function failScan(error: unknown): void {
 export type ScanScene = {
   readonly scan: LoadedScan | null;
   readonly alignAt: (click: FloorClick) => void;
+  readonly frameKey: number;
 };
 
 export function useScanScene(request: ScanRequest | null, deps: ScanDeps = {}): ScanScene {
   const [scan, setScan] = useState<LoadedScan | null>(null);
+  const [frameKey, setFrameKey] = useState(0);
   const depsRef = useRef(deps);
   depsRef.current = deps;
   const setStatus = useSceneStore((state) => state.setStatus);
@@ -34,6 +36,7 @@ export function useScanScene(request: ScanRequest | null, deps: ScanDeps = {}): 
       .then((loaded) => {
         if (cancelled) return;
         if (loaded.aligned) useScanAlignStore.getState().setMetresPerUnit(loaded.alignment.scale);
+        else setFrameKey((key) => key + 1);
         setScan(loaded);
       })
       .catch((error: unknown) => {
@@ -51,10 +54,13 @@ export function useScanScene(request: ScanRequest | null, deps: ScanDeps = {}): 
       const alignment = alignmentFromClick(scan, click, metresPerUnit, origin);
       if (!alignment) return;
       setAligning(false);
-      realignScan(scan, alignment, depsRef.current).then(setScan, failScan);
+      realignScan(scan, alignment, depsRef.current).then((aligned) => {
+        setScan(aligned);
+        setFrameKey((key) => key + 1);
+      }, failScan);
     },
     [scan],
   );
 
-  return { scan, alignAt };
+  return { scan, alignAt, frameKey };
 }

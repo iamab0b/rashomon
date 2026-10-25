@@ -1,4 +1,4 @@
-import type { SceneManifest } from "@rashomon/schema";
+import type { Patch, SceneManifest } from "@rashomon/schema";
 import { robberyGraph, storeScene } from "@rashomon/schema/fixtures";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Mesh, type Object3D } from "three";
@@ -13,8 +13,17 @@ import { buildGlb, gridNode, type TestNode } from "../testing/testGlb";
 import { CENTIMETRES } from "./alignment";
 import { alignmentFromClick, loadScan, realignScan, SCAN_ROOT, storeDroppedScan } from "./scan";
 import { triangleCount } from "./scanGeom";
-import { localManifestKey, scanFailure, scanRequestFromSearch, tooLargeMessage, type ScanRequest } from "./scanRequest";
-import { scanKey, type ScanRecord } from "./scanStore";
+import {
+  fetchScanBytes,
+  loadSuppliedManifest,
+  localManifestKey,
+  scanFailure,
+  scanRequestFromSearch,
+  sha256Hex,
+  tooLargeMessage,
+  type ScanRequest,
+} from "./scanRequest";
+import { patchScan, scanKey, type ScanRecord } from "./scanStore";
 import { failScan } from "./useScanScene";
 
 const initial = useSceneStore.getState();
@@ -158,5 +167,71 @@ describe("the store fixture without a scan", () => {
     expect(JSON.stringify(snapshot.statuses)).toBe(JSON.stringify(mainGate.statuses));
     expect(JSON.stringify(snapshot.resolved!.events.flatMap((event) => event.flags))).toBe(JSON.stringify(mainGate.flags));
     expect(JSON.stringify(verdict(gatedSnapshot(robberyGraph, storeScene)))).toBe(JSON.stringify(verdict(snapshot)));
+  });
+});
+
+describe("review fixes", () => {
+  test("a supplied manifest with its own sceneId still runs scenarios and takes edits and overrides", async () => {
+    const idb = fakeIndexedDb();
+    const hash = await storeDroppedScan(new File([await buildGlb([gridNode("floor", 1000, 10), wall])], "s.glb"), { idb: idb.factory });
+    const deps = { idb: idb.factory, storage };
+    const unaligned = await loadScan(scanRequestFromSearch(`?scene=idb:${hash}&manifest=local:${OPEN_STORE}`)!, deps);
+    const alignment = alignmentFromClick(
+      unaligned,
+      { object: findMesh(unaligned.raw, "floor"), faceIndex: 22, point: [150, 0, 150], direction: [0, -1, 0] },
+      CENTIMETRES,
+      "bbox",
+    )!;
+    const scan = await realignScan(unaligned, alignment, deps);
+    const gateScene = { manifest: scan.manifest, geom: scan.geom };
+    const corrected = fixtureGraphSource("store", "corrected", gateScene)!.getSnapshot();
+    expect(corrected.graph?.sceneId).toBe(OPEN_STORE);
+    expect(corrected.resolved?.events.length).toBeGreaterThan(0);
+    const source = fixtureGraphSource("store", null, gateScene)!;
+    expect(source.getSnapshot().statuses.e5).toBe("implausible");
+    const override: Patch = { op: "override", id: "e5", reason: "the wall was a glass door", by: "tester" };
+    source.apply([override]);
+    expect(source.getSnapshot().statuses.e5).toBe("overridden");
+  });
+
+  test("a streamed scan without Content-Length stops reading at the cap", async () => {
+    let pulled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled++;
+        controller.enqueue(new Uint8Array(1024));
+      },
+    });
+    const fetcher = (async () => new Response(body)) as typeof fetch;
+    await expect(fetchScanBytes("https://example.test/endless.glb", fetcher, 4096)).rejects.toThrow("scans are capped at");
+    expect(pulled).toBeLessThan(10);
+  });
+
+  test("a malformed supplied manifest is refused with a message", async () => {
+    const bad = { getItem: () => JSON.stringify({ sceneId: "x", landmarks: [null] }) };
+    await expect(loadSuppliedManifest({ kind: "local", sceneId: "x" }, fetch, bad)).rejects.toThrow("malformed");
+    const notJson = { getItem: () => "{" };
+    await expect(loadSuppliedManifest({ kind: "local", sceneId: "x" }, fetch, notJson)).rejects.toThrow("not valid JSON");
+    const good = { getItem: () => JSON.stringify(openStore) };
+    await expect(loadSuppliedManifest({ kind: "local", sceneId: "x" }, fetch, good)).resolves.toMatchObject({ sceneId: OPEN_STORE });
+  });
+
+  test("a failed write rejects once with the store message", async () => {
+    const idb = fakeIndexedDb({ failWrites: true });
+    await expect(storeDroppedScan(new File([new Uint8Array([1, 2, 3])], "a.glb"), { idb: idb.factory })).rejects.toThrow(
+      "IndexedDB) is unavailable: write refused",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  });
+
+  test("dropping a scan keeps an alignment saved for the same bytes", async () => {
+    const idb = fakeIndexedDb();
+    const bytes = await buildGlb([wall]);
+    const hash = await sha256Hex(bytes);
+    await patchScan(hash, "https://example.test/room.glb", { alignment: { rotation: [0, 0, 0, 1], translation: [1, 0, 1], scale: 0.01 } }, idb.factory);
+    await storeDroppedScan(new File([bytes], "room.glb"), { idb: idb.factory });
+    const record = idb.data.get(scanKey(hash)) as ScanRecord;
+    expect(record.alignment?.scale).toBe(0.01);
+    expect(record.bytes?.byteLength).toBe(bytes.byteLength);
   });
 });

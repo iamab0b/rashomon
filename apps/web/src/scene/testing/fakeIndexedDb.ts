@@ -7,12 +7,12 @@ export type FakeIndexedDb = {
 
 const later = (run: () => void) => setTimeout(run, 0);
 
-export function fakeIndexedDb(): FakeIndexedDb {
+export function fakeIndexedDb(options: { failWrites?: boolean } = {}): FakeIndexedDb {
   const data = new Map<string, unknown>();
   const stores = new Set<string>();
   const transaction = () => {
     let pending = 0;
-    const tx: { oncomplete?: () => void; onerror?: () => void; onabort?: () => void; error: null; objectStore: () => unknown } = {
+    const tx: { oncomplete?: () => void; onerror?: () => void; onabort?: () => void; error: Error | null; objectStore: () => unknown } = {
       error: null,
       objectStore: () => store,
     };
@@ -20,10 +20,17 @@ export function fakeIndexedDb(): FakeIndexedDb {
       later(() => {
         if (pending === 0) tx.oncomplete?.();
       });
-    const request = <T,>(run: () => T) => {
+    const request = <T,>(run: () => T, fails = false) => {
       pending++;
-      const req: Handlers & { result?: T; error: null } = { error: null };
+      const req: Handlers & { result?: T; error: Error | null } = { error: null };
       later(() => {
+        if (fails) {
+          req.error = new Error("write refused");
+          tx.error = req.error;
+          req.onerror?.();
+          later(() => tx.onerror?.());
+          return;
+        }
         req.result = run();
         pending--;
         req.onsuccess?.();
@@ -33,7 +40,7 @@ export function fakeIndexedDb(): FakeIndexedDb {
     };
     const store = {
       get: (key: string) => request(() => data.get(key)),
-      put: (value: unknown, key: string) => request(() => void data.set(key, value)),
+      put: (value: unknown, key: string) => request(() => void data.set(key, value), options.failWrites === true),
     };
     settle();
     return tx;
