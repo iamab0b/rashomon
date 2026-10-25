@@ -205,7 +205,7 @@ describe("panel layout pass", () => {
     const onClose = vi.fn();
     const onOpen = vi.fn();
     const html = renderToStaticMarkup(<ContextDrawer view="transcript" onOpen={onOpen} onClose={onClose} context={context(graph)} focusSourceId={null} />);
-    expect(html).toMatch(/<div class="context-rail">.*Statement.*Transcript.*History.*<\/div><div id="context-drawer"/s);
+    expect(html).toMatch(/<div class="context-rail">.*Transcript.*History.*Add statement.*<\/div><\/div><div id="context-drawer"/s);
     expect(html).not.toContain('tabindex="-1"');
     expect(html).not.toContain('role="tab"');
   });

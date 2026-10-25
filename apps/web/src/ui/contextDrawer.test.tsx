@@ -73,11 +73,20 @@ describe("context drawer", () => {
     expect(header(null)).toContain("None selected");
   });
 
-  test("Statement, Transcript and History sit on the drawer rail", () => {
+  test("the rail reviews first (Transcript, History), then a separate Add statement action", () => {
     const html = drawer(null);
-    const rail = [...html.matchAll(/class="context-rail__button"[^>]*aria-expanded="false"[^>]*>.*?<span>([A-Za-z]+)<\/span>/g)].map((m) => m[1]);
-    expect(rail).toEqual(["Statement", "Transcript", "History"]);
+    const rail = [...html.matchAll(/class="context-rail__button"[^>]*aria-expanded="false"[^>]*>.*?<span>([A-Za-z ]+)<\/span>/g)].map((m) => m[1]);
+    expect(rail).toEqual(["Transcript", "History", "Add statement"]);
+    expect(html).toMatch(/role="group" aria-label="Review">.*Transcript.*History.*<\/div><div class="context-rail__group context-rail__group--input" role="group" aria-label="Add source">.*Add statement/s);
+    expect(html).toMatch(/aria-label="Add a witness statement"[^>]*title="Add a witness statement"/);
+    expect(html).not.toMatch(/Testimony|Re-interview/);
     expect(html).toMatch(/<div id="context-drawer" class="context-inner" inert=""/);
+  });
+
+  test("the statement drawer is titled Add witness statement", () => {
+    expect(renderToStaticMarkup(<ContextDrawer view="statement" onOpen={() => {}} onClose={() => {}} context={context()} focusSourceId={null} />)).toContain(
+      '<h2 class="context-title">Add witness statement</h2>',
+    );
   });
 
   test("transcript view emphasises the selected event's utterances and links events", () => {
