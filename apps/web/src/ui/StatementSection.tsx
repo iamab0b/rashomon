@@ -1,13 +1,15 @@
 import { useEffect, useState, type KeyboardEvent } from "react";
-import { modeFromSearch, useGraphActions, useLiveIdentity, useStatementStatus, type ResolvedEvent, type ResolvedGraph } from "../scene";
+import { modeFromSearch, useGraphActions, useLiveIdentity, useStatementStatus, useWitnessLayers, type ResolvedEvent, type ResolvedGraph } from "../scene";
 import { flagHeadline } from "./flagCopy";
 import { placeName } from "./places";
 import { actorLabel, StatusToken, words } from "./shared";
 import {
   baselineOf,
-  DEFAULT_WITNESS_NAME,
   isResend,
+  chosenWitness,
+  NEW_WITNESS,
   noteStatementRejection,
+  witnessToSend,
   rememberResult,
   resultOf,
   SLOW_AFTER_MS,
@@ -15,6 +17,7 @@ import {
   voiceInterviewEnabled,
   type StatementRun,
   type StatementView,
+  type WitnessOption,
 } from "./statement";
 import "./statement-section.css";
 
@@ -24,6 +27,9 @@ export type CopyState = "idle" | "copied" | "manual";
 export type StatementSectionViewProps = {
   graph: ResolvedGraph | null;
   witness: string;
+  witnesses?: readonly WitnessOption[];
+  newWitnessName?: string;
+  onNewWitnessName?: (value: string) => void;
   text: string;
   view: StatementView;
   voiceEnabled: boolean;
@@ -56,6 +62,9 @@ function EventRow({ graph, event, kind, onSelect }: { graph: ResolvedGraph | nul
 export function StatementSectionView({
   graph,
   witness,
+  witnesses = [],
+  newWitnessName = "",
+  onNewWitnessName = () => {},
   text,
   view,
   voiceEnabled,
@@ -78,10 +87,37 @@ export function StatementSectionView({
         <h2>Add what the witness said</h2>
       </div>
 
-      <label className="statement-field">
-        <span className="field-label">Witness</span>
-        <input value={witness} onChange={(e) => onWitness(e.currentTarget.value)} onKeyDown={stopKeys} />
-      </label>
+      {witnesses.length > 0 ? (
+        <>
+          <label className="statement-field">
+            <span className="field-label">Witness</span>
+            <select value={witness} onChange={(e) => onWitness(e.currentTarget.value)} onKeyDown={stopKeys}>
+              {witnesses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.label}
+                </option>
+              ))}
+              <option value={NEW_WITNESS}>New witness…</option>
+            </select>
+          </label>
+          {witness === NEW_WITNESS && (
+            <label className="statement-field">
+              <span className="field-label">New witness name</span>
+              <input
+                value={newWitnessName}
+                placeholder="e.g. Passer-by"
+                onChange={(e) => onNewWitnessName(e.currentTarget.value)}
+                onKeyDown={stopKeys}
+              />
+            </label>
+          )}
+        </>
+      ) : (
+        <label className="statement-field">
+          <span className="field-label">Witness</span>
+          <input value={witness} onChange={(e) => onWitness(e.currentTarget.value)} onKeyDown={stopKeys} />
+        </label>
+      )}
 
       <label className="statement-field">
         <span className="field-label">Statement</span>
@@ -181,10 +217,25 @@ export function StatementSectionView({
 
 const messageOf = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
-export function StatementSection({ graph, onSelect }: { graph: ResolvedGraph | null; onSelect: (eventId: string) => void }) {
+export function StatementSection({
+  graph,
+  onSelect,
+  preferredWitness = null,
+}: {
+  graph: ResolvedGraph | null;
+  onSelect: (eventId: string) => void;
+  preferredWitness?: { id: string; nonce: number } | null;
+}) {
   const { submitStatement: submit } = useGraphActions();
   const identity = useLiveIdentity();
-  const [witness, setWitness] = useState(DEFAULT_WITNESS_NAME);
+  const { witnesses: layers } = useWitnessLayers();
+  const witnesses: WitnessOption[] = layers.map((w) => ({ id: w.id, label: w.label }));
+  const [choice, setChoice] = useState<string | null>(null);
+  const [newWitnessName, setNewWitnessName] = useState("");
+  const witness = chosenWitness(witnesses, choice);
+  useEffect(() => {
+    if (preferredWitness) setChoice(preferredWitness.id);
+  }, [preferredWitness]);
   const [text, setText] = useState("");
   const [run, setRun] = useState<StatementRun | null>(null);
   const [slow, setSlow] = useState(false);
@@ -232,7 +283,7 @@ export function StatementSection({ graph, onSelect }: { graph: ResolvedGraph | n
       setRun((current) => (current === fresh || current?.sent === sent ? { ...fresh, error } : current));
     };
     try {
-      submit(sent, witness.trim() || DEFAULT_WITNESS_NAME).then(
+      submit(sent, witnessToSend(witnesses, witness, witnesses.length > 0 ? newWitnessName : witness)).then(
         ({ segmentId, baseVersion }) =>
           setRun((current) =>
             current?.sent === sent && !current.error ? { ...current, segmentId, baseline: { ...current.baseline, version: baseVersion } } : current,
@@ -257,10 +308,13 @@ export function StatementSection({ graph, onSelect }: { graph: ResolvedGraph | n
     <StatementSectionView
       graph={graph}
       witness={witness}
+      witnesses={witnesses}
+      newWitnessName={newWitnessName}
+      onNewWitnessName={setNewWitnessName}
       text={text}
       view={view}
       voiceEnabled={voiceInterviewEnabled(typeof window === "undefined" ? "" : window.location.search)}
-      onWitness={setWitness}
+      onWitness={setChoice}
       onText={setText}
       onSubmit={onSubmit}
       onSelect={onSelect}

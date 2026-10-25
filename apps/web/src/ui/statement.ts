@@ -1,6 +1,20 @@
 import type { Flag, ResolvedEvent, ResolvedGraph, StatementStatus } from "../scene";
 
 export const DEFAULT_WITNESS_NAME = "Witness";
+export const NEW_WITNESS = "__new";
+
+export type WitnessOption = { id: string; label: string };
+
+export function chosenWitness(options: readonly WitnessOption[], choice: string | null): string {
+  if (options.length === 0) return choice ?? DEFAULT_WITNESS_NAME;
+  if (choice === NEW_WITNESS || options.some((o) => o.id === choice)) return choice!;
+  return options[0]!.id;
+}
+
+export function witnessToSend(options: readonly WitnessOption[], choice: string, newName: string): string {
+  if (options.length > 0 && choice !== NEW_WITNESS && options.some((o) => o.id === choice)) return choice;
+  return newName.trim() || DEFAULT_WITNESS_NAME;
+}
 export const SLOW_AFTER_MS = 30_000;
 export const VOICE_INTERVIEW_ENABLED = false;
 

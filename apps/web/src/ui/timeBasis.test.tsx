@@ -16,11 +16,13 @@ function context(): PanelContext {
     playbackActive: new Set(),
     placeOf: () => null,
     timeBasisOf: (event) => timeBasis(robberyGraph, event),
+    witnessOf: () => null,
     playing: false,
     jumpTo: () => {},
     openOverride: () => {},
     openSource: () => {},
     openHistory: () => {},
+    openStatement: () => {},
     notify: () => {},
     transcript: null,
   };

@@ -6,10 +6,12 @@ import {
   useSceneStatus,
   useSelection,
   useTimeline,
+  useWitnessLayers,
   type ResolvedEvent,
   type Status,
 } from "../scene";
 import { EventsTab } from "./EventsTab";
+import { witnessTagOf } from "./WitnessesTab";
 import { FlagsTab, openFlagCount } from "./FlagsTab";
 import { ContextDrawer, type ContextView } from "./ContextDrawer";
 import { OverrideDialog } from "./OverrideDialog";
@@ -59,6 +61,7 @@ function PanelColumn({ children, padded = false }: { children: ReactNode; padded
 
 export function RightPanel({ by = "investigator" }: { by?: string }) {
   const { resolved, statuses, graph } = useGraph();
+  const { witnesses: layers } = useWitnessLayers();
   const { actionError } = useGraphErrors();
   const scene = useSceneStatus();
   const { selectedEventId, select } = useSelection();
@@ -71,6 +74,7 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
   const [dialogEventId, setDialogEventId] = useState<string | null>(null);
   const [focusSourceId, setFocusSourceId] = useState<string | null>(null);
   const [overrideFocusId, setOverrideFocusId] = useState<string | null>(null);
+  const [statementWitness, setStatementWitness] = useState<{ id: string; nonce: number } | null>(null);
   const [toast, setToast] = useState("");
   const [contextView, setContextView] = useState<ContextView | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -158,11 +162,16 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
     playing,
     placeOf: (event) => eventPlace(resolved.sceneId, event.action, anchorsFor(graph, event)),
     timeBasisOf: (event) => timeBasis(graph, event),
+    witnessOf: (event) => witnessTagOf(layers, event.witnessId),
     jumpTo,
     openOverride: setDialogEventId,
     openSource: (id) => {
       setFocusSourceId(id);
       setContextView("transcript");
+    },
+    openStatement: (witnessId) => {
+      setStatementWitness({ id: witnessId, nonce: Date.now() });
+      setContextView("statement");
     },
     openHistory: (id) => {
       if (selectedEventId !== id) select(id);
@@ -238,6 +247,7 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
         focusSourceId={focusSourceId}
         overrideFocusId={overrideFocusId}
         historyAccent={selectedEvent !== null && statusOf(selectedEvent) === "overridden"}
+        preferredWitness={statementWitness}
       />
     </>
   );

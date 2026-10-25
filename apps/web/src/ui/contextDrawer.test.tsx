@@ -19,11 +19,13 @@ function context(): PanelContext {
     playbackActive: new Set(),
     placeOf: () => null,
     timeBasisOf: () => "stated",
+    witnessOf: () => null,
     playing: false,
     jumpTo: () => {},
     openOverride: () => {},
     openSource: () => {},
     openHistory: () => {},
+    openStatement: () => {},
     notify: () => {},
     transcript: null,
   };

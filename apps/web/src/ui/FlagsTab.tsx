@@ -1,5 +1,6 @@
 import { canOverride } from "./overridePending";
-import { actorLabel, eventTime, FlagCard, PendingNote, words, type PanelContext } from "./shared";
+import type { Flag, ResolvedEvent } from "../scene";
+import { actorLabel, eventTime, FlagCard, PendingNote, words, type PanelContext, type WitnessTag } from "./shared";
 
 export function openFlagCount({ graph, statusOf }: Pick<PanelContext, "graph" | "statusOf">): number {
   return graph.events
@@ -16,7 +17,24 @@ async function copyText(text: string, notify: (message: string) => void) {
   }
 }
 
-export function FlagsTab({ graph, statusOf, pendingNoteOf, selectedEventId, playbackActive, playing, jumpTo, openOverride, notify }: PanelContext) {
+export function flagSides(
+  { graph, witnessOf }: Pick<PanelContext, "graph" | "witnessOf">,
+  event: ResolvedEvent,
+  flag: Flag,
+): { tag: WitnessTag; eventId: string }[] {
+  if (flag.check !== "contradiction") return [];
+  const own = witnessOf(event);
+  if (!own) return [];
+  const others = (flag.conflictsWith ?? []).flatMap((id) => {
+    const other = graph.events.find((e) => e.id === id);
+    const tag = other ? witnessOf(other) : null;
+    return other && tag && tag.id !== own.id ? [{ tag, eventId: other.id }] : [];
+  });
+  return others.length > 0 ? [{ tag: own, eventId: event.id }, ...others] : [];
+}
+
+export function FlagsTab(context: PanelContext) {
+  const { graph, statusOf, pendingNoteOf, selectedEventId, playbackActive, playing, jumpTo, openOverride, notify } = context;
   const flagged = graph.events
     .filter((event) => event.flags.length > 0 && statusOf(event) !== "overridden")
     .sort((a, b) => b.tStart - a.tStart);
@@ -51,6 +69,7 @@ export function FlagsTab({ graph, statusOf, pendingNoteOf, selectedEventId, play
                   onSelect={() => jumpTo(event.id)}
                   onOverride={canOverride(statusOf(event)) ? () => openOverride(event.id) : undefined}
                   onCopy={(text) => void copyText(text, notify)}
+                  sides={flagSides(context, event, flag)}
                 />
                 <PendingNote note={pendingNoteOf(event)} />
               </div>

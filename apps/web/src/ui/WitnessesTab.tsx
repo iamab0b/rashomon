@@ -1,10 +1,15 @@
 import { LAYER_COLORS, useWitnessLayers, type ResolvedEvent, type WitnessLayer } from "../scene";
 import { Icon } from "./Icon";
-import { actorLabel, type PanelContext } from "./shared";
+import { actorLabel, type PanelContext, type WitnessTag } from "./shared";
 
 export function witnessColor(layers: readonly WitnessLayer[], witnessId: string): string {
   const index = layers.findIndex((layer) => layer.id === witnessId);
   return LAYER_COLORS[(index < 0 ? 0 : index) % LAYER_COLORS.length]!;
+}
+
+export function witnessTagOf(layers: readonly WitnessLayer[], witnessId: string): WitnessTag | null {
+  if (layers.length < 2) return null;
+  return { id: witnessId, label: witnessName(layers, witnessId), color: witnessColor(layers, witnessId) };
 }
 
 export function witnessName(layers: readonly WitnessLayer[], witnessId: string): string {
@@ -52,9 +57,10 @@ export type WitnessesTabViewProps = Pick<PanelContext, "graph" | "statusOf" | "p
   onToggle: (id: string) => void;
   onOnly: (id: string) => void;
   onShowAll: () => void;
+  onReinterview?: (id: string) => void;
 };
 
-export function WitnessesTabView({ graph, statusOf, placeOf, jumpTo, layers, hidden, onToggle, onOnly, onShowAll }: WitnessesTabViewProps) {
+export function WitnessesTabView({ graph, statusOf, placeOf, jumpTo, layers, hidden, onToggle, onOnly, onShowAll, onReinterview }: WitnessesTabViewProps) {
   const pairs = disagreements({ graph });
   const many = layers.length > 1;
 
@@ -98,22 +104,36 @@ export function WitnessesTabView({ graph, statusOf, placeOf, jumpTo, layers, hid
                   </span>
                 </div>
               </div>
-              {many && (
+              {(many || onReinterview) && (
                 <div className="witness-actions">
-                  <button
-                    type="button"
-                    className="button button--small witness-eye"
-                    aria-pressed={shown}
-                    aria-label={`${shown ? "Hide" : "Show"} ${layer.label}'s layer`}
-                    title={shown ? "Hide this layer" : "Show this layer"}
-                    onClick={() => onToggle(layer.id)}
-                  >
-                    <Icon name="eye" size={14} />
-                    {shown ? "Shown" : "Hidden"}
-                  </button>
-                  <button type="button" className="button button--small" disabled={alone} onClick={() => onOnly(layer.id)}>
-                    Only this
-                  </button>
+                  {many && (
+                    <>
+                      <button
+                        type="button"
+                        className="button button--small witness-eye"
+                        aria-pressed={shown}
+                        aria-label={`${shown ? "Hide" : "Show"} ${layer.label}'s layer`}
+                        title={shown ? "Hide this layer" : "Show this layer"}
+                        onClick={() => onToggle(layer.id)}
+                      >
+                        <Icon name="eye" size={14} />
+                        {shown ? "Shown" : "Hidden"}
+                      </button>
+                      <button type="button" className="button button--small" disabled={alone} onClick={() => onOnly(layer.id)}>
+                        Only this
+                      </button>
+                    </>
+                  )}
+                  {onReinterview && (
+                    <button
+                      type="button"
+                      className="button button--small"
+                      title={`Add a statement from ${layer.label}`}
+                      onClick={() => onReinterview(layer.id)}
+                    >
+                      Re-interview
+                    </button>
+                  )}
                 </div>
               )}
             </article>
@@ -169,6 +189,7 @@ export function WitnessesTab(context: PanelContext) {
       onToggle={toggle}
       onOnly={only}
       onShowAll={showAll}
+      onReinterview={context.openStatement}
     />
   );
 }

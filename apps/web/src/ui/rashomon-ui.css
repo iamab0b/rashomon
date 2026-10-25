@@ -244,6 +244,9 @@
 .rui .witness-conflict__where { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rui .witness-conflict__id { color: var(--text-tertiary, var(--text-secondary)); font-size: var(--fs-2xs); }
 .rui .witness-dot { width: 8px; height: 8px; border-radius: 50%; }
+.rui .witness-chip { display: inline-flex; align-items: center; gap: 4px; color: var(--text-primary); font-weight: 600; white-space: nowrap; }
+.rui .flag-witnesses { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: 6px 0 0; color: var(--text-secondary); font-size: var(--fs-sm); }
+.rui .flag-witnesses .mono { color: var(--text-secondary); font-size: var(--fs-2xs); }
 
 .rui.topbar { height: 54px; flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px 0 14px; background: var(--surface-raised); border-bottom: 1px solid var(--border); }
 .rui .brand,

@@ -23,11 +23,13 @@ export type PanelContext = {
   playbackActive: ReadonlySet<string>;
   placeOf: (event: ResolvedEvent) => string | null;
   timeBasisOf: (event: ResolvedEvent) => TimeBasis;
+  witnessOf: (event: ResolvedEvent) => WitnessTag | null;
   playing: boolean;
   jumpTo: (eventId: string) => void;
   openOverride: (eventId: string) => void;
   openSource: (sourceId: string) => void;
   openHistory: (eventId: string) => void;
+  openStatement: (witnessId: string) => void;
   notify: (message: string) => void;
   transcript: readonly Utterance[] | null;
 };
@@ -160,11 +162,31 @@ export function PlaybackDot({ active, playing }: { active: boolean; playing: boo
   return <span className="playback-dot" role="img" aria-label={label} title={label} />;
 }
 
-export function SourceMeta({ sources, onOpen }: { sources: string[]; onOpen: (sourceId: string) => void }) {
+export type WitnessTag = { id: string; label: string; color: string };
+
+export function WitnessChip({ tag, suffix = "" }: { tag: WitnessTag; suffix?: string }) {
+  return (
+    <span className="witness-chip" data-witness-id={tag.id}>
+      <span className="witness-dot" style={{ background: tag.color }} aria-hidden />
+      {tag.label}
+      {suffix}
+    </span>
+  );
+}
+
+export function SourceMeta({
+  sources,
+  onOpen,
+  witness = null,
+}: {
+  sources: string[];
+  onOpen: (sourceId: string) => void;
+  witness?: WitnessTag | null;
+}) {
   if (sources.length === 0) return <span className="source-meta">Sources: none recorded</span>;
   return (
     <span className="source-meta">
-      Sources: Witness statement ·{" "}
+      Sources: {witness ? <WitnessChip tag={witness} suffix="’s statement" /> : "Witness statement"} ·{" "}
       {sources.map((id, i) => (
         <Fragment key={id}>
           {i > 0 && ", "}
@@ -195,7 +217,9 @@ export function FlagCard({
   onSelect,
   onOverride,
   onCopy,
+  sides = [],
 }: {
+  sides?: readonly { tag: WitnessTag; eventId: string }[];
   flag: Flag;
   sceneId: string;
   eventLabel: string;
@@ -244,6 +268,18 @@ export function FlagCard({
       </div>
       <h3>{flagHeadline(flag, (id) => placeName(sceneId, id))}</h3>
       <span className="flag-basis">{BASIS_LABELS[checkBasis(flag.check)]}</span>
+      {sides.length > 1 && (
+        <p className="flag-witnesses">
+          <span>Accounts differ:</span>
+          {sides.map((side, i) => (
+            <Fragment key={side.eventId}>
+              {i > 0 && <span aria-hidden>vs</span>}
+              <WitnessChip tag={side.tag} />
+              <span className="mono">{side.eventId}</span>
+            </Fragment>
+          ))}
+        </p>
+      )}
       <p className="hard-flag__detail">{flag.detail}</p>
       {Object.keys(flag.evidence).length > 0 && <div className="flag-evidence mono">{formatEvidence(flag)}</div>}
       <div className="suggested-question">

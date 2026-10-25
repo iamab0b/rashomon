@@ -24,7 +24,9 @@ export function ContextDrawer({
   focusSourceId,
   overrideFocusId = null,
   historyAccent = false,
+  preferredWitness = null,
 }: {
+  preferredWitness?: { id: string; nonce: number } | null;
   view: ContextView | null;
   onOpen: (view: ContextView) => void;
   onClose: () => void;
@@ -93,7 +95,7 @@ export function ContextDrawer({
           </button>
         </header>
         <div role="tabpanel" aria-label="Statement" hidden={view !== "statement"}>
-          <StatementSection graph={context.graph} onSelect={context.jumpTo} />
+          <StatementSection graph={context.graph} onSelect={context.jumpTo} preferredWitness={preferredWitness} />
         </div>
         <div role="tabpanel" aria-label={view === "history" ? "History" : "Transcript"} hidden={view === "statement"}>
           {view === "history" ? (

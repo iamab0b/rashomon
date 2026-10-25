@@ -27,6 +27,7 @@ export function EventsTab({
   playing,
   placeOf,
   timeBasisOf,
+  witnessOf,
   jumpTo,
   openSource,
   openHistory,
@@ -117,7 +118,7 @@ export function EventsTab({
                 </button>
               )}
               <div className="investigation-event__source">
-                <SourceMeta sources={event.sources} onOpen={openSource} />
+                <SourceMeta sources={event.sources} onOpen={openSource} witness={witnessOf(event)} />
                 <small className="event-id mono">{event.id}</small>
               </div>
             </div>
