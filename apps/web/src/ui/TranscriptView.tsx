@@ -1,14 +1,19 @@
 import { useEffect, useRef } from "react";
+import { scrollWithin } from "./scrollWithin";
 import { NotConnected, words, type PanelContext } from "./shared";
-import { relatedUtterances, sourceLabel, speakerLabel, utteranceEvents } from "./transcript";
+import { relatedUtterances, sourceLabel, utteranceEvents } from "./transcript";
+import { actorsWithEvents, focusedActor, utteranceSpeaker, visibleUtterances } from "./witnessFilter";
 
 export function TranscriptView({
   graph,
   selectedEventId,
   transcript,
   jumpTo,
+  witnessFilter,
+  actorFocus,
   focusId,
 }: PanelContext & { focusId: string | null }) {
+  const actor = focusedActor(actorFocus, actorsWithEvents(graph));
   const listRef = useRef<HTMLOListElement>(null);
   const event = graph.events.find((e) => e.id === selectedEventId) ?? null;
   const related = relatedUtterances(event);
@@ -17,9 +22,7 @@ export function TranscriptView({
 
   useEffect(() => {
     if (!scrollTo) return;
-    listRef.current
-      ?.querySelector<HTMLElement>(`[data-utterance="${CSS.escape(scrollTo)}"]`)
-      ?.scrollIntoView({ block: "nearest" });
+    scrollWithin(listRef.current?.querySelector<HTMLElement>(`[data-utterance="${CSS.escape(scrollTo)}"]`));
   }, [scrollTo]);
 
   if (!transcript) {
@@ -53,7 +56,7 @@ export function TranscriptView({
         </span>
       </div>
       <ol ref={listRef} className="utterance-list">
-        {transcript.map((utterance) => {
+        {visibleUtterances(transcript, graph.events, witnessFilter.hidden, actor, focusId).map((utterance) => {
           const isRelated = related.has(utterance.id);
           const isFocus = utterance.id === focusId;
           return (
@@ -64,7 +67,7 @@ export function TranscriptView({
               aria-current={isRelated || undefined}
             >
               <span className="utterance-speaker">
-                {speakerLabel(utterance.speaker)} · {sourceLabel(utterance.id)}
+                {utteranceSpeaker(utterance, graph.events, witnessFilter.layers)} · {sourceLabel(utterance.id)}
                 <small className="mono">{utterance.id}</small>
               </span>
               <q>{utterance.text}</q>

@@ -7,6 +7,7 @@ import type { Status } from "../scene";
 import { MISSING_OVERRIDE_RECORD } from "./OverrideHistory";
 import { gatedRobbery, OVERRIDE_REASON, overriddenRobbery } from "./testGraph";
 import { transcriptFor } from "./transcript";
+import { NO_ACTOR_FOCUS, NO_WITNESS_FILTER } from "./witnessFilter";
 
 function context(): PanelContext {
   const resolved = gatedRobbery();
@@ -19,11 +20,16 @@ function context(): PanelContext {
     playbackActive: new Set(),
     placeOf: () => null,
     timeBasisOf: () => "stated",
+    witnessOf: () => null,
+    actorColorOf: () => "#c58bff",
+    witnessFilter: NO_WITNESS_FILTER,
+    actorFocus: NO_ACTOR_FOCUS,
     playing: false,
     jumpTo: () => {},
     openOverride: () => {},
     openSource: () => {},
     openHistory: () => {},
+    openStatement: () => {},
     notify: () => {},
     transcript: null,
   };
@@ -67,11 +73,21 @@ describe("context drawer", () => {
     expect(header(null)).toContain("None selected");
   });
 
-  test("Statement, Transcript and History sit on the drawer rail", () => {
+  test("the rail reviews first (Transcript, History), then a separate Add statement action at the bottom", () => {
     const html = drawer(null);
-    const rail = [...html.matchAll(/class="context-rail__button"[^>]*aria-expanded="false"[^>]*>.*?<span>([A-Za-z]+)<\/span>/g)].map((m) => m[1]);
-    expect(rail).toEqual(["Statement", "Transcript", "History"]);
+    const rail = [...html.matchAll(/class="context-rail__button"[^>]*aria-expanded="false"[^>]*>.*?<span>([A-Za-z ]+)<\/span>/g)].map((m) => m[1]);
+    expect(rail).toEqual(["Transcript", "History", "Add statement"]);
+    expect(html).toMatch(/role="group" aria-label="Review">.*Transcript.*History.*<\/div><div class="context-rail__group context-rail__group--input context-rail__group--first-bottom" role="group" aria-label="Add source">.*Add statement/s);
+    expect(html).toMatch(/aria-label="Add witness statement"[^>]*title="Add witness statement"/);
+    expect(html).toMatch(/aria-label="Add witness statement"[^>]*><svg[^>]*><path d="M10 4.5v11M4.5 10h11"><\/path><\/svg><span>Add statement<\/span>/);
+    expect(html).not.toMatch(/Testimony|Re-interview/);
     expect(html).toMatch(/<div id="context-drawer" class="context-inner" inert=""/);
+  });
+
+  test("the statement drawer is titled Add witness statement", () => {
+    expect(renderToStaticMarkup(<ContextDrawer view="statement" onOpen={() => {}} onClose={() => {}} context={context()} focusSourceId={null} />)).toContain(
+      '<h2 class="context-title">Add witness statement</h2>',
+    );
   });
 
   test("transcript view emphasises the selected event's utterances and links events", () => {
@@ -80,7 +96,9 @@ describe("context drawer", () => {
     const html = drawer("transcript", ctx, e5.sources[0] ?? null);
     expect(html).toContain("data-open");
     expect(html).not.toContain("inert");
-    expect(html).toMatch(/role="tab" aria-selected="true" class="active">Transcript/);
+    expect(html).toMatch(/aria-expanded="true" aria-controls="context-drawer" title="Show transcript"/);
+    expect(html).toContain('<h2 class="context-title">Transcript</h2>');
+    expect(html).not.toContain('role="tab"');
     for (const id of e5.sources) {
       expect(html).toMatch(new RegExp(`data-utterance="${id}" class="related[^"]*" aria-current="true"`));
     }
@@ -93,7 +111,8 @@ describe("context drawer", () => {
     const e5 = base.graph.events.find((e) => e.id === "e5")!;
     const earlier = { ...e5, id: "e5a", tStart: 8, tEnd: 9, supersededBy: "e5", status: "superseded" as const, flags: [] };
     const html = drawer("history", { ...base, graph: { ...base.graph, events: [...base.graph.events, earlier] } });
-    expect(html).toMatch(/role="tab" aria-selected="true" class="active">History/);
+    expect(html).toMatch(/aria-expanded="true" aria-controls="context-drawer" title="Show history"/);
+    expect(html).toContain('<h2 class="context-title">History</h2>');
     expect(html).toContain('aria-label="Close context panel"');
     expect(html.indexOf("Version 2 ")).toBeLessThan(html.indexOf("Version 1 "));
     expect(html).toMatch(/version-card--superseded/);

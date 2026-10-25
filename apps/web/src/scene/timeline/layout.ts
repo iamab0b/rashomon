@@ -51,6 +51,11 @@ const ACTOR_STROKE_OPACITY = 0.55;
 const ACTIVE_STROKE_OPACITY = 0.9;
 export const APPROXIMATED_DASH = "2 3";
 
+export function rowLabel(label: string): string {
+  const inner = /^witness \((.+)\)$/i.exec(label.trim())?.[1];
+  return inner ? inner.charAt(0).toUpperCase() + inner.slice(1) : label;
+}
+
 export function actorColor(actorId: string, role: string, index: number): string {
   return PALETTE[role] ?? PALETTE[actorId] ?? FALLBACK[index % FALLBACK.length] ?? PROP_COLOR;
 }
@@ -108,7 +113,7 @@ export function buildRows(resolved: ResolvedGraph | null, statuses: StatusMap, i
       .map(({ event }) => event);
     return {
       id: actor.id,
-      label: actor.label,
+      label: rowLabel(actor.label),
       hidden: mine.length - shown.length,
       ...assignLanes(
         longestFirst.map((event) => ({
@@ -204,6 +209,8 @@ export const WAVE_STEP = 4;
 export const WAVE_INSET = 3;
 export const SELECTION = { stroke: "#fff", width: 2, gap: 2, haloWidth: 1, haloOpacity: 0.8, tint: 0.08 } as const;
 export const BORDER_W = 1.5;
+export const PLAYBACK_TINT = "#a5dcff";
+export const FOCUS_DIM_OPACITY = 0.3;
 
 export const IMPLAUSIBLE_STROKE = "#ff4d4f";
 export const SELECTED_IMPLAUSIBLE_STROKE = "#ff999a";
@@ -218,13 +225,14 @@ export function borderFor(
   playing: boolean,
   selected: boolean,
   approximated = false,
-): { dash?: string; stroke: string; opacity: number; width: number; halo: boolean; fillOpacity: number } {
+): { dash?: string; stroke: string; opacity: number; width: number; halo: boolean; fill: string; fillOpacity: number } {
   const s = strokeFor(status, color, playing, approximated);
+  const fill = playing && status !== undefined ? PLAYBACK_TINT : color;
   const fillOpacity = Number((fillOpacityFor(status, playing) + (selected ? SELECTION.tint : 0)).toFixed(2));
-  if (!selected) return { ...s, width: BORDER_W, halo: false, fillOpacity };
-  if (keepsStatusBorder(status)) return { ...s, width: SELECTION.width, halo: true, fillOpacity };
+  if (!selected) return { ...s, width: BORDER_W, halo: false, fill, fillOpacity };
+  if (keepsStatusBorder(status)) return { ...s, width: SELECTION.width, halo: true, fill, fillOpacity };
   const stroke = status === "implausible" ? SELECTED_IMPLAUSIBLE_STROKE : SELECTION.stroke;
-  return { ...(approximated ? { dash: APPROXIMATED_DASH } : {}), stroke, opacity: 1, width: SELECTION.width, halo: false, fillOpacity };
+  return { ...(approximated ? { dash: APPROXIMATED_DASH } : {}), stroke, opacity: 1, width: SELECTION.width, halo: false, fill, fillOpacity };
 }
 export const WAVY_MIN_W = 14;
 

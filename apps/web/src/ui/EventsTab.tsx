@@ -16,6 +16,43 @@ import {
   words,
   type PanelContext,
 } from "./shared";
+import { actorsWithEvents, focusedActor, matchesActor, visibleEvents } from "./witnessFilter";
+
+export function ActorFilterBar({
+  actors,
+  active,
+  labelOf,
+  colorOf,
+  onChange,
+}: {
+  actors: readonly string[];
+  active: string | null;
+  labelOf: (actorId: string) => string;
+  colorOf: (actorId: string) => string;
+  onChange: (actorId: string | null) => void;
+}) {
+  if (actors.length < 2) return null;
+  return (
+    <div className="actor-filter segmented" role="group" aria-label="Filter events by who acts">
+      <button type="button" aria-pressed={active === null} className={active === null ? "active" : undefined} onClick={() => onChange(null)}>
+        All
+      </button>
+      {actors.map((id) => (
+        <button
+          type="button"
+          key={id}
+          aria-pressed={active === id}
+          className={active === id ? "active" : undefined}
+          title={`Show only events where ${labelOf(id)} acts`}
+          onClick={() => onChange(active === id ? null : id)}
+        >
+          <span className="witness-dot" style={{ background: colorOf(id) }} aria-hidden />
+          {labelOf(id)}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export function EventsTab({
   graph,
@@ -27,18 +64,28 @@ export function EventsTab({
   playing,
   placeOf,
   timeBasisOf,
+  witnessOf,
+  actorColorOf,
+  witnessFilter,
+  actorFocus,
   jumpTo,
   openSource,
   openHistory,
 }: PanelContext) {
-  const events = inDisplayOrder(graph.events);
+  const all = inDisplayOrder(graph.events);
+  const actors = actorsWithEvents(graph);
+  const actor = focusedActor(actorFocus, actors);
+  const events = matchesActor(visibleEvents(all, witnessFilter.hidden), actor);
 
   return (
     <>
       <div className="section-title">
         <h2>Event sequence</h2>
-        <span>Chronological · {events.length} events</span>
+        <span>
+          Chronological · {events.length === all.length ? `${all.length} events` : `${events.length} of ${all.length} events`}
+        </span>
       </div>
+      <ActorFilterBar actors={actors} active={actor} labelOf={(id) => actorLabel(graph, id)} colorOf={actorColorOf} onChange={actorFocus.setActor} />
       <div className="investigation-events">
         {events.map((event) => {
           const status = statusOf(event);
@@ -67,7 +114,9 @@ export function EventsTab({
                 <StatusToken status={status} pending={isPending(event)} />
               </div>
               <div className="investigation-event__body">
-                <span className="event-actor">{actorLabel(graph, event.actor)}</span>
+                <span className="event-actor" style={{ color: actorColorOf(event.actor) }}>
+                  {actorLabel(graph, event.actor)}
+                </span>
                 <div className="event-what">
                   <strong className="event-action">{words(event.action)}</strong>
                   <span
@@ -117,7 +166,7 @@ export function EventsTab({
                 </button>
               )}
               <div className="investigation-event__source">
-                <SourceMeta sources={event.sources} onOpen={openSource} />
+                <SourceMeta sources={event.sources} onOpen={openSource} witness={witnessOf(event)} />
                 <small className="event-id mono">{event.id}</small>
               </div>
             </div>

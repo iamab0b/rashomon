@@ -1,18 +1,26 @@
 import { useEffect, useRef, useState, type ComponentType, type CSSProperties, type ReactNode } from "react";
 import {
+  isGraphlessSearch,
   useGraph,
   useGraphActions,
   useGraphErrors,
   useSceneStatus,
   useSelection,
   useTimeline,
+  useWitnessLayers,
+  actorColor,
   type ResolvedEvent,
   type Status,
 } from "../scene";
 import { EventsTab } from "./EventsTab";
+import { witnessTagOf } from "./witnesses";
+import { WitnessStrip } from "./WitnessStrip";
+import { scrollWithin } from "./scrollWithin";
+import { useActorFocus } from "./actorFocus";
 import { FlagsTab, openFlagCount } from "./FlagsTab";
 import { ContextDrawer, type ContextView } from "./ContextDrawer";
 import { OverrideDialog } from "./OverrideDialog";
+import { loadingCopy } from "./loadingCopy";
 import { eventDisplay, type PendingOverrides } from "./overridePending";
 import { anchorsFor, eventPlace } from "./places";
 import { playbackActiveIds } from "./playback";
@@ -21,7 +29,6 @@ import { PanelHeader } from "./PanelHeader";
 import { timeBasis, type PanelContext } from "./shared";
 import { transcriptFor } from "./transcript";
 import { useGraphMode } from "./useGraphMode";
-import { WitnessesTab } from "./WitnessesTab";
 import { isStatementRejection } from "./statement";
 import "./rashomon-ui.css";
 import "./panel-layout.css";
@@ -36,7 +43,6 @@ type Tab = {
 const TABS: Tab[] = [
   { id: "flags", label: "Flags", count: openFlagCount, Component: FlagsTab },
   { id: "events", label: "Events", count: ({ graph }) => graph.events.length, Component: EventsTab },
-  { id: "witnesses", label: "Witnesses", Component: WitnessesTab },
 ];
 
 const TOAST_MS = 2200;
@@ -59,6 +65,8 @@ function PanelColumn({ children, padded = false }: { children: ReactNode; padded
 
 export function RightPanel({ by = "investigator" }: { by?: string }) {
   const { resolved, statuses, graph } = useGraph();
+  const actorFocus = useActorFocus();
+  const { witnesses: layers, hidden: hiddenWitnesses, toggle: toggleWitness, only: onlyWitness, showAll: showAllWitnesses } = useWitnessLayers();
   const { actionError } = useGraphErrors();
   const scene = useSceneStatus();
   const { selectedEventId, select } = useSelection();
@@ -71,6 +79,7 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
   const [dialogEventId, setDialogEventId] = useState<string | null>(null);
   const [focusSourceId, setFocusSourceId] = useState<string | null>(null);
   const [overrideFocusId, setOverrideFocusId] = useState<string | null>(null);
+  const [statementWitness, setStatementWitness] = useState<{ id: string; nonce: number } | null>(null);
   const [toast, setToast] = useState("");
   const [contextView, setContextView] = useState<ContextView | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -82,9 +91,7 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
 
   useEffect(() => {
     if (!selectedEventId) return;
-    panelRef.current
-      ?.querySelector<HTMLElement>(`[data-event-id="${CSS.escape(selectedEventId)}"]`)
-      ?.scrollIntoView({ block: "nearest" });
+    scrollWithin(panelRef.current?.querySelector<HTMLElement>(`[data-event-id="${CSS.escape(selectedEventId)}"]`));
   }, [selectedEventId, activeTab]);
 
   useEffect(() => {
@@ -128,7 +135,7 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
             </div>
           ) : (
             <div className="flags-empty">
-              <p>Loading the reconstruction…</p>
+              <p>{loadingCopy(isGraphlessSearch(window.location.search))}</p>
             </div>
           )}
         </div>
@@ -158,11 +165,23 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
     playing,
     placeOf: (event) => eventPlace(resolved.sceneId, event.action, anchorsFor(graph, event)),
     timeBasisOf: (event) => timeBasis(graph, event),
+    witnessOf: (event) => witnessTagOf(layers, event.witnessId),
+    actorColorOf: (actorId) => {
+      const index = resolved.actors.findIndex((actor) => actor.id === actorId);
+      const actor = resolved.actors[index];
+      return actor ? actorColor(actor.id, actor.role, index) : "var(--text-primary)";
+    },
+    witnessFilter: { layers, hidden: hiddenWitnesses, toggle: toggleWitness, only: onlyWitness, showAll: showAllWitnesses },
+    actorFocus,
     jumpTo,
     openOverride: setDialogEventId,
     openSource: (id) => {
       setFocusSourceId(id);
       setContextView("transcript");
+    },
+    openStatement: (witnessId) => {
+      setStatementWitness({ id: witnessId, nonce: Date.now() });
+      setContextView("statement");
     },
     openHistory: (id) => {
       if (selectedEventId !== id) select(id);
@@ -170,7 +189,11 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
       setContextView("history");
     },
     notify: setToast,
-    transcript: transcriptFor(mode, resolved.sceneId),
+    transcript: transcriptFor(
+      mode,
+      resolved.sceneId,
+      layers.map((layer) => layer.id),
+    ),
   };
 
   const tabIndex = Math.max(
@@ -185,6 +208,7 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
     <>
       <PanelColumn>
         <div className="rui panel panel--docked" ref={panelRef}>
+          <WitnessStrip graph={resolved} statusOf={statusOf} openStatement={context.openStatement} filter={context.witnessFilter} />
           <PanelHeader
             tabs={TABS.map((t) => ({ id: t.id, label: t.label, count: t.count?.(context) }))}
             activeTab={tab.id}
@@ -193,6 +217,8 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
             selectedEventId={selectedEventId}
             placeOf={context.placeOf}
             timeBasisOf={context.timeBasisOf}
+            actorColorOf={context.actorColorOf}
+            showSelection={tab.id === "events"}
             onJump={jumpTo}
           />
 
@@ -238,6 +264,7 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
         focusSourceId={focusSourceId}
         overrideFocusId={overrideFocusId}
         historyAccent={selectedEvent !== null && statusOf(selectedEvent) === "overridden"}
+        preferredWitness={statementWitness}
       />
     </>
   );

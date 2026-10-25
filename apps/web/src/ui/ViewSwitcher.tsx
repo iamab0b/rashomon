@@ -1,5 +1,6 @@
 import { useCamera, useGraph, type CameraPreset, type ResolvedGraph } from "../scene";
 import "./view-switcher.css";
+import { displayLabel } from "./shared";
 
 const VISIBLE_PRESETS: { id: CameraPreset; label: string }[] = [
   { id: "overview", label: "Overview" },
@@ -25,7 +26,7 @@ export function povWitnesses(graph: ResolvedGraph | null): PovWitness[] {
     .filter((actor) => actor.role === "witness")
     .map((actor) => ({
       id: actor.id,
-      label: actor.label,
+      label: displayLabel(actor.label),
       hasPosition: graph.events.some((event) => event.actor === actor.id),
     }));
 }

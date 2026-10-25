@@ -10,7 +10,7 @@ import { anchorToPoint } from "./anchors";
 import type { Box } from "./geometry";
 import { pathLength, shortestPath, straightLineClear } from "./portals";
 import { portalsFor } from "./walkable";
-import { hasInterval, resolveInterval } from "./time";
+import { hasInterval, overSpeedLimit, resolveInterval } from "./time";
 
 const MOVEMENT = new Set(["walk", "run"]);
 const TIME_EPS = 1e-9;
@@ -159,6 +159,11 @@ export function resolve(
       : { path: [], reachable: true, travelM: 0 };
 
     const t = resolveInterval(e.t, e.action, route.travelM, previousEnd);
+    const estimated =
+      t.tInferred ||
+      (isMove &&
+        e.tConfidence === "inferred" &&
+        overSpeedLimit(e.action, pathLength(route.path), t.tEnd - t.tStart));
     previousEndByActor.set(e.actor, t.tEnd);
     const arrivedAt = isMove ? (route.reachable ? to : from) : at;
     if (!isRetracted(e)) {
@@ -191,7 +196,7 @@ export function resolve(
       sources: e.sources,
       ...(e.override ? { override: { ...e.override, flagIds: [...e.override.flagIds] } } : {}),
       ...(e.supersededBy !== undefined ? { supersededBy: e.supersededBy } : {}),
-      tInferred: t.tInferred,
+      tInferred: estimated,
     };
   });
 

@@ -15,6 +15,7 @@ import {
   implausibleStarts,
   inferredBlockPath,
   borderFor,
+  FOCUS_DIM_OPACITY,
   SELECTION,
   WAVE_INSET,
   WAVY_MIN_W,
@@ -29,7 +30,7 @@ import {
 
 export { createDrag, makeJump, makeKeyHandler } from "./handlers";
 
-export type TimelineProps = { onOpen?: (id: string) => void };
+export type TimelineProps = { onOpen?: (id: string) => void; focusActor?: string | null };
 
 const SPEEDS = [0.5, 1, 2];
 const AMBER = "#ffb020";
@@ -65,7 +66,7 @@ const CSS = `
 const PLAY_ICON = "M4 2.5v11l9-5.5z";
 const PAUSE_ICON = "M4 2.5h3v11H4zM9 2.5h3v11H9z";
 
-export function Timeline({ onOpen }: TimelineProps) {
+export function Timeline({ onOpen, focusActor = null }: TimelineProps) {
   const { resolved, statuses } = useGraph();
   const { t, playing, speed, duration, setT, play, pause } = useTimeline();
   const { selectedEventId, select } = useSelection();
@@ -194,8 +195,9 @@ export function Timeline({ onOpen }: TimelineProps) {
         {rows.map((row, i) => {
           const rowY = tops[i]!;
           const rowH = rowHeight(row);
+          const dimmed = focusActor !== null && rows.some((r) => r.id === focusActor) && row.id !== focusActor;
           return (
-            <g key={row.id} data-row={row.id} data-lanes={row.lanes}>
+            <g key={row.id} data-row={row.id} data-lanes={row.lanes} data-dimmed={dimmed ? "" : undefined} opacity={dimmed ? FOCUS_DIM_OPACITY : undefined}>
               <rect x={LABEL_W} y={rowY + 2} width={TRACK_W} height={rowH - 4} fill="#141a26" />
               <text x={8} y={rowY + rowH / 2 + 4} fill="#c3cde0" fontSize={12} pointerEvents="none">
                 {row.label}
@@ -231,7 +233,7 @@ export function Timeline({ onOpen }: TimelineProps) {
                     {wavy ? (
                       <>
                         <rect x={x} y={y + 5} width={w} height={h} fill="transparent" className="rtl-hit" />
-                        <path d={wavy} fill={b.color} fillOpacity={s.fillOpacity} className="rtl-fill" />
+                        <path d={wavy} fill={s.fill} fillOpacity={s.fillOpacity} className="rtl-fill" />
                         <path
                           d={wavy}
                           fill="none"
@@ -245,7 +247,7 @@ export function Timeline({ onOpen }: TimelineProps) {
                       </>
                     ) : (
                       <>
-                        <rect x={x} y={y + 5} width={w} height={h} rx={3} fill={b.color} fillOpacity={s.fillOpacity} className="rtl-fill" />
+                        <rect x={x} y={y + 5} width={w} height={h} rx={3} fill={s.fill} fillOpacity={s.fillOpacity} className="rtl-fill" />
                         <rect
                           x={x}
                           y={y + 5}
