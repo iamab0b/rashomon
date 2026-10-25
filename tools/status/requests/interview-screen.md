@@ -34,3 +34,14 @@ Done-check:
 ## Sat 2:25 PM: the hooks are on main
 
 PR #30 merged as ff77d58. `useGraphActions().submitStatement`, `useStatementStatus` and `useLiveIdentity` are all exported from apps/web/src/scene/index.ts now, so drop any local stub and build against them. In fixture mode the robbery correction statement gives 4 patches and every event plausible. Once Sahil republishes Maincloud, submitting from a browser that is not an editor yet shows your identity flow. Send Sahil that identity (docs/demo-laptop.md, section 4).
+
+## PR #47 (two-witness-ui, Sat 9:30 PM): what blocks the merge
+
+Sahil is deciding whether the new panel structure is inside the freeze: the Witnesses strip, the Witnesses tab removed, the drawer's title, and "Where they disagree" in Flags. He is also looking at the scene/timeline edits the PR asks about. Separately, Greptile gives 975eed3 a 2/5 and holds the merge on three findings. Fix them on two-witness-ui with new commits; no force-push.
+
+1. **Statements enter the wrong account** (StatementSection.tsx:286). In Fixture mode, choosing Clerk or New witness still goes through `statementSegment`, which assigns every new event to w1, so another witness's statement lands under Customer. Disable the choices Fixture can't honour, or make the fixture source use the chosen witness. Test it.
+2. **Source links hide their destination** (TranscriptView.tsx:59). With Clerk focused in Events, opening a Flags source cited only by other actors opens Transcript, but the actor filter removes the requested line. Always keep an explicitly requested focusId visible. Test it.
+3. **Sightline evidence names the wrong place** (flagEvidence.ts:11-12). With overlapping accounts, `activeEvent` takes the first event, while the gate uses the covering movement first and otherwise the last usable event. Don't recompute it in the UI: name the place from the flag's own evidence (the endpoint the gate chose). If the flag doesn't carry it, show the flag's detail sentence instead and tell the leader. The UI must never compute positions.
+4. From the leader's Opus review: **MEDIUM**, the paired contradiction card (FlagsTab.tsx:164) drops the flag's detail sentence and evidence; add the same Raw evidence section the other cards have. **LOW**, the Solo and Re-interview buttons (WitnessStrip.tsx:76/81) need aria-labels with the witness's name, and the unused WitnessesTab/WitnessesTabView code goes.
+
+Greptile re-reviews the push; the leader reviews and merges once Sahil has decided on the structure.
