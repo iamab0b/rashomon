@@ -10,8 +10,11 @@ import {
   RIGS,
   ROLES,
   STATUSES,
+  checkStyleFits,
   eventChangesFrom,
   eventFieldsFrom,
+  OVERRIDE_SAFE_CHANGE_KEYS,
+  styleFits,
   eventGraphFromRow,
   fail,
   idOf,
@@ -159,6 +162,7 @@ function applyPatch(ctx: Ctx, sessionId: string, patch: unknown): string[] {
   switch (patch.op) {
     case "add_event": {
       const f = eventFieldsFrom(patch.event);
+      checkStyleFits(f.style, f.action, "event.style");
       const existing = [...ctx.db.events.sessionId.filter(sessionId)];
       const id = idFor("e", optionalId((patch.event as Record<string, unknown>).id, "event.id"), existing, "event");
       ctx.db.events.insert({
@@ -177,11 +181,15 @@ function applyPatch(ctx: Ctx, sessionId: string, patch: unknown): string[] {
       const event = requireEvent(ctx, sessionId, id);
       if (isRetracted(event)) return fail(`event ${id} was retracted and cannot be updated`);
       const { keys, fields } = eventChangesFrom(patch.changes);
-      const onlyTime = keys.every((k) => k === "t");
-      if (!onlyTime) ctx.db.overrides.rowKey.delete(key(sessionId, id));
+      const action = fields.action ?? event.action;
+      if ("style" in fields) checkStyleFits(fields.style, action, "changes.style");
+      const style = "style" in fields ? fields.style : event.style;
+      const keepsOverride = keys.every((k) => OVERRIDE_SAFE_CHANGE_KEYS.has(k));
+      if (!keepsOverride) ctx.db.overrides.rowKey.delete(key(sessionId, id));
       ctx.db.events.rowKey.update({
         ...event,
         ...fields,
+        style: styleFits(style, action) ? style : undefined,
         sources: union(event.sources, sources),
       });
       return sources;

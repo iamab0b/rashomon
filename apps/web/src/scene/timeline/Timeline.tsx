@@ -202,7 +202,7 @@ export function Timeline({ onOpen }: TimelineProps) {
                 const selected = b.id !== null && b.id === selectedEventId;
                 const y = rowY + b.lane * LANE_H;
                 const playingNow = b.id !== null && b.tStart <= t && t < b.tEnd;
-                const s = strokeFor(b.status, b.color, playingNow);
+                const s = strokeFor(b.status, b.color, playingNow, b.actionApproximated === true);
                 return (
                   <g
                     key={b.key}
@@ -211,6 +211,8 @@ export function Timeline({ onOpen }: TimelineProps) {
                     data-status={b.status}
                     data-event={b.id ? "" : undefined}
                     data-playback-active={playingNow ? "true" : undefined}
+                    data-approximated={b.actionApproximated ? "true" : undefined}
+                    data-verb={b.verb}
                     className="rtl-block"
                     style={{ cursor: b.id ? "pointer" : "default", ...(b.witnessId !== undefined && hiddenWitnesses.has(b.witnessId) ? { opacity: HIDDEN_BLOCK_OPACITY } : {}) }}
                     onClick={() => b.id && select(b.id)}

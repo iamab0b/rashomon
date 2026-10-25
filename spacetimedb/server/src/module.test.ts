@@ -603,6 +603,71 @@ describe("clearing optional fields", () => {
   });
 });
 
+describe("action vocabulary", () => {
+  const base = robberyGraph.events.find((e) => e.id === "e1")!;
+  const addEvent = (id: string, over: Record<string, unknown>): Patch => {
+    const { status: _s, flags: _f, ...event } = base;
+    return { op: "add_event", event: { ...event, id, ...over } as never };
+  };
+
+  test("the new actions, style, actionApproximated and verb round-trip through graphForScene", () => {
+    apply(eventPatches(), 0);
+    apply(
+      [
+        addEvent("n1", { action: "dodge", from: undefined, to: undefined, at: { kind: "behind", landmark: "cooler" }, actionApproximated: true, verb: "ducked" }),
+        addEvent("n2", { action: "walk", style: "sneak" }),
+        addEvent("n3", { action: "phone", from: undefined, to: undefined, at: { kind: "at", landmark: "counter" } }),
+      ],
+      1,
+    );
+    const events = graph().events;
+    expect(events.find((e) => e.id === "n1")).toMatchObject({ action: "dodge", actionApproximated: true, verb: "ducked" });
+    expect(events.find((e) => e.id === "n1")).not.toHaveProperty("style");
+    expect(events.find((e) => e.id === "n2")).toMatchObject({ action: "walk", style: "sneak" });
+    expect(events.find((e) => e.id === "n3")).toMatchObject({ action: "phone" });
+    for (const e of events.filter((x) => x.id.startsWith("e"))) {
+      expect(e).not.toHaveProperty("style");
+      expect(e).not.toHaveProperty("actionApproximated");
+      expect(e).not.toHaveProperty("verb");
+    }
+  });
+
+  test("a style on the wrong action, an unknown style, a long verb and a non-boolean flag are refused", () => {
+    apply(eventPatches(), 0);
+    expect(() => apply([addEvent("n1", { action: "walk", style: "scared" })], 1)).toThrow(/scared goes with run, not walk/);
+    expect(() => apply([addEvent("n1", { action: "walk", style: "limping" })], 1)).toThrow(/event.style/);
+    expect(() => apply([addEvent("n1", { actionApproximated: true, verb: "x".repeat(41) })], 1)).toThrow(/at most 40/);
+    expect(() => apply([addEvent("n1", { actionApproximated: "yes" })], 1)).toThrow(/actionApproximated/);
+    expect(() => apply([{ op: "update_event", id: "e1", changes: { style: "behind" }, sources: ["utt_6"] }], 1)).toThrow(
+      /behind goes with look, not walk/,
+    );
+  });
+
+  test("update_event sets and clears the new fields, and a changed action drops a style that no longer fits", () => {
+    apply(eventPatches(), 0);
+    apply([{ op: "update_event", id: "e1", changes: { style: "sneak", actionApproximated: true, verb: "crept" }, sources: ["utt_6"] }], 1);
+    expect(graph().events.find((e) => e.id === "e1")).toMatchObject({ style: "sneak", actionApproximated: true, verb: "crept" });
+    apply([{ op: "update_event", id: "e1", changes: { action: "run" }, sources: ["utt_6"] }], 2);
+    expect(graph().events.find((e) => e.id === "e1")).not.toHaveProperty("style");
+    apply([{ op: "update_event", id: "e1", changes: { style: "scared" }, sources: ["utt_6"] }], 3);
+    expect(graph().events.find((e) => e.id === "e1")).toMatchObject({ style: "scared" });
+    apply([{ op: "update_event", id: "e1", changes: { style: null, verb: null } as never, sources: ["utt_6"] }], 4);
+    const e1 = graph().events.find((e) => e.id === "e1")!;
+    expect(e1).not.toHaveProperty("style");
+    expect(e1).not.toHaveProperty("verb");
+    expect(e1.actionApproximated).toBe(true);
+  });
+
+  test("a style, actionApproximated or verb change keeps an override, like a time change", () => {
+    apply(eventPatches(), 0);
+    call((ctx) =>
+      mod.override(ctx, { sessionId: SESSION, eventId: "e5", reason: "Investigator measured the aisle", by: "investigator:u1" }),
+    );
+    apply([{ op: "update_event", id: "e5", changes: { style: "behind", actionApproximated: true, verb: "glanced" }, sources: ["utt_14"] }], 1);
+    expect(graph().events.find((e) => e.id === "e5")).toMatchObject({ status: "overridden", style: "behind", verb: "glanced" });
+  });
+});
+
 describe("retracting an overridden event", () => {
   test("keeps the override row but graphForScene no longer reports it", () => {
     apply(eventPatches(), 0);
