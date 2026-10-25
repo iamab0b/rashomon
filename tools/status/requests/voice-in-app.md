@@ -14,6 +14,10 @@ One HIGH blocks the merge. Push to voice-in-app; no force-push.
    - a view test: `StatementSectionView` with `voiceEnabled: false` and a `voice` prop renders no "Talk to the interviewer" and no voice control;
    - a component test without `?voice=1`: no fetch to the token server, and `getUserMedia` never called. Stub both and assert zero calls after mount.
    Each must fail when the gate is removed; check that.
+   - The Opus review confirms the same HIGH. Its test is the sharpest: render `StatementSectionView` with `voiceEnabled: false` plus a voice object, and assert the markup **equals** the render without `voice` (no "Talk to the interviewer", no `voice-control`).
 2. **MEDIUM, optional:** without the flag, the voice code and the `http://127.0.0.1:8787/token` string still ship in the bundle, and `useVoiceInterview()` runs on every mount. It only builds state, so it's harmless. A dynamic `import()` behind the flag would make the bundle without the flag match demo-v1. Only do this if it takes 10 minutes or less.
+
+3. **LOW, optional (Opus):** in session.ts:61-64, fetch the token before asking for the mic, so a missing token server doesn't trigger the permission dialog.
+4. **LOW, note only:** vite.config.ts bakes the (non-secret) agent id into production builds when .cartesia-ids.json exists. That's fine.
 
 The leader re-reviews with Opus and Sonnet and merges if clean.
