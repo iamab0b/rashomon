@@ -5,7 +5,12 @@ export const NEW_WITNESS = "__new";
 
 export type WitnessOption = { id: string; label: string };
 
-export function chosenWitness(options: readonly WitnessOption[], choice: string | null): string {
+export function fixtureWitness(options: readonly WitnessOption[], live: boolean): string | null {
+  return live ? null : (options[0]?.id ?? null);
+}
+
+export function chosenWitness(options: readonly WitnessOption[], choice: string | null, onlyWitness: string | null = null): string {
+  if (onlyWitness !== null && options.length > 0) return onlyWitness;
   if (options.length === 0) return choice ?? DEFAULT_WITNESS_NAME;
   if (choice === NEW_WITNESS || options.some((o) => o.id === choice)) return choice!;
   return options[0]!.id;

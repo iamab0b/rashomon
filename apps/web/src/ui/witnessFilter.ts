@@ -57,9 +57,11 @@ export function visibleUtterances(
   events: readonly Pick<ResolvedEvent, "witnessId" | "sources" | "actor">[],
   hidden: ReadonlySet<string>,
   actor: string | null = null,
+  keep: string | null = null,
 ): Utterance[] {
   if (hidden.size === 0 && actor === null) return [...transcript];
   return transcript.filter((utterance) => {
+    if (utterance.id === keep) return true;
     const citing = events.filter((event) => event.sources.includes(utterance.id));
     if (actor !== null) return citing.some((event) => event.actor === actor && !hidden.has(event.witnessId));
     return citing.length === 0 || citing.some((event) => !hidden.has(event.witnessId));

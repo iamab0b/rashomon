@@ -4,10 +4,11 @@ import { describe, expect, test, vi } from "vitest";
 import { selectSource, type ResolvedGraph, type WitnessLayer } from "../scene";
 import { EventsTab } from "./EventsTab";
 import { flagSides, FlagsTab } from "./FlagsTab";
-import { chosenWitness, NEW_WITNESS, witnessToSend } from "./statement";
+import { chosenWitness, fixtureWitness, NEW_WITNESS, witnessToSend } from "./statement";
 import { StatementSectionView, type StatementSectionViewProps } from "./StatementSection";
 import type { PanelContext } from "./shared";
-import { WitnessesTabView, witnessTagOf } from "./WitnessesTab";
+import { witnessColor, witnessTagOf } from "./witnesses";
+import { WitnessStrip } from "./WitnessStrip";
 import { NO_ACTOR_FOCUS, NO_WITNESS_FILTER } from "./witnessFilter";
 
 function twoWitnesses(): ResolvedGraph {
@@ -129,24 +130,53 @@ describe("two-witness UI", () => {
     expect(renderToStaticMarkup(<StatementSectionView {...base} witness={NEW_WITNESS} />)).toContain("New witness name");
   });
 
-  test("Re-interview opens the Statement box for that witness", () => {
+  test("layer colors follow the scene's order, and the strip's buttons name their witness", () => {
     const graph = twoWitnesses();
-    const onReinterview = vi.fn();
-    const tree = WitnessesTabView({
-      graph,
-      statusOf: (event) => event.status,
-      placeOf: () => null,
-      jumpTo: () => {},
-      layers: layersOf(graph),
-      hidden: new Set(),
-      onToggle: () => {},
-      onOnly: () => {},
-      onShowAll: () => {},
-      onReinterview,
-    });
-    const buttons = findAll(tree, (el) => el.type === "button" && el.props.children === "Re-interview");
-    expect(buttons).toHaveLength(2);
-    (buttons[1]!.props.onClick as () => void)();
-    expect(onReinterview).toHaveBeenCalledWith("w2");
+    const layers = layersOf(graph);
+    expect(witnessColor(layers, "w1")).toBe("#4f9dff");
+    expect(witnessColor(layers, "w2")).toBe("#4cd6a0");
+    const openStatement = vi.fn();
+    const filter = { layers, hidden: new Set<string>(), toggle: vi.fn(), only: vi.fn(), showAll: vi.fn() };
+    const html = renderToStaticMarkup(<WitnessStrip graph={graph} statusOf={(e) => e.status} openStatement={openStatement} filter={filter} />);
+    expect(html).toContain('aria-label="Solo Clerk"');
+    expect(html).toContain('aria-label="Re-interview Clerk"');
+    const buttons = findAll(WitnessStrip({ graph, statusOf: (e) => e.status, openStatement, filter }), (el) => el.type === "button" && el.props["aria-label"] === "Re-interview Clerk");
+    (buttons[0]!.props.onClick as () => void)();
+    expect(openStatement).toHaveBeenCalledWith("w2");
+  });
+
+  test("fixture mode offers only the witness it can file statements under", () => {
+    const options = [
+      { id: "w1", label: "Customer" },
+      { id: "w2", label: "Clerk" },
+    ];
+    expect(fixtureWitness(options, false)).toBe("w1");
+    expect(fixtureWitness(options, true)).toBeNull();
+    expect(chosenWitness(options, "w2", "w1")).toBe("w1");
+    expect(chosenWitness(options, NEW_WITNESS, "w1")).toBe("w1");
+    expect(chosenWitness(options, "w2", null)).toBe("w2");
+    const view = (onlyWitness: string | null) =>
+      renderToStaticMarkup(
+        <StatementSectionView
+          graph={null}
+          witness="w1"
+          witnesses={options}
+          onlyWitness={onlyWitness}
+          text=""
+          view={{ kind: "idle" }}
+          voiceEnabled={false}
+          onWitness={() => {}}
+          onText={() => {}}
+          onSubmit={() => {}}
+          onSelect={() => {}}
+          onCopyIdentity={() => {}}
+        />,
+      );
+    const fixture = view("w1");
+    expect(fixture).toMatch(/<option value="w2" disabled="">Clerk<\/option><option value="__new" disabled="">New witness…<\/option>/);
+    expect(fixture).toContain("Fixture data adds every statement to Customer.");
+    const live = view(null);
+    expect(live).not.toMatch(/<option[^>]*disabled/);
+    expect(live).not.toContain("Fixture data adds");
   });
 });

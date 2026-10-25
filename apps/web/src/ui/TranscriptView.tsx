@@ -56,7 +56,7 @@ export function TranscriptView({
         </span>
       </div>
       <ol ref={listRef} className="utterance-list">
-        {visibleUtterances(transcript, graph.events, witnessFilter.hidden, actor).map((utterance) => {
+        {visibleUtterances(transcript, graph.events, witnessFilter.hidden, actor, focusId).map((utterance) => {
           const isRelated = related.has(utterance.id);
           const isFocus = utterance.id === focusId;
           return (

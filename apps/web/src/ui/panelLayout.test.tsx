@@ -12,7 +12,7 @@ import { robberyGraph } from "@rashomon/schema/fixtures";
 import { displayLabel, type PanelContext } from "./shared";
 import type { Utterance } from "./transcript";
 import { actorsWithEvents, filterSummary, isSolo, NO_ACTOR_FOCUS, toggleSolo, utteranceSpeaker, visibleUtterances, type WitnessFilter } from "./witnessFilter";
-import { witnessTagOf } from "./WitnessesTab";
+import { witnessTagOf } from "./witnesses";
 import { WitnessStrip } from "./WitnessStrip";
 
 const twoWitnesses = (): ResolvedGraph => selectSource("?scenario=two-witnesses")!.getSnapshot().resolved!;
@@ -217,13 +217,13 @@ describe("panel layout pass", () => {
     const sightline = e5.flags.find((f) => f.check === "sightline")!;
     expect(sightline.detail).toMatch(/\(\d+\.\d, \d+\.\d\)/);
     const rows = flagEvidenceRows(graph, e5, sightline, placeOf);
-    expect(rows.map((r) => `${r.label}: ${r.value}`)).toEqual([
-      "Sightline: From chips aisle to the suspect near counter",
+    expect(rows.filter((r) => !r.raw).map((r) => `${r.label}: ${r.value}`)).toEqual([
+      "Sightline: From chips aisle to the suspect",
       "Blocked by: Chips shelf",
       "Where: 1.1 m along a 3.8 m line of sight",
       "When: 11.0 s",
     ]);
-    expect(rows.every((r) => !/\(\d/.test(r.value))).toBe(true);
+    expect(rows.filter((r) => !r.raw).every((r) => !/\(\d/.test(r.value))).toBe(true);
     const html = renderToStaticMarkup(<FlagsTab {...context(graph, { placeOf })} />);
     expect(html).toMatch(/<dt>Blocked by<\/dt><dd>Chips shelf<\/dd>/);
     expect(html).toMatch(/<details class="flag-raw"><summary>Raw evidence<\/summary><p class="hard-flag__detail">witness at \(/);
@@ -247,5 +247,32 @@ describe("panel layout pass", () => {
       );
     expect(header(true)).toContain('aria-label="Selected event"');
     expect(header(false)).not.toContain('aria-label="Selected event"');
+  });
+
+  test("a requested transcript line stays visible even when the actor filter would hide it", () => {
+    const graph = twoWitnesses();
+    const transcript: Utterance[] = [
+      { id: "utt_2", speaker: "witness", text: "suspect and clerk" },
+      { id: "utt_6", speaker: "witness", text: "customer looks" },
+    ];
+    expect(visibleUtterances(transcript, graph.events, new Set(), "clerk").map((u) => u.id)).toEqual(["utt_2"]);
+    expect(visibleUtterances(transcript, graph.events, new Set(), "clerk", "utt_6").map((u) => u.id)).toEqual(["utt_2", "utt_6"]);
+  });
+
+  test("sightline evidence names only the event's own place and the target, and shows the gate's sentence", () => {
+    const graph = twoWitnesses();
+    const e5 = graph.events.find((e) => e.id === "e5")!;
+    const flag = e5.flags.find((f) => f.check === "sightline")!;
+    const rows = flagEvidenceRows(graph, e5, flag, () => "From chips aisle");
+    expect(rows[0]).toEqual({ label: "Sightline", value: "From chips aisle to the suspect" });
+    expect(rows.find((r) => r.label === "Gate detail")).toEqual({ label: "Gate detail", value: flag.detail.charAt(0).toUpperCase() + flag.detail.slice(1), raw: true });
+    expect(rows.map((r) => r.value).join(" ")).not.toMatch(/near counter/);
+  });
+
+  test("a paired contradiction card keeps the flag's detail and evidence under Raw evidence", () => {
+    const html = renderToStaticMarkup(<FlagsTab {...context(twoWitnesses())} />);
+    const card = html.slice(html.indexOf('class="contradiction-card"'));
+    expect(card).toMatch(/<details class="flag-raw"><summary>Raw evidence<\/summary><p class="hard-flag__detail">suspect is placed by the/);
+    expect(card).toMatch(/class="flag-evidence mono">distanceM/);
   });
 });

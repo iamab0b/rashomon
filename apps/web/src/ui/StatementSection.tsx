@@ -7,6 +7,7 @@ import {
   baselineOf,
   isResend,
   chosenWitness,
+  fixtureWitness,
   NEW_WITNESS,
   noteStatementRejection,
   witnessToSend,
@@ -28,6 +29,7 @@ export type StatementSectionViewProps = {
   graph: ResolvedGraph | null;
   witness: string;
   witnesses?: readonly WitnessOption[];
+  onlyWitness?: string | null;
   newWitnessName?: string;
   onNewWitnessName?: (value: string) => void;
   text: string;
@@ -63,6 +65,7 @@ export function StatementSectionView({
   graph,
   witness,
   witnesses = [],
+  onlyWitness = null,
   newWitnessName = "",
   onNewWitnessName = () => {},
   text,
@@ -93,13 +96,21 @@ export function StatementSectionView({
             <span className="field-label">Witness</span>
             <select value={witness} onChange={(e) => onWitness(e.currentTarget.value)} onKeyDown={stopKeys}>
               {witnesses.map((w) => (
-                <option key={w.id} value={w.id}>
+                <option key={w.id} value={w.id} disabled={onlyWitness !== null && w.id !== onlyWitness}>
                   {w.label}
                 </option>
               ))}
-              <option value={NEW_WITNESS}>New witness…</option>
+              <option value={NEW_WITNESS} disabled={onlyWitness !== null}>
+                New witness…
+              </option>
             </select>
           </label>
+          {onlyWitness !== null && (
+            <p className="statement-note">
+              Fixture data adds every statement to {witnesses.find((w) => w.id === onlyWitness)?.label ?? "the first witness"}. Other witnesses can be
+              chosen in a live session.
+            </p>
+          )}
           {witness === NEW_WITNESS && (
             <label className="statement-field">
               <span className="field-label">New witness name</span>
@@ -232,7 +243,9 @@ export function StatementSection({
   const witnesses: WitnessOption[] = layers.map((w) => ({ id: w.id, label: w.label }));
   const [choice, setChoice] = useState<string | null>(null);
   const [newWitnessName, setNewWitnessName] = useState("");
-  const witness = chosenWitness(witnesses, choice);
+  const live = typeof window !== "undefined" && modeFromSearch(window.location.search) === "live";
+  const onlyWitness = fixtureWitness(witnesses, live);
+  const witness = chosenWitness(witnesses, choice, onlyWitness);
   useEffect(() => {
     if (preferredWitness) setChoice(preferredWitness.id);
   }, [preferredWitness]);
@@ -241,7 +254,6 @@ export function StatementSection({
   const [slow, setSlow] = useState(false);
   const [copyState, setCopyState] = useState<CopyState>("idle");
   const status = useStatementStatus(run?.segmentId ?? null);
-  const live = typeof window !== "undefined" && modeFromSearch(window.location.search) === "live";
   const view = statementView(run, status, graph, identity, slow, live);
 
   const firstStatus = run?.segmentId && run.resent === null ? status : null;
@@ -309,6 +321,7 @@ export function StatementSection({
       graph={graph}
       witness={witness}
       witnesses={witnesses}
+      onlyWitness={onlyWitness}
       newWitnessName={newWitnessName}
       onNewWitnessName={setNewWitnessName}
       text={text}

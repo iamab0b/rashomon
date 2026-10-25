@@ -8,6 +8,7 @@ import {
   actorLabel,
   eventTime,
   FlagCard,
+  formatEvidence,
   PendingNote,
   SourceMeta,
   StatusToken,
@@ -192,6 +193,11 @@ function ContradictionCard({ context, pair }: { context: PanelContext; pair: Con
         </span>
         <ContradictionSide context={context} event={b.event} differs={differs} />
       </div>
+      <details className="flag-raw">
+        <summary>Raw evidence</summary>
+        <p className="hard-flag__detail">{a.flag.detail}</p>
+        {Object.keys(a.flag.evidence).length > 0 && <div className="flag-evidence mono">{formatEvidence(a.flag)}</div>}
+      </details>
       {questions.map(({ event, flag }) => {
         const witness = witnessOf(event);
         return (

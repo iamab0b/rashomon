@@ -2,7 +2,7 @@ import type { PanelContext } from "./shared";
 import { Icon } from "./Icon";
 import { actorLabel, displayLabel } from "./shared";
 import { isSolo, toggleSolo, type WitnessFilter } from "./witnessFilter";
-import { witnessColor } from "./WitnessesTab";
+import { witnessColor } from "./witnesses";
 
 export type WitnessStripProps = Pick<PanelContext, "graph" | "statusOf" | "openStatement"> & { filter: WitnessFilter };
 
@@ -70,6 +70,7 @@ export function WitnessStrip({ graph, statusOf, openStatement, filter }: Witness
                       type="button"
                       className="button button--small"
                       aria-pressed={solo}
+                      aria-label={`Solo ${layer.label}`}
                       title={solo ? "Show all witnesses again" : `Show only ${layer.label}`}
                       onClick={() => toggleSolo(filter, layer.id)}
                     >
@@ -77,7 +78,13 @@ export function WitnessStrip({ graph, statusOf, openStatement, filter }: Witness
                     </button>
                   </>
                 )}
-                <button type="button" className="button button--small witness-card__secondary" title={`Add a statement from ${layer.label}`} onClick={() => openStatement(layer.id)}>
+                <button
+                  type="button"
+                  className="button button--small witness-card__secondary"
+                  aria-label={`Re-interview ${layer.label}`}
+                  title={`Add a statement from ${layer.label}`}
+                  onClick={() => openStatement(layer.id)}
+                >
                   Re-interview
                 </button>
               </div>

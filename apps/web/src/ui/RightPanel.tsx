@@ -13,7 +13,7 @@ import {
   type Status,
 } from "../scene";
 import { EventsTab } from "./EventsTab";
-import { witnessTagOf } from "./WitnessesTab";
+import { witnessTagOf } from "./witnesses";
 import { WitnessStrip } from "./WitnessStrip";
 import { scrollWithin } from "./scrollWithin";
 import { useActorFocus } from "./actorFocus";
