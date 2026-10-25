@@ -21,19 +21,21 @@ function datedNeighbours(
   events: readonly Event[],
   self: Event,
   t: [number, number],
-): { floor: number; ceiling: number; next: Event | undefined } {
+): { floor: number; ceiling: number; next: Event | undefined; overlapped: boolean } {
   let floor = 0;
   let ceiling = Number.POSITIVE_INFINITY;
   let next: Event | undefined;
+  let overlapped = false;
   for (const other of events) {
     if (other === self || other.actor !== self.actor || !isDated(other)) continue;
+    if (other.t[0] === t[0] || (other.t[0] < t[1] && other.t[1] > t[0])) overlapped = true;
     if (other.t[0] <= t[0]) floor = Math.max(floor, other.t[1]);
     else if (other.t[0] < ceiling) {
       ceiling = other.t[0];
       next = other;
     }
   }
-  return { floor, ceiling, next };
+  return { floor, ceiling, next, overlapped };
 }
 
 const handoffRank = (action: string): number => (action === "drop" ? 0 : 1);
@@ -167,10 +169,10 @@ export function resolve(
   const tracker = createTracker();
 
   const boundsFor = (e: Event, t: [number, number], arrival: Vec3 | undefined, previousEnd: number) => {
-    const { floor, ceiling, next } = datedNeighbours(graph.events, e, t);
+    const { floor, ceiling, next, overlapped } = datedNeighbours(graph.events, e, t);
     const target = next ? (MOVEMENT.has(next.action) ? point(next.from) : (point(next.at) ?? point(next.from))) : undefined;
     const reserveS = arrival && target ? Math.hypot(...arrival.map((v, i) => v - target[i]!) as Vec3) / WALK_SPEED_MS : 0;
-    return { floor: Math.max(floor, previousEnd), ceiling, reserveS };
+    return { floor: Math.max(floor, previousEnd), ceiling, reserveS, overlapped };
   };
 
   const previousEndByActor = new Map<string, number>();
