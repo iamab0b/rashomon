@@ -244,6 +244,17 @@
       "paths": [
         "apps/web/src/ui"
       ]
+    },
+    {
+      "id": "scene-rail-item",
+      "from": "Sahil",
+      "due": "18-23",
+      "todo": "One rail item \"Scene\" (third ContextView) rendering the scene's SceneTools, shown only while useSceneToolsAvailable(); default URL keeps Transcript and History only; UI structure otherwise frozen; branch scene-rail, PR after #38",
+      "doc": "tools/status/requests/scene-rail-item.md",
+      "grep": "useSceneToolsAvailable",
+      "paths": [
+        "apps/web/src/ui"
+      ]
     }
   ],
   "runtime": [
