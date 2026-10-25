@@ -20,6 +20,7 @@ import { LabelLayer } from "./landmarks/LabelLayer";
 import { LabelProjector } from "./landmarks/LabelProjector";
 import { LandmarkMarkers } from "./landmarks/LandmarkMarkers";
 import { EditorLayer } from "./labeling/EditorLayer";
+import { ProposalLayer } from "./labeling/auto/ProposalLayer";
 import { interiorFromBounds } from "./labeling/interior";
 import { sessionAction, useLabelingStore } from "./labeling/labelingStore";
 import { createMeshSwitcher } from "./labeling/meshSwitcher";
@@ -435,6 +436,7 @@ export function Scene({ fixture, debug, t, sceneToolsHosted = false }: SceneProp
             {hasGraph ? <Props manifest={loaded.manifest} /> : null}
             {hasGraph ? <AnchorGizmo manifest={loaded.manifest} /> : null}
             {editing ? <EditorLayer /> : null}
+            {editing ? <ProposalLayer /> : null}
             {shouldSignalReady({ hasGraph, actorsReady, failure }) ? <ReadySignal /> : null}
           </>
         ) : null}
