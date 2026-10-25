@@ -16,6 +16,8 @@ import {
   inferredBlockPath,
   WAVE_AMPLITUDE,
   SELECTION,
+  PLAYBACK_TINT,
+  FOCUS_DIM_OPACITY,
   borderFor,
   APPROXIMATED_DASH,
   IMPLAUSIBLE_STROKE,
@@ -215,14 +217,31 @@ describe("event state styling (regression)", () => {
     expect(e9).not.toContain('stroke="#fff"');
   });
 
-  test("a playing event gets a stronger tint of its own actor color, never a shared blue", () => {
+  test("a playing event gets a light sky-blue tint, keeping its actor-colored border", () => {
     const html = render();
     const e3 = block(html, "e3");
     expect(e3).toContain('data-playback-active="true"');
-    expect(fill(e3)).toMatch(new RegExp(`fill="${WITNESS}" fill-opacity="0.34"`));
+    expect(fill(e3)).toMatch(new RegExp(`fill="${PLAYBACK_TINT}" fill-opacity="0.34"`));
     expect(border(e3)).toMatch(new RegExp(`stroke="${WITNESS}" stroke-opacity="0.9"`));
-    expect(fill(block(html, "e6"))).toMatch(new RegExp(`fill="${SUSPECT}" fill-opacity="0.34"`));
+    expect(fill(block(html, "e6"))).toMatch(new RegExp(`fill="${PLAYBACK_TINT}" fill-opacity="0.34"`));
+    expect(fill(block(html, "e9"))).toMatch(new RegExp(`fill="${WITNESS}" fill-opacity="0.14"`));
+    expect(PLAYBACK_TINT).not.toBe(WITNESS);
     expect(html).not.toContain("#4f8cff");
+  });
+
+  test("a focused actor keeps its row; other rows are dimmed but keep their blocks and lanes", () => {
+    const { resolved, statuses } = snap();
+    Object.assign(useSceneStore.getInitialState(), { graph: robberyGraph, resolved, statuses, duration: resolved!.durationS, t: 0 });
+    let html: string;
+    try {
+      html = renderToStaticMarkup(createElement(Timeline, { focusActor: "clerk" }));
+    } finally {
+      Object.assign(useSceneStore.getInitialState(), pristine);
+    }
+    expect(html).toMatch(/data-row="clerk" data-lanes="1">/);
+    expect(html).toMatch(new RegExp(`data-row="suspect" data-lanes="\\d" data-dimmed="" opacity="${FOCUS_DIM_OPACITY}"`));
+    expect(html).toMatch(/data-row="witness" data-lanes="\d" data-dimmed=""/);
+    expect(html).toContain('data-block="e1"');
   });
 
   const selectedRender = (selectedEventId: string, inferred: readonly string[] = []) => {
@@ -249,7 +268,7 @@ describe("event state styling (regression)", () => {
     const e5 = block(html, "e5");
     expect(e5).toContain('data-status="implausible"');
     expect(border(e5)).toMatch(/stroke="#ff4d4f" stroke-opacity="1" stroke-dasharray="5 3" stroke-width="1.5"/);
-    expect(fill(e5)).toMatch(new RegExp(`fill="${WITNESS}" fill-opacity="0.24"`));
+    expect(fill(e5)).toMatch(new RegExp(`fill="${PLAYBACK_TINT}" fill-opacity="0.24"`));
   });
 
   test("an inferred time has wavy start and end edges with its actor's fill and a solid border; stated times stay rectangles", () => {
@@ -415,7 +434,7 @@ describe("event state styling (regression)", () => {
     const e2 = block(render(), "e2");
     expect(e2).toContain('data-status="overridden"');
     expect(e2).toMatch(/<polygon [^>]*fill="#ffb020"/);
-    expect(fill(e2)).toMatch(new RegExp(`fill="${CLERK}" fill-opacity="0.24"`));
+    expect(fill(e2)).toMatch(new RegExp(`fill="${PLAYBACK_TINT}" fill-opacity="0.24"`));
     expect(border(e2)).toMatch(new RegExp(`stroke="${CLERK}"`));
   });
 });

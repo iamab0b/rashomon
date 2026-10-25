@@ -14,10 +14,12 @@ export type PanelHeaderProps = {
   selectedEventId: string | null;
   placeOf: (event: ResolvedEvent) => string | null;
   timeBasisOf?: (event: ResolvedEvent) => TimeBasis;
+  actorColorOf?: (actorId: string) => string;
+  showSelection?: boolean;
   onJump: (eventId: string) => void;
 };
 
-export function PanelHeader({ tabs, activeTab, onTab, graph, selectedEventId, placeOf, timeBasisOf, onJump }: PanelHeaderProps) {
+export function PanelHeader({ tabs, activeTab, onTab, graph, selectedEventId, placeOf, timeBasisOf, actorColorOf, onJump, showSelection = true }: PanelHeaderProps) {
   const tabIndex = Math.max(
     0,
     tabs.findIndex((t) => t.id === activeTab),
@@ -31,7 +33,7 @@ export function PanelHeader({ tabs, activeTab, onTab, graph, selectedEventId, pl
   const place = selectedEvent ? placeOf(selectedEvent) : null;
 
   return (
-    <div className="panel-head">
+    <div className={showSelection ? "panel-head" : "panel-head panel-head--tabs-only"}>
       <nav className="tabs" role="tablist" style={{ "--tab-count": tabs.length, "--tab-index": tabIndex } as CSSProperties}>
         {tabs.map((t, i) => (
           <button
@@ -49,63 +51,67 @@ export function PanelHeader({ tabs, activeTab, onTab, graph, selectedEventId, pl
         <span className="tab-indicator" aria-hidden />
       </nav>
 
-      <div
-        className="selection-bar"
-        role="group"
-        aria-label="Selected event"
-        onKeyDown={(e) => {
-          if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
-          e.preventDefault();
-          step(e.key === "ArrowUp" ? -1 : 1);
-        }}
-      >
-        <div>
-          <span className="eyebrow">
-            Selected event
-            {nav.index >= 0 && (
-              <small>
-                Event {nav.index + 1} of {nav.total}
-              </small>
+      {showSelection && (
+        <div
+          className="selection-bar"
+          role="group"
+          aria-label="Selected event"
+          onKeyDown={(e) => {
+            if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+            e.preventDefault();
+            step(e.key === "ArrowUp" ? -1 : 1);
+          }}
+        >
+          <div>
+            <span className="eyebrow">
+              Selected event
+              {nav.index >= 0 && (
+                <small>
+                  Event {nav.index + 1} of {nav.total}
+                </small>
+              )}
+            </span>
+            {selectedEvent ? (
+              <>
+                <strong>
+                  {selectedEvent.id} ·{" "}
+                  <span style={actorColorOf ? { color: actorColorOf(selectedEvent.actor) } : undefined}>{actorLabel(graph, selectedEvent.actor)}</span> ·{" "}
+                  {words(selectedEvent.action)}
+                </strong>
+                <span className="selection-meta">
+                  <span className="mono">{eventTime(selectedEvent)}</span>
+                  {timeBasisOf && <TimeBasisLabel basis={timeBasisOf(selectedEvent)} />}
+                  {place && <> · {place}</>}
+                </span>
+              </>
+            ) : (
+              <strong className="none">None selected</strong>
             )}
-          </span>
-          {selectedEvent ? (
-            <>
-              <strong>
-                {selectedEvent.id} · {actorLabel(graph, selectedEvent.actor)} · {words(selectedEvent.action)}
-              </strong>
-              <span className="selection-meta">
-                <span className="mono">{eventTime(selectedEvent)}</span>
-                {timeBasisOf && <TimeBasisLabel basis={timeBasisOf(selectedEvent)} />}
-                {place && <> · {place}</>}
-              </span>
-            </>
-          ) : (
-            <strong className="none">None selected</strong>
-          )}
+          </div>
+          <div className="selection-nav">
+            <button
+              type="button"
+              className="button button--small"
+              aria-label="Previous event"
+              title="Previous event"
+              disabled={!nav.prev}
+              onClick={() => step(-1)}
+            >
+              <Icon name="chevronUp" size={14} />
+            </button>
+            <button
+              type="button"
+              className="button button--small"
+              aria-label="Next event"
+              title="Next event"
+              disabled={!nav.next}
+              onClick={() => step(1)}
+            >
+              <Icon name="chevron" size={14} />
+            </button>
+          </div>
         </div>
-        <div className="selection-nav">
-          <button
-            type="button"
-            className="button button--small"
-            aria-label="Previous event"
-            title="Previous event"
-            disabled={!nav.prev}
-            onClick={() => step(-1)}
-          >
-            <Icon name="chevronUp" size={14} />
-          </button>
-          <button
-            type="button"
-            className="button button--small"
-            aria-label="Next event"
-            title="Next event"
-            disabled={!nav.next}
-            onClick={() => step(1)}
-          >
-            <Icon name="chevron" size={14} />
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

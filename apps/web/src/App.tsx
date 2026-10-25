@@ -3,6 +3,7 @@ import { isCameraPreset, isLandmarkEditing, POV_CAM, Scene, Timeline, useCamera 
 import { RightPanel } from "./ui/RightPanel";
 import { TopBar } from "./ui/TopBar";
 import { ViewSwitcher } from "./ui/ViewSwitcher";
+import { useActorFocus } from "./ui/actorFocus";
 
 export function App() {
   const params = new URLSearchParams(window.location.search);
@@ -13,6 +14,7 @@ export function App() {
   const t = tParam !== null && Number.isFinite(Number(tParam)) ? Number(tParam) : undefined;
   const editing = isLandmarkEditing(window.location.search);
   const { setPreset, setFollowing } = useCamera();
+  const focusActor = useActorFocus((s) => s.actor);
 
   useEffect(() => {
     if (isCameraPreset(cam)) setPreset(cam);
@@ -28,7 +30,7 @@ export function App() {
             <Scene fixture={fixture} debug={debug} t={t} />
             <ViewSwitcher />
           </div>
-          {editing ? null : <Timeline />}
+          {editing ? null : <Timeline focusActor={focusActor} />}
         </div>
         <RightPanel />
       </div>

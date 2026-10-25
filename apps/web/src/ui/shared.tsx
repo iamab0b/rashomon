@@ -5,6 +5,7 @@ import { BASIS_LABELS, checkBasis, flagHeadline } from "./flagCopy";
 import { Icon } from "./Icon";
 import { placeName } from "./places";
 import { sourceNumber, type Utterance } from "./transcript";
+import type { ActorFocus, WitnessFilter } from "./witnessFilter";
 
 const STATUS_LABELS: Record<Status, string> = {
   plausible: "Plausible",
@@ -23,11 +24,16 @@ export type PanelContext = {
   playbackActive: ReadonlySet<string>;
   placeOf: (event: ResolvedEvent) => string | null;
   timeBasisOf: (event: ResolvedEvent) => TimeBasis;
+  witnessOf: (event: ResolvedEvent) => WitnessTag | null;
+  actorColorOf: (actorId: string) => string;
+  witnessFilter: WitnessFilter;
+  actorFocus: ActorFocus;
   playing: boolean;
   jumpTo: (eventId: string) => void;
   openOverride: (eventId: string) => void;
   openSource: (sourceId: string) => void;
   openHistory: (eventId: string) => void;
+  openStatement: (witnessId: string) => void;
   notify: (message: string) => void;
   transcript: readonly Utterance[] | null;
 };
@@ -36,8 +42,13 @@ export function words(value: string): string {
   return value.replace(/_/g, " ");
 }
 
+export function displayLabel(label: string): string {
+  const inner = /^witness \((.+)\)$/i.exec(label.trim())?.[1];
+  return inner ? inner.charAt(0).toUpperCase() + inner.slice(1) : label;
+}
+
 export function actorLabel(graph: ResolvedGraph, actorId: string): string {
-  return graph.actors.find((actor) => actor.id === actorId)?.label ?? actorId;
+  return displayLabel(graph.actors.find((actor) => actor.id === actorId)?.label ?? actorId);
 }
 
 export function eventTitle(event: ResolvedEvent): string {
@@ -160,11 +171,31 @@ export function PlaybackDot({ active, playing }: { active: boolean; playing: boo
   return <span className="playback-dot" role="img" aria-label={label} title={label} />;
 }
 
-export function SourceMeta({ sources, onOpen }: { sources: string[]; onOpen: (sourceId: string) => void }) {
+export type WitnessTag = { id: string; label: string; color: string };
+
+export function WitnessChip({ tag, suffix = "" }: { tag: WitnessTag; suffix?: string }) {
+  return (
+    <span className="witness-chip" data-witness-id={tag.id}>
+      <span className="witness-dot" style={{ background: tag.color }} aria-hidden />
+      {tag.label}
+      {suffix}
+    </span>
+  );
+}
+
+export function SourceMeta({
+  sources,
+  onOpen,
+  witness = null,
+}: {
+  sources: string[];
+  onOpen: (sourceId: string) => void;
+  witness?: WitnessTag | null;
+}) {
   if (sources.length === 0) return <span className="source-meta">Sources: none recorded</span>;
   return (
     <span className="source-meta">
-      Sources: Witness statement ·{" "}
+      Sources: {witness ? <WitnessChip tag={witness} suffix="’s statement" /> : "Witness statement"} ·{" "}
       {sources.map((id, i) => (
         <Fragment key={id}>
           {i > 0 && ", "}
@@ -195,7 +226,15 @@ export function FlagCard({
   onSelect,
   onOverride,
   onCopy,
+  sides = [],
+  facts = [],
+  sources = [],
+  onOpenSource,
 }: {
+  sides?: readonly { tag: WitnessTag; eventId: string }[];
+  facts?: readonly { label: string; value: string; raw?: boolean }[];
+  sources?: string[];
+  onOpenSource?: (sourceId: string) => void;
   flag: Flag;
   sceneId: string;
   eventLabel: string;
@@ -207,6 +246,7 @@ export function FlagCard({
   onOverride?: () => void;
   onCopy: (text: string) => void;
 }) {
+  const hasEvidence = Object.keys(flag.evidence).length > 0;
   return (
     <article
       className={`hard-flag${selected ? " selected" : ""}`}
@@ -217,6 +257,43 @@ export function FlagCard({
       onClick={onSelect}
       onKeyDown={activateOnKey(onSelect)}
     >
+      <div className="hard-flag__heading">
+        <div className="hard-flag__warning">
+          <Icon name="warning" size={16} />
+        </div>
+        <div className="flag-chips">
+          <span className="check-chip">{words(flag.check)}</span>
+          <span className={`severity-chip${flag.severity === "soft" ? " soft" : ""}`}>{flag.severity}</span>
+        </div>
+        <span className="view-in-scene" aria-hidden>
+          <Icon name="eye" size={13} />
+          View in scene
+        </span>
+      </div>
+      <h3>{flagHeadline(flag, (id) => placeName(sceneId, id))}</h3>
+      <span className="flag-basis">{BASIS_LABELS[checkBasis(flag.check)]}</span>
+      {sides.length > 1 && (
+        <p className="flag-witnesses">
+          <span>Accounts differ:</span>
+          {sides.map((side, i) => (
+            <Fragment key={side.eventId}>
+              {i > 0 && <span aria-hidden>vs</span>}
+              <WitnessChip tag={side.tag} />
+              <span className="mono">{side.eventId}</span>
+            </Fragment>
+          ))}
+        </p>
+      )}
+      {facts.length > 0 && (
+        <dl className="flag-facts">
+          {facts.map((fact) => (
+            <div key={fact.label} className={fact.raw ? "is-raw" : undefined}>
+              <dt>{fact.label}</dt>
+              <dd>{fact.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
       <div className="flag-event">
         <span className="flag-related">
           <span className="field-label">Related event</span>
@@ -227,25 +304,14 @@ export function FlagCard({
               <time className="mono">{eventTimeLabel}</time>
             </span>
           </span>
-        </span>
-        <span className="view-in-scene" aria-hidden>
-          <Icon name="eye" size={13} />
-          View in scene
+          {onOpenSource && sources.length > 0 && <SourceMeta sources={sources} onOpen={onOpenSource} />}
         </span>
       </div>
-      <div className="hard-flag__heading">
-        <div className="hard-flag__warning">
-          <Icon name="warning" size={16} />
-        </div>
-        <div className="flag-chips">
-          <span className="check-chip">{words(flag.check)}</span>
-          <span className={`severity-chip${flag.severity === "soft" ? " soft" : ""}`}>{flag.severity}</span>
-        </div>
-      </div>
-      <h3>{flagHeadline(flag, (id) => placeName(sceneId, id))}</h3>
-      <span className="flag-basis">{BASIS_LABELS[checkBasis(flag.check)]}</span>
-      <p className="hard-flag__detail">{flag.detail}</p>
-      {Object.keys(flag.evidence).length > 0 && <div className="flag-evidence mono">{formatEvidence(flag)}</div>}
+      <details className="flag-raw" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+        <summary>Raw evidence</summary>
+        <p className="hard-flag__detail">{flag.detail}</p>
+        {hasEvidence && <div className="flag-evidence mono">{formatEvidence(flag)}</div>}
+      </details>
       <div className="suggested-question">
         <span className="field-label">Suggested question</span>
         <blockquote>“{flag.suggestedQuestion}”</blockquote>
