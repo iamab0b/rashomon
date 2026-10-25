@@ -97,26 +97,35 @@ function skinVertexCount(mesh: Mesh, material: Material, start: number, count: n
   return skin;
 }
 
-export function findSkinMaterial(root: Object3D): Material | undefined {
-  const named: Material[] = [];
-  const skinVertices = new Map<Material, number>();
+function materialKey(material: Material): Material | string {
+  return material.name === "" ? material : material.name;
+}
+
+export function findSkinMaterials(root: Object3D): ReadonlySet<Material> {
+  const named = new Set<Material>();
+  const byKey = new Map<Material | string, Material[]>();
+  const skinVertices = new Map<Material | string, number>();
   root.traverse((object) => {
     if (!(object instanceof Mesh)) return;
     for (const { material, start, count } of vertexRanges(object)) {
-      if (SKIN_NAME.test(material.name) && !named.includes(material)) named.push(material);
-      skinVertices.set(material, (skinVertices.get(material) ?? 0) + skinVertexCount(object, material, start, count));
+      if (SKIN_NAME.test(material.name)) named.add(material);
+      const key = materialKey(material);
+      const group = byKey.get(key) ?? [];
+      if (!group.includes(material)) group.push(material);
+      byKey.set(key, group);
+      skinVertices.set(key, (skinVertices.get(key) ?? 0) + skinVertexCount(object, material, start, count));
     }
   });
-  if (named[0]) return named[0];
-  let skin: Material | undefined;
+  if (named.size > 0) return named;
+  let skin: Material | string | undefined;
   let most = 0;
-  for (const [material, vertices] of skinVertices) {
+  for (const [key, vertices] of skinVertices) {
     if (vertices > most) {
       most = vertices;
-      skin = material;
+      skin = key;
     }
   }
-  return skin;
+  return new Set(skin === undefined ? [] : byKey.get(skin));
 }
 
 export function tintClothing(root: Object3D, tint: string, owned: readonly Material[]): Material[] {
@@ -125,9 +134,9 @@ export function tintClothing(root: Object3D, tint: string, owned: readonly Mater
   eachMaterial(root, (material) => {
     if (ownedSet.has(material) && isColored(material)) all.add(material);
   });
-  const skin = findSkinMaterial(root);
-  const clothing = [...all].filter((material) => material !== skin);
-  const tinted = skin === undefined || clothing.length === 0 ? [...all] : clothing;
+  const skin = findSkinMaterials(root);
+  const clothing = [...all].filter((material) => !skin.has(material));
+  const tinted = skin.size === 0 || clothing.length === 0 ? [...all] : clothing;
   const factor = new Color(tint);
   for (const material of tinted) (material as Colored).color.multiply(factor);
   return tinted;

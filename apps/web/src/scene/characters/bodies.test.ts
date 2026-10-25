@@ -1,5 +1,6 @@
 import { robberyGraph } from "@rashomon/schema/fixtures";
 import {
+  AnimationClip,
   Bone,
   BoxGeometry,
   Color,
@@ -10,6 +11,8 @@ import {
   Skeleton,
   SkinnedMesh,
   Uint16BufferAttribute,
+  VectorKeyframeTrack,
+  QuaternionKeyframeTrack,
   type Material,
 } from "three";
 import { describe, expect, test, vi } from "vitest";
@@ -24,7 +27,9 @@ import {
   type LookLoaders,
 } from "./bodies";
 import { instantiate } from "./Character";
-import { disposeMaterials, findSkinMaterial, ownMaterials, tintClothing } from "./materials";
+import { bodyMotion, clipForBody, clipRestHipsY } from "./bodyMotion";
+import { HIPS_POSITION_TRACK } from "./clips";
+import { disposeMaterials, findSkinMaterials, ownMaterials, tintClothing } from "./materials";
 import { measureRig } from "./measureRig";
 import { MIXAMO_UNIT_SCALE } from "./rigs";
 
@@ -176,15 +181,39 @@ describe("clothing tint", () => {
     skin.color.set("#3060c0");
     shirt.color.set("#d9a07a");
     shirt.name = "Body";
-    expect(findSkinMaterial(root)).toBe(shirt);
+    expect([...findSkinMaterials(root)]).toEqual([shirt]);
   });
 
   test("with no skin found every material is tinted", () => {
     const { root, skin } = synthetic(180);
     skin.color.set("#20a040");
     const owned = ownMaterials(root);
-    expect(findSkinMaterial(root)).toBeUndefined();
+    expect(findSkinMaterials(root).size).toBe(0);
     expect(tintClothing(root, "#808080", owned)).toHaveLength(2);
+  });
+
+  test("skin split across meshes keeps every one of its owned clones untinted", () => {
+    const { root, skin, shirt } = synthetic(180);
+    const hands = new Mesh(new BoxGeometry(10, 10, 10), skin);
+    const face = new Mesh(new BoxGeometry(10, 10, 10), skin);
+    root.add(hands, face);
+    const owned = ownMaterials(root);
+    const tinted = tintClothing(root, "#b22222", owned);
+    const skinClones = owned.filter((material) => material.name === skin.name);
+    expect(skinClones).toHaveLength(3);
+    for (const clone of skinClones) expect(colorOf(clone)).toBe(new Color("#d9a07a").getHexString());
+    expect(tinted.map((material) => material.name)).toEqual([shirt.name]);
+  });
+
+  test("named skin split across meshes is all excluded too", () => {
+    const { root, skin } = synthetic(180);
+    skin.name = "Skin";
+    root.add(new Mesh(new BoxGeometry(10, 10, 10), skin));
+    const owned = ownMaterials(root);
+    tintClothing(root, "#b22222", owned);
+    for (const clone of owned.filter((material) => material.name === "Skin")) {
+      expect(colorOf(clone)).toBe(new Color("#d9a07a").getHexString());
+    }
   });
 
   test("instantiate tints a body's clothing and keeps the tinted clones in the owned list", () => {
@@ -220,5 +249,40 @@ describe("the robbery fixture has no body fields", () => {
     expect(
       actorLook("mixamo_ybot", { id: "a", label: "A", role: "other", rig: "mixamo_ybot", body: "heavy_tall", heightM: 1.88, tint: "#b22222" }),
     ).toEqual({ rig: "mixamo_ybot", body: "heavy_tall", heightM: 1.88, tint: "#b22222" });
+  });
+});
+
+describe("a body's motion matches its own legs", () => {
+  const hipsTrack = (y: number) => new VectorKeyframeTrack(HIPS_POSITION_TRACK, [0, 1], [0, y, 0, 0, y - 4, 0]);
+  const idle = (y: number) =>
+    new AnimationClip("clip_idle", 1, [hipsTrack(y), new QuaternionKeyframeTrack("mixamorigSpine.quaternion", [0], [0, 0, 0, 1])]);
+
+  test("a body's hips height follows its rest hips over the clip's, and its stride follows the hips and the height scale", () => {
+    const source = synthetic(BODY_SPECS.heavy_short.baseHeightM * CM_PER_M).root;
+    const hips = source.getObjectByName("mixamorigHips")!;
+    hips.position.y = 90;
+    const handle = instantiate({ rig: "mixamo_ybot", body: "heavy_short", heightM: 1.5 }, { source, body: "heavy_short" });
+    const motion = bodyMotion(handle, clipRestHipsY(idle(100)));
+    expect(motion.hipsRatio).toBeCloseTo(0.9, 9);
+    expect(motion.strideScale).toBeCloseTo(0.9 * (1.5 / BODY_SPECS.heavy_short.baseHeightM), 9);
+  });
+
+  test("the scaled clip changes only the hips height track, keeps the zeroed X and Z, and is reused", () => {
+    const clip = idle(100);
+    const scaled = clipForBody(clip, 0.9);
+    const values = Array.from(scaled.tracks[0]!.values);
+    expect(values[0]).toBe(0);
+    expect(values[1]).toBeCloseTo(90, 4);
+    expect(values[2]).toBe(0);
+    expect(values[4]).toBeCloseTo(86.4, 4);
+    expect(scaled.tracks[1]).toBe(clip.tracks[1]);
+    expect(Array.from(clip.tracks[0]!.values)[1]).toBe(100);
+    expect(clipForBody(clip, 0.9)).toBe(scaled);
+    expect(clipForBody(clip, 1)).toBe(clip);
+  });
+
+  test("a rig without a body keeps the clips and stride exactly as they are", () => {
+    const handle = instantiate({ rig: "mixamo_ybot", heightM: 1.9 }, { source: rigSource(), body: undefined });
+    expect(bodyMotion(handle, clipRestHipsY(idle(100)))).toEqual({ hipsRatio: 1, strideScale: 1 });
   });
 });

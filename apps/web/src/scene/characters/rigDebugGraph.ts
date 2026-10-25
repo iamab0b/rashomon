@@ -90,9 +90,14 @@ const BODY_PARAM = "body";
 const BODY_FILE_PREFIX = "body_";
 const ALL_BODIES = "all";
 const SINGLE_BODY_POSITION = [7, 0, 3] as const;
-const BODY_ROW_X = 1.5;
-const BODY_ROW_STEP_X = 1.3;
-const BODY_ROW_Z = 5;
+const BODY_ROW_POSITIONS: readonly (readonly [number, number, number])[] = [
+  [1.5, 0, 5],
+  [2.8, 0, 5],
+  [4.1, 0, 5],
+  [5.4, 0, 5],
+  [6.7, 0, 5],
+  [8, 0, 5],
+];
 
 export type RigDebugBodies = { readonly bodies: readonly ActorBody[]; readonly unknown?: string };
 
@@ -112,7 +117,7 @@ export function rigDebugActors(bodies: readonly ActorBody[]): readonly DebugActo
         id: `debug_${body}`,
         rig: "mixamo_ybot",
         body,
-        position: bodies.length === 1 ? SINGLE_BODY_POSITION : [BODY_ROW_X + index * BODY_ROW_STEP_X, 0, BODY_ROW_Z],
+        position: bodies.length === 1 ? SINGLE_BODY_POSITION : BODY_ROW_POSITIONS[index] ?? SINGLE_BODY_POSITION,
       }),
     ),
   ];

@@ -18,6 +18,8 @@ export type CharacterHandle = {
   rig: Rig;
   body: ActorBody | undefined;
   name: string;
+  scale: number;
+  restHipsY: number | undefined;
   root: Object3D;
   skinnedMeshes: readonly SkinnedMesh[];
   mixer: AnimationMixer;
@@ -35,7 +37,8 @@ type Props = {
 export function instantiate(look: CharacterLook, loaded: LoadedLook): CharacterHandle {
   const name = loaded.body ?? look.rig;
   const root = cloneSkinned(loaded.source);
-  root.scale.setScalar(MIXAMO_UNIT_SCALE * bodyScale(loaded.body, look.heightM));
+  const scale = bodyScale(loaded.body, look.heightM);
+  root.scale.setScalar(MIXAMO_UNIT_SCALE * scale);
   const ownedMaterials = ownMaterials(root);
   if (look.tint !== undefined) tintClothing(root, look.tint, ownedMaterials);
   root.traverse((object) => {
@@ -45,14 +48,17 @@ export function instantiate(look: CharacterLook, loaded: LoadedLook): CharacterH
   const skinnedMeshes = findSkinnedMeshes(root);
   const mixerRoot = findPrimarySkinnedMesh(skinnedMeshes);
   if (!mixerRoot) throw new Error(`rig ${name} has no SkinnedMesh with a primary skeleton`);
+  const hips = findHipBone(mixerRoot);
   return {
     rig: look.rig,
     body: loaded.body,
     name,
+    scale,
+    restHipsY: hips?.position.y,
     root,
     skinnedMeshes,
     mixer: new AnimationMixer(mixerRoot),
-    hips: findHipBone(mixerRoot),
+    hips,
     rightHand: findRightHand(mixerRoot),
     ownedMaterials,
   };

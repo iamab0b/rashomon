@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { MeshBasicMaterial, type Group } from "three";
 import { IDLE_CLIP } from "../characters/actionMap";
 import type { CharacterLook } from "../characters/bodies";
+import { bodyMotion, clipForBody, clipRestHipsY } from "../characters/bodyMotion";
 import { useCharacter } from "../characters/Character";
 import { getClip, loadClips } from "../characters/clips";
 import { replaceMaterials } from "../characters/materials";
@@ -63,7 +64,7 @@ export function Ghost({ event, look, positionOf, onReady, readyId, color = GHOST
         if (cancelled) return;
         const idle = getClip(IDLE_CLIP);
         if (idle) {
-          const action = handle.mixer.clipAction(idle);
+          const action = handle.mixer.clipAction(clipForBody(idle, bodyMotion(handle, clipRestHipsY(idle)).hipsRatio));
           action.play();
           action.time = 0;
           handle.mixer.update(0);
