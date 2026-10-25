@@ -11,3 +11,8 @@ Done-check:
 - `pnpm -F web typecheck` and `pnpm -F web test` pass, with tests for items 1 to 3.
 - `git grep -n "not applied by the gate" apps/web/src/ui` shows item 2.
 - Greptile is not running; do not wait for it. The leader reviews and merges.
+
+
+## After the 1:30 AM cutoff (Sahil, Sat 11:58 PM): a contradiction flag once, naming both events
+
+When two events contradict each other (for example e3 and e5, the witness 3.9 m apart at t=10.5), the Flags tab shows the same contradiction once per event. Show it once, as one card naming both events, with both selectable. The flag ids and evidence come from the gate as now; group by the pair of event ids in the UI. This is a polish item for after the freeze; no change before it.

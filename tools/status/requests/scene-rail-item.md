@@ -25,3 +25,16 @@ Scene now draws `SceneTools` itself, in the top-right of the canvas, unless the 
 ```
 
 Without it the panels would show twice (rail and canvas). The prop is optional and defaults to false; the scene index exports nothing new for it.
+
+## PR #57 round 2 (one fix before merge)
+
+1ae4db3: the rail item itself is right. "Scene" view with its icon, SceneTools from the scene index, the button only while useSceneToolsAvailable() is true, the default rail unchanged, the stale view closing itself, Escape and focus, tests. One CRITICAL from the leader's Opus review. New commits on scene-rail; no force-push.
+
+1. **CRITICAL, `sceneToolsHosted` is always true** (App.tsx:30), but the drawer exists only once a graph has resolved: RightPanel returns early without ContextDrawer (RightPanel.tsx:124-142). `?edit=landmarks` is graphless by design (scene labeling/storage.ts:80-83, Scene.tsx:330 and 362). So the labeling panel and the scan panel would show neither on the canvas nor in the drawer, and the labeling tool is unusable. The same happens for `?manifest=` without a scene, while a graph loads, and after a graph error.
+   - Fix: pass `sceneToolsHosted` as true only when the drawer is actually mounted, for example `sceneToolsHosted={resolved !== null}` from the same useGraph() value RightPanel uses, or lift that condition next to RightPanel's early return.
+2. **HIGH, no test of the handoff.** Add App-level tests:
+   - `?edit=landmarks` (graphless): the labeling panel renders, on the canvas;
+   - with a resolved graph and a scan: the canvas overlay is gone and the Scene drawer has SceneTools;
+   - never both and never neither.
+
+The leader re-reviews the push; #57 merges after #47.

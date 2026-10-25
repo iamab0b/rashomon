@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { ResolvedEvent } from "../scene";
 import { versionChain, versionChanges } from "./history";
 import { OverrideHistory } from "./OverrideHistory";
+import { scrollWithin } from "./scrollWithin";
 import {
   actorLabel,
   eventTime,
@@ -27,7 +28,7 @@ export function HistoryTab({
   const focusOverride = event !== null && overrideFocusId === event.id;
 
   useEffect(() => {
-    if (focusOverride) focusRef.current?.scrollIntoView({ block: "nearest" });
+    if (focusOverride) scrollWithin(focusRef.current);
   }, [focusOverride]);
 
   if (!event) {

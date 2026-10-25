@@ -1,6 +1,25 @@
 import type { Flag, ResolvedEvent, ResolvedGraph, StatementStatus } from "../scene";
 
 export const DEFAULT_WITNESS_NAME = "Witness";
+export const NEW_WITNESS = "__new";
+
+export type WitnessOption = { id: string; label: string };
+
+export function fixtureWitness(options: readonly WitnessOption[], live: boolean): string | null {
+  return live ? null : (options[0]?.id ?? null);
+}
+
+export function chosenWitness(options: readonly WitnessOption[], choice: string | null, onlyWitness: string | null = null): string {
+  if (onlyWitness !== null && options.length > 0) return onlyWitness;
+  if (options.length === 0) return choice ?? DEFAULT_WITNESS_NAME;
+  if (choice === NEW_WITNESS || options.some((o) => o.id === choice)) return choice!;
+  return options[0]!.id;
+}
+
+export function witnessToSend(options: readonly WitnessOption[], choice: string, newName: string): string {
+  if (options.length > 0 && choice !== NEW_WITNESS && options.some((o) => o.id === choice)) return choice;
+  return newName.trim() || DEFAULT_WITNESS_NAME;
+}
 export const SLOW_AFTER_MS = 30_000;
 export const VOICE_INTERVIEW_ENABLED = false;
 
@@ -36,6 +55,7 @@ export type StatementRun = {
   error: string | null;
   result: StatementResult | null;
   resent: boolean | null;
+  source: string;
 };
 
 function signature(event: ResolvedEvent): string {
@@ -101,18 +121,24 @@ export function addedLabel(patchCount: number | undefined, outcome: StatementOut
 
 const finished = new Map<string, StatementResult>();
 
-export function rememberResult(segmentId: string, result: StatementResult): void {
-  finished.set(segmentId, result);
+export function sourceKey(mode: string, sceneId: string | undefined): string {
+  return `${mode}:${sceneId ?? ""}`;
 }
 
-export function isResend(segmentId: string, firstStatus: StatementStatus | null): boolean {
-  return finished.has(segmentId) || (firstStatus?.state === "done" && firstStatus.patchCount !== undefined);
+const resultKey = (source: string, segmentId: string) => `${source}|${segmentId}`;
+
+export function rememberResult(source: string, segmentId: string, result: StatementResult): void {
+  finished.set(resultKey(source, segmentId), result);
+}
+
+export function isResend(source: string, segmentId: string, statusBeforeSubmit: StatementStatus | null): boolean {
+  return finished.has(resultKey(source, segmentId)) || (statusBeforeSubmit?.state === "done" && statusBeforeSubmit.patchCount !== undefined);
 }
 
 const NO_OUTCOME: StatementOutcome = { added: [], changed: [], props: [], flags: [] };
 
-export function alreadyAddedResult(segmentId: string, status: StatementStatus | null): StatementResult {
-  const saved = finished.get(segmentId);
+export function alreadyAddedResult(source: string, segmentId: string, status: StatementStatus | null): StatementResult {
+  const saved = finished.get(resultKey(source, segmentId));
   if (saved) {
     const n = saved.outcome.added.length + saved.outcome.changed.length;
     return { ...saved, label: n > 0 ? `Already added: ${plural(n, "event")}` : `Already added: ${saved.label}` };
@@ -153,7 +179,7 @@ export function statementView(
   if (run.error) return isEditorRefusal(run.error) ? { kind: "refused", identity } : { kind: "failed", error: run.error };
   if (run.result) return { kind: "done", ...run.result };
   if (status?.state === "failed") return { kind: "failed", error: status.error ?? "Extraction failed." };
-  if (run.segmentId && run.resent) return { kind: "done", ...alreadyAddedResult(run.segmentId, status) };
+  if (run.segmentId && run.resent) return { kind: "done", ...alreadyAddedResult(run.source, run.segmentId, status) };
   const result = run.segmentId && run.resent === false ? resultOf(run.baseline, status, graph, live) : null;
   return result ? { kind: "done", ...result } : { kind: "extracting", sent: run.sent, slow };
 }

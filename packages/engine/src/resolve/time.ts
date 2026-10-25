@@ -1,4 +1,5 @@
 import type { Action } from "@rashomon/schema";
+import { RUN_MAX_MS, WALK_MAX_MS } from "../gate/timeDistance";
 
 export const WALK_SPEED_MS = 1.4;
 export const RUN_SPEED_MS = 4;
@@ -30,6 +31,14 @@ export function durationFor(action: Action, distanceM: number): number {
   if (action === "walk") return distanceM / WALK_SPEED_MS;
   if (action === "run") return distanceM / RUN_SPEED_MS;
   return FIXED_DURATION_S[action];
+}
+
+const MAX_SPEED_MS: Partial<Record<Action, number>> = { walk: WALK_MAX_MS, run: RUN_MAX_MS };
+
+export function overSpeedLimit(action: Action, pathLengthM: number, seconds: number): boolean {
+  const limit = MAX_SPEED_MS[action];
+  if (limit === undefined || pathLengthM <= 0) return false;
+  return seconds <= 0 || pathLengthM / seconds > limit;
 }
 
 export const hasInterval = (t: unknown): t is [number, number] =>

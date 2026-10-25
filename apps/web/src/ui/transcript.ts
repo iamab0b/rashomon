@@ -1,17 +1,32 @@
 import robberyTranscript from "../../../../packages/extractor/fixtures/robbery.transcript.json";
-import { storeScene } from "@rashomon/schema/fixtures";
+import { robberyClerkSegment, robberyClerkWitness, robberyGraph, storeScene } from "@rashomon/schema/fixtures";
 import type { ResolvedEvent } from "../scene";
 import type { GraphMode } from "./graphMode";
 import { inDisplayOrder } from "./playback";
 
-export type Utterance = { id: string; speaker: string; text: string };
+export type Utterance = { id: string; speaker: string; text: string; witnessId?: string };
+
+const FIRST_WITNESS = robberyGraph.witnesses?.[0]?.id;
 
 const FIXTURE_TRANSCRIPTS: Record<string, readonly Utterance[]> = {
-  [storeScene.sceneId]: robberyTranscript,
+  [storeScene.sceneId]: robberyTranscript.map((u) => (FIRST_WITNESS && u.speaker === "witness" ? { ...u, witnessId: FIRST_WITNESS } : u)),
 };
 
-export function transcriptFor(mode: GraphMode, sceneId: string): readonly Utterance[] | null {
-  return mode === "fixture" ? (FIXTURE_TRANSCRIPTS[sceneId] ?? null) : null;
+const FIXTURE_EXTRA_STATEMENTS: Record<string, readonly { witnessId: string; utterances: readonly Utterance[] }[]> = {
+  [storeScene.sceneId]: [
+    {
+      witnessId: robberyClerkWitness.id,
+      utterances: robberyClerkSegment.utterances.map((u) => ({ id: u.id, speaker: robberyClerkSegment.speaker, text: u.text, witnessId: robberyClerkWitness.id })),
+    },
+  ],
+};
+
+export function transcriptFor(mode: GraphMode, sceneId: string, witnessIds: readonly string[] = []): readonly Utterance[] | null {
+  if (mode !== "fixture") return null;
+  const base = FIXTURE_TRANSCRIPTS[sceneId];
+  if (!base) return null;
+  const extra = (FIXTURE_EXTRA_STATEMENTS[sceneId] ?? []).filter((s) => witnessIds.includes(s.witnessId)).flatMap((s) => s.utterances);
+  return extra.length > 0 ? [...base, ...extra] : base;
 }
 
 export function sourceNumber(id: string): string {

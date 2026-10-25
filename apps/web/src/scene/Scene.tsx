@@ -33,6 +33,7 @@ import {
 import { beginSceneLoad, meshKeyOf } from "./loaders/sceneLoad";
 import { isKnownFixture, loadManifest, loadScene, loadSceneFromManifest, type LoadedScene } from "./loaders/scene";
 import { loadScan, storeDroppedScan, type LoadedScan } from "./loaders/scan";
+import { ROOM_FIXTURE, ROOM_MISSING_NOTE } from "./loaders/roomFixture";
 import { useScanAlignStore } from "./loaders/scanAlignStore";
 import { ScanDropHint } from "./loaders/ScanDropHint";
 import { useScanToolsStore } from "./loaders/scanToolsStore";
@@ -75,6 +76,18 @@ const toolsOverlayStyle = {
   maxHeight: "calc(100% - 16px)",
   overflowY: "auto",
   zIndex: 21,
+} as const;
+
+const roomNoteStyle = {
+  position: "absolute",
+  left: 8,
+  top: 8,
+  padding: "4px 8px",
+  background: "rgba(11, 13, 16, 0.88)",
+  color: "#c9d1d9",
+  font: "12px/1.5 system-ui, sans-serif",
+  borderRadius: 4,
+  zIndex: 20,
 } as const;
 
 const RIG_DEBUG = "rig";
@@ -409,6 +422,7 @@ export function Scene({ fixture, debug, t, sceneToolsHosted = false }: SceneProp
           <>
             <primitive object={loaded.model} onClick={scan && aligning ? onAlignClick : undefined} />
             {scan ? <FrameObject object={scan.model} frameKey={frameKey} /> : null}
+            {!scan && fixture === ROOM_FIXTURE ? <FrameObject object={loaded.model} frameKey={1} /> : null}
             {loaded.isPlaceholder && fixture === STORE_FIXTURE && !editing && savedManifest === null ? (
               <Dressing manifest={loaded.manifest} placeholder={loaded.model} />
             ) : null}
@@ -426,6 +440,11 @@ export function Scene({ fixture, debug, t, sceneToolsHosted = false }: SceneProp
         ) : null}
       </Canvas>
       {loaded ? <LabelLayer landmarks={shownLandmarks} /> : null}
+      {loaded?.isPlaceholder && fixture === ROOM_FIXTURE ? (
+        <div style={roomNoteStyle} data-room-missing="">
+          {ROOM_MISSING_NOTE}
+        </div>
+      ) : null}
       {isRigDebug ? <RigReportPanel /> : null}
       {!sceneToolsHosted && toolsAvailable ? (
         <div style={toolsOverlayStyle} data-scene-tools-overlay="">

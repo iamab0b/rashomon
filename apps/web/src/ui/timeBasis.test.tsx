@@ -5,6 +5,7 @@ import { EventsTab } from "./EventsTab";
 import { PanelHeader } from "./PanelHeader";
 import { timeBasis, type PanelContext } from "./shared";
 import { gatedRobbery } from "./testGraph";
+import { NO_ACTOR_FOCUS, NO_WITNESS_FILTER } from "./witnessFilter";
 
 function context(): PanelContext {
   return {
@@ -16,11 +17,16 @@ function context(): PanelContext {
     playbackActive: new Set(),
     placeOf: () => null,
     timeBasisOf: (event) => timeBasis(robberyGraph, event),
+    witnessOf: () => null,
+    actorColorOf: () => "#c58bff",
+    witnessFilter: NO_WITNESS_FILTER,
+    actorFocus: NO_ACTOR_FOCUS,
     playing: false,
     jumpTo: () => {},
     openOverride: () => {},
     openSource: () => {},
     openHistory: () => {},
+    openStatement: () => {},
     notify: () => {},
     transcript: null,
   };

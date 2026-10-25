@@ -1,20 +1,34 @@
 import { useEffect, useState, type KeyboardEvent } from "react";
-import { modeFromSearch, useGraphActions, useLiveIdentity, useStatementStatus, type ResolvedEvent, type ResolvedGraph } from "../scene";
+import {
+  modeFromSearch,
+  useGraphActions,
+  useLiveIdentity,
+  useStatementStatus,
+  useStatementStatuses,
+  useWitnessLayers,
+  type ResolvedEvent,
+  type ResolvedGraph,
+} from "../scene";
 import { flagHeadline } from "./flagCopy";
 import { placeName } from "./places";
 import { actorLabel, StatusToken, words } from "./shared";
 import {
   baselineOf,
-  DEFAULT_WITNESS_NAME,
   isResend,
+  chosenWitness,
+  fixtureWitness,
+  NEW_WITNESS,
   noteStatementRejection,
+  witnessToSend,
   rememberResult,
+  sourceKey,
   resultOf,
   SLOW_AFTER_MS,
   statementView,
   voiceInterviewEnabled,
   type StatementRun,
   type StatementView,
+  type WitnessOption,
 } from "./statement";
 import "./statement-section.css";
 
@@ -24,6 +38,10 @@ export type CopyState = "idle" | "copied" | "manual";
 export type StatementSectionViewProps = {
   graph: ResolvedGraph | null;
   witness: string;
+  witnesses?: readonly WitnessOption[];
+  onlyWitness?: string | null;
+  newWitnessName?: string;
+  onNewWitnessName?: (value: string) => void;
   text: string;
   view: StatementView;
   voiceEnabled: boolean;
@@ -56,6 +74,10 @@ function EventRow({ graph, event, kind, onSelect }: { graph: ResolvedGraph | nul
 export function StatementSectionView({
   graph,
   witness,
+  witnesses = [],
+  onlyWitness = null,
+  newWitnessName = "",
+  onNewWitnessName = () => {},
   text,
   view,
   voiceEnabled,
@@ -78,10 +100,45 @@ export function StatementSectionView({
         <h2>Add what the witness said</h2>
       </div>
 
-      <label className="statement-field">
-        <span className="field-label">Witness</span>
-        <input value={witness} onChange={(e) => onWitness(e.currentTarget.value)} onKeyDown={stopKeys} />
-      </label>
+      {witnesses.length > 0 ? (
+        <>
+          <label className="statement-field">
+            <span className="field-label">Witness</span>
+            <select value={witness} onChange={(e) => onWitness(e.currentTarget.value)} onKeyDown={stopKeys}>
+              {witnesses.map((w) => (
+                <option key={w.id} value={w.id} disabled={onlyWitness !== null && w.id !== onlyWitness}>
+                  {w.label}
+                </option>
+              ))}
+              <option value={NEW_WITNESS} disabled={onlyWitness !== null}>
+                New witness…
+              </option>
+            </select>
+          </label>
+          {onlyWitness !== null && (
+            <p className="statement-note">
+              Fixture data adds every statement to {witnesses.find((w) => w.id === onlyWitness)?.label ?? "the first witness"}. Other witnesses can be
+              chosen in a live session.
+            </p>
+          )}
+          {witness === NEW_WITNESS && (
+            <label className="statement-field">
+              <span className="field-label">New witness name</span>
+              <input
+                value={newWitnessName}
+                placeholder="e.g. Passer-by"
+                onChange={(e) => onNewWitnessName(e.currentTarget.value)}
+                onKeyDown={stopKeys}
+              />
+            </label>
+          )}
+        </>
+      ) : (
+        <label className="statement-field">
+          <span className="field-label">Witness</span>
+          <input value={witness} onChange={(e) => onWitness(e.currentTarget.value)} onKeyDown={stopKeys} />
+        </label>
+      )}
 
       <label className="statement-field">
         <span className="field-label">Statement</span>
@@ -181,29 +238,39 @@ export function StatementSectionView({
 
 const messageOf = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
-export function StatementSection({ graph, onSelect }: { graph: ResolvedGraph | null; onSelect: (eventId: string) => void }) {
+export function StatementSection({
+  graph,
+  onSelect,
+  preferredWitness = null,
+}: {
+  graph: ResolvedGraph | null;
+  onSelect: (eventId: string) => void;
+  preferredWitness?: { id: string; nonce: number } | null;
+}) {
   const { submitStatement: submit } = useGraphActions();
   const identity = useLiveIdentity();
-  const [witness, setWitness] = useState(DEFAULT_WITNESS_NAME);
+  const { witnesses: layers } = useWitnessLayers();
+  const witnesses: WitnessOption[] = layers.map((w) => ({ id: w.id, label: w.label }));
+  const [choice, setChoice] = useState<string | null>(null);
+  const [newWitnessName, setNewWitnessName] = useState("");
+  const live = typeof window !== "undefined" && modeFromSearch(window.location.search) === "live";
+  const onlyWitness = fixtureWitness(witnesses, live);
+  const witness = chosenWitness(witnesses, choice, onlyWitness);
+  useEffect(() => {
+    if (preferredWitness) setChoice(preferredWitness.id);
+  }, [preferredWitness]);
   const [text, setText] = useState("");
   const [run, setRun] = useState<StatementRun | null>(null);
   const [slow, setSlow] = useState(false);
   const [copyState, setCopyState] = useState<CopyState>("idle");
   const status = useStatementStatus(run?.segmentId ?? null);
-  const live = typeof window !== "undefined" && modeFromSearch(window.location.search) === "live";
+  const statuses = useStatementStatuses();
   const view = statementView(run, status, graph, identity, slow, live);
-
-  const firstStatus = run?.segmentId && run.resent === null ? status : null;
-  useEffect(() => {
-    if (!firstStatus || !run?.segmentId) return;
-    const resent = isResend(run.segmentId, firstStatus);
-    setRun((current) => (current && current.resent === null ? { ...current, resent } : current));
-  }, [firstStatus, run?.segmentId]);
 
   const ready = run && !run.result && !run.error && run.segmentId && run.resent === false ? resultOf(run.baseline, status, graph, live) : null;
   useEffect(() => {
     if (!ready || !run?.segmentId) return;
-    rememberResult(run.segmentId, ready);
+    rememberResult(run.source, run.segmentId, ready);
     setRun((current) => (current && !current.result && current.segmentId === run.segmentId ? { ...current, result: ready } : current));
   }, [ready, run?.segmentId]);
 
@@ -223,7 +290,9 @@ export function StatementSection({ graph, onSelect }: { graph: ResolvedGraph | n
   const onSubmit = () => {
     if (!text.trim() || extracting) return;
     const sent = text;
-    const fresh: StatementRun = { sent, baseline: baselineOf(graph), segmentId: null, error: null, result: null, resent: null };
+    const source = sourceKey(live ? "live" : "fixture", graph?.sceneId);
+    const before = statuses;
+    const fresh: StatementRun = { sent, baseline: baselineOf(graph), segmentId: null, error: null, result: null, resent: null, source };
     setRun(fresh);
     setCopyState("idle");
     const fail = (err: unknown) => {
@@ -232,11 +301,15 @@ export function StatementSection({ graph, onSelect }: { graph: ResolvedGraph | n
       setRun((current) => (current === fresh || current?.sent === sent ? { ...fresh, error } : current));
     };
     try {
-      submit(sent, witness.trim() || DEFAULT_WITNESS_NAME).then(
-        ({ segmentId, baseVersion }) =>
+      submit(sent, witnessToSend(witnesses, witness, witnesses.length > 0 ? newWitnessName : witness)).then(
+        ({ segmentId, baseVersion }) => {
+          const resent = isResend(source, segmentId, before[segmentId] ?? null);
           setRun((current) =>
-            current?.sent === sent && !current.error ? { ...current, segmentId, baseline: { ...current.baseline, version: baseVersion } } : current,
-          ),
+            current?.sent === sent && !current.error
+              ? { ...current, segmentId, resent, baseline: { ...current.baseline, version: baseVersion } }
+              : current,
+          );
+        },
         fail,
       );
     } catch (err) {
@@ -257,10 +330,14 @@ export function StatementSection({ graph, onSelect }: { graph: ResolvedGraph | n
     <StatementSectionView
       graph={graph}
       witness={witness}
+      witnesses={witnesses}
+      onlyWitness={onlyWitness}
+      newWitnessName={newWitnessName}
+      onNewWitnessName={setNewWitnessName}
       text={text}
       view={view}
       voiceEnabled={voiceInterviewEnabled(typeof window === "undefined" ? "" : window.location.search)}
-      onWitness={setWitness}
+      onWitness={setChoice}
       onText={setText}
       onSubmit={onSubmit}
       onSelect={onSelect}

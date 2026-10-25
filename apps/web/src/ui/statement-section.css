@@ -3,11 +3,14 @@
 .rui .statement-field { display: grid; gap: 4px; }
 .rui .statement-field .field-label { margin: 0; }
 .rui .statement-field input,
+.rui .statement-field select,
 .rui .statement-field textarea { width: 100%; color: var(--text-primary); border: 1px solid var(--border); border-radius: 3px; background: var(--surface); font: var(--fs-md)/1.45 inherit; font-family: inherit; }
 .rui .statement-field input { height: 30px; padding: 0 9px; }
+.rui .statement-field select { height: 30px; padding: 0 28px 0 9px; color-scheme: dark; cursor: pointer; }
 .rui .statement-field textarea { min-height: 96px; padding: 8px 9px; resize: vertical; }
 .rui .statement-field textarea.is-sent { color: var(--text-secondary); }
 .rui .statement-field input:focus,
+.rui .statement-field select:focus,
 .rui .statement-field textarea:focus { outline: 0; border-color: var(--text-secondary); box-shadow: 0 0 0 1px var(--text-secondary); }
 .rui .statement-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .rui .statement-actions .button:disabled { opacity: .45; cursor: default; }
