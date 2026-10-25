@@ -7,6 +7,7 @@ import type {
   ModelMessage,
   ToolUseBlock,
 } from "./types";
+import { completeRelocation } from "./relocation";
 import { validateToolUses } from "./validate";
 
 export type ExtractOptions = {
@@ -79,5 +80,12 @@ export async function extractSegment(
     });
   }
 
-  return { segmentId: segment.id, patches, unparsed, attempts };
+  const completed = completeRelocation(patches, segment, base);
+  return {
+    segmentId: segment.id,
+    patches: completed.patches,
+    unparsed,
+    attempts,
+    ...(completed.notes.length > 0 ? { notes: completed.notes } : {}),
+  };
 }
