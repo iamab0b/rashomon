@@ -12,6 +12,7 @@ import {
   alreadyAddedResult,
   isResend,
   rememberResult,
+  sourceKey,
   resultOf,
   statementView,
   voiceInterviewEnabled,
@@ -20,6 +21,7 @@ import {
 import { StatementSectionView, type StatementSectionViewProps, type StatementView } from "./StatementSection";
 import { gatedRobbery } from "./testGraph";
 
+const SRC = "fixture:store_v1";
 const CORRECTION = "Oh. No, you're right, I'd stepped out. I came to the front by the window to see what was going on. I saw him from there.";
 
 async function submitOnFixture(text: string) {
@@ -175,13 +177,13 @@ describe("statement section", () => {
   test("the controller shows extracting, then a result that a later change does not alter", async () => {
     const source = selectSource("") as FixtureGraphSource;
     const before = source.getSnapshot().resolved;
-    let run: StatementRun = { sent: CORRECTION, baseline: baselineOf(before), segmentId: null, error: null, result: null, resent: null };
+    let run: StatementRun = { sent: CORRECTION, baseline: baselineOf(before), segmentId: null, error: null, result: null, resent: null, source: SRC };
     expect(statementView(run, null, before, null, false).kind).toBe("extracting");
 
     const { segmentId, baseVersion } = await source.submitStatement(CORRECTION, "Witness");
     run = { ...run, segmentId, baseline: { ...run.baseline, version: baseVersion } };
     expect(source.statementStatuses()[segmentId]?.state).toBe("extracting");
-    run = { ...run, resent: false };
+    run = { ...run, resent: false, source: SRC };
     expect(statementView(run, source.statementStatuses()[segmentId] ?? null, source.getSnapshot().resolved, null, false).kind).toBe("extracting");
     await vi.waitFor(() => expect(source.statementStatuses()[segmentId]?.state).toBe("done"));
 
@@ -201,7 +203,7 @@ describe("statement section", () => {
   test("in live mode only a version past the baseline freezes the result; the fixture also accepts a visible change", () => {
     const graph = gatedRobbery();
     const baseline = baselineOf(graph);
-    const run: StatementRun = { sent: "x", baseline, segmentId: "seg", error: null, result: null, resent: false };
+    const run: StatementRun = { sent: "x", baseline, segmentId: "seg", error: null, result: null, resent: false, source: SRC };
     const done = { state: "done", patchCount: 2 } as const;
     expect(statementView(run, done, graph, null, false, true).kind).toBe("extracting");
     expect(statementView(run, { state: "done", patchCount: 0 }, graph, null, false, true)).toMatchObject({ kind: "done", label: "No events found in that statement" });
@@ -251,7 +253,7 @@ describe("statement section", () => {
     await vi.waitFor(() => expect(source.statementStatuses()[first.segmentId]?.state).toBe("done"));
     const baseline = baselineOf(before, first.baseVersion);
     const result = resultOf(baseline, source.statementStatuses()[first.segmentId]!, source.getSnapshot().resolved)!;
-    rememberResult(first.segmentId, result);
+    rememberResult(SRC, first.segmentId, result);
 
     const again = await source.submitStatement(CORRECTION, "Witness");
     expect(again.segmentId).toBe(first.segmentId);
@@ -264,6 +266,7 @@ describe("statement section", () => {
       error: null,
       result: null,
       resent: true,
+      source: SRC,
     };
     const view = statementView(run, status, source.getSnapshot().resolved, null, false);
     expect(view).toMatchObject({ kind: "done", label: "Already added: 4 events" });
@@ -271,33 +274,41 @@ describe("statement section", () => {
     expect(html).toContain("Already added: 4 events");
     expect(html).toMatch(/<button[^>]*class="button button--primary"(?![^>]*disabled)[^>]*>Submit/);
 
-    expect(alreadyAddedResult("never-seen", { state: "done", patchCount: 3 }).label).toBe("Already added: 3 changes");
+    expect(alreadyAddedResult(SRC, "never-seen", { state: "done", patchCount: 3 }).label).toBe("Already added: 3 changes");
   });
 
-  test("a fresh live submit whose first status is already done is not a resubmit, and shows its own result", () => {
-    const graph = gatedRobbery();
-    const baseline = baselineOf(graph);
-    const [first, ...rest] = graph.events;
-    const otherEditor = { ...graph, version: graph.version + 1, events: [{ ...first!, facing: [0, 0, 1] as [number, number, number] }, ...rest] };
-    const firstReading = { state: "done" } as const;
-    expect(isResend("fresh-seg", firstReading)).toBe(false);
-
-    const run: StatementRun = { sent: "x", baseline, segmentId: "fresh-seg", error: null, result: null, resent: false };
-    expect(statementView(run, firstReading, otherEditor, null, false, true).kind).toBe("extracting");
-
-    const mine = { ...otherEditor, version: graph.version + 2, events: [...otherEditor.events, { ...first!, id: "e99" }] };
-    const view = statementView(run, { state: "done", patchCount: 1 }, mine, null, false, true);
-    expect(view.kind).toBe("done");
-    expect(view.kind === "done" && view.label).not.toMatch(/^Already added/);
-    expect(view.kind === "done" && view.outcome.added.map((e) => e.id)).toEqual(["e99"]);
+  test("a fresh submit that is done on its first reading, with no status before submit, shows its own result", async () => {
+    const source = selectSource("") as FixtureGraphSource;
+    const statusesBefore = source.statementStatuses();
+    const before = source.getSnapshot().resolved;
+    const { segmentId, baseVersion } = await source.submitStatement(CORRECTION, "Witness");
+    expect(statusesBefore[segmentId]).toBeUndefined();
+    await vi.waitFor(() => expect(source.statementStatuses()[segmentId]?.state).toBe("done"));
+    const fresh = sourceKey("fixture", "fresh-scene");
+    expect(isResend(fresh, segmentId, statusesBefore[segmentId] ?? null)).toBe(false);
+    const run: StatementRun = { sent: CORRECTION, baseline: baselineOf(before, baseVersion), segmentId, error: null, result: null, resent: false, source: fresh };
+    const view = statementView(run, source.statementStatuses()[segmentId]!, source.getSnapshot().resolved, null, false);
+    expect(view).toMatchObject({ kind: "done", label: "Added 4 events" });
   });
 
-  test("a resubmit is a segment with a result saved in this tab, or whose row was already extracted when first seen", () => {
-    expect(isResend("never-seen", { state: "extracting" })).toBe(false);
-    expect(isResend("never-seen", { state: "done", patchCount: 2 })).toBe(true);
-    expect(isResend("never-seen", { state: "done", patchCount: 0 })).toBe(true);
-    rememberResult("saved-seg", { label: "Added 1 event", outcome: { added: [], changed: [], props: [], flags: [] } });
-    expect(isResend("saved-seg", { state: "extracting" })).toBe(true);
+  test("a resubmit is a segment whose status before submit already had a patchCount, or one this tab saved for the same scene", () => {
+    expect(isResend(SRC, "never-seen", null)).toBe(false);
+    expect(isResend(SRC, "never-seen", { state: "extracting" })).toBe(false);
+    expect(isResend(SRC, "never-seen", { state: "done" })).toBe(false);
+    expect(isResend(SRC, "never-seen", { state: "done", patchCount: 2 })).toBe(true);
+    expect(isResend(SRC, "never-seen", { state: "done", patchCount: 0 })).toBe(true);
+    rememberResult(SRC, "saved-seg", { label: "Added 1 event", outcome: { added: [], changed: [], props: [], flags: [] } });
+    expect(isResend(SRC, "saved-seg", null)).toBe(true);
+  });
+
+  test("a saved result doesn't survive a scene change in the same tab", () => {
+    const store = sourceKey("fixture", "store_v1");
+    const scan = sourceKey("fixture", "zatec_room");
+    rememberResult(store, "same-seg", { label: "Added 2 events", outcome: { added: [], changed: [], props: [], flags: [] } });
+    expect(isResend(store, "same-seg", null)).toBe(true);
+    expect(isResend(scan, "same-seg", null)).toBe(false);
+    expect(isResend(sourceKey("live", "store_v1"), "same-seg", null)).toBe(false);
+    expect(alreadyAddedResult(scan, "same-seg", { state: "done", patchCount: 1 }).label).toBe("Already added: 1 change");
   });
 
   test("zero patches show an empty outcome, never another editor's change", () => {
@@ -305,7 +316,7 @@ describe("statement section", () => {
     const baseline = baselineOf(graph);
     const [first, ...rest] = graph.events;
     const otherEditor = { ...graph, version: graph.version + 1, events: [{ ...first!, facing: [0, 0, 1] as [number, number, number] }, ...rest] };
-    const run: StatementRun = { sent: "x", baseline, segmentId: "seg0", error: null, result: null, resent: false };
+    const run: StatementRun = { sent: "x", baseline, segmentId: "seg0", error: null, result: null, resent: false, source: SRC };
     for (const live of [true, false]) {
       const view = statementView(run, { state: "done", patchCount: 0 }, otherEditor, null, false, live);
       expect(view).toMatchObject({ kind: "done", label: "No events found in that statement", outcome: { added: [], changed: [], props: [], flags: [] } });
