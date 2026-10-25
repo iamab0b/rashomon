@@ -1,6 +1,6 @@
 import { resolve } from "@rashomon/engine";
 import type { Event, EventGraph, Patch, SceneManifest } from "@rashomon/schema";
-import { storeScene } from "@rashomon/schema/fixtures";
+import { roomScene, storeScene } from "@rashomon/schema/fixtures";
 import type { GraphSource } from "../playback/graphSource";
 import { checkStatement, statementSegmentId } from "../playback/statementId";
 import {
@@ -31,12 +31,23 @@ const CHANGE_IN_FLIGHT = "a change is still being applied; try again in a moment
 
 const EMPTY_SNAPSHOT: GraphSnapshot = { resolved: null, statuses: {}, graph: null };
 
+const LIVE_MANIFESTS: Readonly<Record<string, SceneManifest>> = { store_v1: storeScene, room_v1: roomScene };
+
+function liveManifest(sceneId: string): SceneManifest {
+  const manifest = Object.hasOwn(LIVE_MANIFESTS, sceneId) ? LIVE_MANIFESTS[sceneId] : undefined;
+  if (!manifest) {
+    throw new Error(`live row rejected: scene ${sceneId} is not a known scene (${Object.keys(LIVE_MANIFESTS).join(", ")})`);
+  }
+  return manifest;
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function liveState(row: LiveGraphRow, manifest: SceneManifest): { graph: EventGraph; snapshot: GraphSnapshot } {
+function liveState(row: LiveGraphRow, pinned?: SceneManifest): { graph: EventGraph; snapshot: GraphSnapshot } {
   const graph = convertGraphRow(row);
+  const manifest = pinned ?? liveManifest(graph.sceneId);
   if (graph.sceneId !== manifest.sceneId) {
     throw new Error(`live row rejected: scene ${graph.sceneId} does not match manifest ${manifest.sceneId}`);
   }
@@ -52,7 +63,6 @@ export function liveSnapshot(row: LiveGraphRow, manifest: SceneManifest): GraphS
 export function liveGraphSource(
   options: LiveOptions,
   connect: LiveConnector,
-  manifest: SceneManifest = storeScene,
 ): LiveGraphSource {
   let snapshot = EMPTY_SNAPSHOT;
   let graph: EventGraph | null = null;
@@ -87,7 +97,7 @@ export function liveGraphSource(
         baseVersion = row.version;
         recompute();
         try {
-          const next = liveState(row, manifest);
+          const next = liveState(row);
           snapshot = next.snapshot;
           graph = next.graph;
           error = null;

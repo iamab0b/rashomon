@@ -35,6 +35,7 @@ import { beginSceneLoad, meshKeyOf } from "./loaders/sceneLoad";
 import { isKnownFixture, loadManifest, loadScene, loadSceneFromManifest, type LoadedScene } from "./loaders/scene";
 import { loadScan, storeDroppedScan, type LoadedScan } from "./loaders/scan";
 import { ROOM_FIXTURE, ROOM_MISSING_NOTE } from "./loaders/roomFixture";
+import { liveSceneIdOf, meshFixtureFor } from "./live/liveSceneFixture";
 import { useScanAlignStore } from "./loaders/scanAlignStore";
 import { ScanDropHint } from "./loaders/ScanDropHint";
 import { useScanToolsStore } from "./loaders/scanToolsStore";
@@ -327,6 +328,7 @@ function useDropZone(onFile: (file: File) => void) {
 }
 
 export function Scene({ fixture, debug, t, sceneToolsHosted = false }: SceneProps) {
+  const meshFixture = meshFixtureFor(fixture, useSceneStore(liveSceneIdOf));
   useSceneKeys();
   useDebugPreset(debug);
   useInitialTime(t, debug);
@@ -345,12 +347,12 @@ export function Scene({ fixture, debug, t, sceneToolsHosted = false }: SceneProp
   const liveScan = useMemo(() => (scanRequest ? scanFailure(window.location.search) : null), [scanRequest]);
   const editBase = useLabelingStore((state) => state.base);
   const fixtureManifest = useMemo(
-    () => (fixture && isKnownFixture(fixture) ? loadManifest(fixture) : null),
-    [fixture],
+    () => (meshFixture && isKnownFixture(meshFixture) ? loadManifest(meshFixture) : null),
+    [meshFixture],
   );
   const fixtureSceneManifest = scanRequest ? null : editing ? (editBase ?? savedManifest ?? fixtureManifest) : savedManifest;
   const fixtureLoaded = useLoadedScene(
-    isRigDebug || scanRequest || manifestError !== null ? undefined : fixture,
+    isRigDebug || scanRequest || manifestError !== null ? undefined : meshFixture,
     fixtureSceneManifest,
     editing,
   );
@@ -361,7 +363,7 @@ export function Scene({ fixture, debug, t, sceneToolsHosted = false }: SceneProp
     ? scan
       ? `scan:${scan.meshUrl}`
       : null
-    : `fixture:${fixture ?? ""}:${savedManifest?.sceneId ?? ""}`;
+    : `fixture:${meshFixture ?? ""}:${savedManifest?.sceneId ?? ""}`;
   useEditorSession(editing, startManifest, sessionKey);
   useMeshSwitcher(editing, scan, replaceScan);
   useScanToolsPublisher(scan);
@@ -379,7 +381,7 @@ export function Scene({ fixture, debug, t, sceneToolsHosted = false }: SceneProp
   }, [isRigDebug, graphless, fixture, scanRequest, gateScene, liveScan]);
   useGraphSource(graphSource);
   useSceneSourcePublisher(loaded, scan);
-  const failure = useSceneFailure(fixture, failureSkipped({ isRigDebug, graphless, liveScan }), graphSource !== null, { request: scanRequest, loaded: scan !== null });
+  const failure = useSceneFailure(meshFixture, failureSkipped({ isRigDebug, graphless, liveScan }), graphSource !== null, { request: scanRequest, loaded: scan !== null });
   const shownLandmarks = editing ? editLandmarks : (loaded?.manifest.landmarks ?? []);
   const aligning = useScanAlignStore((state) => state.aligning);
   const onAlignClick = useCallback(
@@ -423,8 +425,8 @@ export function Scene({ fixture, debug, t, sceneToolsHosted = false }: SceneProp
           <>
             <primitive object={loaded.model} onClick={scan && aligning ? onAlignClick : undefined} />
             {scan ? <FrameObject object={scan.model} frameKey={frameKey} /> : null}
-            {!scan && fixture === ROOM_FIXTURE ? <FrameObject object={loaded.model} frameKey={1} /> : null}
-            {loaded.isPlaceholder && fixture === STORE_FIXTURE && !editing && savedManifest === null ? (
+            {!scan && meshFixture === ROOM_FIXTURE ? <FrameObject object={loaded.model} frameKey={1} /> : null}
+            {loaded.isPlaceholder && meshFixture === STORE_FIXTURE && !editing && savedManifest === null ? (
               <Dressing manifest={loaded.manifest} placeholder={loaded.model} />
             ) : null}
             <LandmarkMarkers landmarks={shownLandmarks} />
@@ -442,7 +444,7 @@ export function Scene({ fixture, debug, t, sceneToolsHosted = false }: SceneProp
         ) : null}
       </Canvas>
       {loaded ? <LabelLayer landmarks={shownLandmarks} /> : null}
-      {loaded?.isPlaceholder && fixture === ROOM_FIXTURE ? (
+      {loaded?.isPlaceholder && meshFixture === ROOM_FIXTURE ? (
         <div style={roomNoteStyle} data-room-missing="">
           {ROOM_MISSING_NOTE}
         </div>
