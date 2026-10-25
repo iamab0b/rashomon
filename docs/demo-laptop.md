@@ -60,9 +60,9 @@ Fixture mode is the fallback for the whole demo. If the venue Wi-Fi or Maincloud
 
 | What | URL |
 | --- | --- |
-| The demo session (judges look at this one) | http://localhost:5173/?mode=live&stdb=wss://maincloud.spacetimedb.com&db=rashomon&session=demo |
+| The demo session (judges look at this one) | http://localhost:5173/?mode=live&stdb=wss://maincloud.spacetimedb.com&db=rashomon&session=demo2 |
 
-Expect what smoke L2 and M2 say: "Live · connecting", then "Live", 10 events, and e5 implausible with sightline:e5. Never edit session demo during rehearsals. It must be at version 1 when a judge walks up.
+Expect what smoke L2 and M2 say: "Live · connecting", then "Live", 10 events, and e5 implausible with sightline:e5. Never edit session demo2 during rehearsals. It must be at version 1 when a judge walks up. (Since the Sun 2:45 AM freeze the judges' session is demo2: the old session demo had been edited to version 2, with e5 plausible, so it no longer shows the flagged moment.)
 
 For rehearsals and video takes, use a fresh scratch session for each take. Sahil seeds it:
 
@@ -110,7 +110,7 @@ EDITOR_IDENTITIES=… spacetime publish rashomon --server maincloud --env-only -
 ```
 
 - Values come from Sahil's shell (read with `read -rs`), never typed into a file or a chat. The webhook secret is the one in `~/.rashomon-webhook-secret`; never generate a new one, or Cartesia's header stops matching.
-- No `-c` while Maincloud holds the demo session: a publish without it keeps every session. If a publish refuses because of a breaking schema change, stop and ask before using `-c=always`, which wipes everything and means re-seeding demo with `tools/smoke/seed-maincloud.sh demo`.
+- No `-c` while Maincloud holds the demo session: a publish without it keeps every session. If a publish refuses because of a breaking schema change, stop and ask before using `-c=always`, which wipes everything and means re-seeding the judges' session with `tools/smoke/seed-maincloud.sh demo2`.
 - `EDITOR_IDENTITIES` is a comma-separated list of hex identities: Sahil's CLI identity (`spacetime login show`, which the seed scripts need), Eric's, and the demo browser's.
 - After any publish, run docs/smoke-demo.md M1 to M3.
 

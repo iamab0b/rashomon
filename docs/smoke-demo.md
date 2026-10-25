@@ -39,16 +39,16 @@ L10. Back on `/?mode=live` (session demo), it is still at version 1 with e5 impl
 Live since Sat 1:05 PM: demo seeded at version 1, and smoke L2 passes at
 
 ```
-http://localhost:5173/?mode=live&stdb=wss://maincloud.spacetimedb.com&db=rashomon&session=demo
+http://localhost:5173/?mode=live&stdb=wss://maincloud.spacetimedb.com&db=rashomon&session=demo2
 ```
 
 `stdb` is the WebSocket base the SDK connects to; it adds `/v1/database/rashomon/subscribe` itself.
 
-M1. `spacetime sql --server maincloud rashomon "select version, id from sessions"`. Session demo is at version 1. The demo and the judges use it, so never change it: mutating checks use their own session.
+M1. `spacetime sql --server maincloud rashomon "select version, id from sessions"`. Session demo2 is at version 1. The demo and the judges use it, so never change it: mutating checks use their own session. (Since the Sun 2:45 AM freeze the judges' session on Maincloud is demo2, seeded clean at version 1. The old session demo had been edited to version 2 with e5 plausible, and is left as it is.)
 M2. Open the URL above. Expect the same as L2: "Live · connecting" then "Live", 10 events, and e5 implausible with sightline:e5.
 M3. The webhook fails closed, and this check spends no credits: `curl -s -o /dev/null -w "%{http_code}\n" -X POST -H 'content-type: application/json' -d '{}' https://maincloud.spacetimedb.com/v1/database/rashomon/route/webhook/cartesia` gives 401.
 M4. Writes: `tools/smoke/seed-maincloud.sh smokemc` seeds a scratch session. Open the URL with `session=smokemc` and repeat L5 (override) and L9 (drag) there.
-M5. After any later publish, check M1 again. A publish without -c keeps every session. A publish with -c=always wipes them all, so re-seed demo with `tools/smoke/seed-maincloud.sh demo` afterwards.
+M5. After any later publish, check M1 again. A publish without -c keeps every session. A publish with -c=always wipes them all, so re-seed the judges' session with `tools/smoke/seed-maincloud.sh demo2` afterwards.
 
 ## After the smoke
 - Leave demo at version 1. The scratch sessions smokeam, smokeam2, smokefix and smokedrag can stay; nothing reads them.
