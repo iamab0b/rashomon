@@ -1,6 +1,6 @@
 import type { SceneManifest } from "@rashomon/schema";
 import type { FlagDraft, ResolvedGraph, SceneGeom, Vec3 } from "../types";
-import { landmarkLabel, nearestLabel, spokenActor } from "./labels";
+import { blockerPhrase, nearestLabel, spokenActor } from "./labels";
 import { blockersFor } from "./occluders";
 import { actorPositionAt, movementCover } from "./positions";
 import { segmentBlocked } from "./raycast";
@@ -47,7 +47,7 @@ export function sightlineFlags(
         atTimeS: Number(t.toFixed(2)),
       },
       suggestedQuestion:
-        `From the ${nearestLabel(observer, manifest)}, the ${landmarkLabel(chestHit.meshId, manifest)} ` +
+        `From the ${nearestLabel(observer, manifest)}, ${blockerPhrase(chestHit.meshId, chestHit.point, manifest)} ` +
         `would be between you and ${spokenActor(resolved, e.target, e.witnessId)}. Where exactly were you standing when you saw that?`,
     });
   }

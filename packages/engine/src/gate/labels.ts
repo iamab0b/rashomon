@@ -23,6 +23,13 @@ export function landmarkLabel(id: string, manifest: SceneManifest): string {
   return manifest.landmarks.find((l) => l.id === id)?.label ?? id;
 }
 
+export function blockerPhrase(id: string, point: Vec3, manifest: SceneManifest): string {
+  const landmark = manifest.landmarks.find((l) => l.id === id);
+  if (landmark) return `the ${landmark.label}`;
+  const near = nearestLandmarks(point, manifest, 1)[0];
+  return near ? `the surface by the ${near.label}` : "a surface";
+}
+
 export function spokenActor(resolved: ResolvedGraph, id: string, witnessId?: string): string {
   const actor = resolved.actors.find((a) => a.id === id);
   if (!actor) return id;

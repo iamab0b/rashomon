@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import storeJson from "../fixtures/store.scene.json";
 import robberyJson from "../fixtures/robbery.graph.json";
-import { ACTIONS } from "./index";
+import { ACTIONS, ACTION_STYLES, MAX_VERB_CHARS, STYLE_ACTION } from "./index";
 import type { Anchor, Event, EventGraph, SceneManifest } from "./index";
 import { robberyGraph, robberyResolved, storeScene } from "./fixtures";
 
@@ -141,5 +141,35 @@ describe("fixtures", () => {
     expect(robberyGraph.events).toHaveLength(10);
     expect(robberyResolved.sceneId).toBe("store_v1");
     expect(robberyResolved.events.map((e) => e.id)).toEqual(robberyGraph.events.map((e) => e.id));
+  });
+});
+
+describe("action vocabulary", () => {
+  test("the nine new actions are appended after the original thirteen", () => {
+    expect(ACTIONS).toHaveLength(22);
+    expect(ACTIONS.slice(13)).toEqual([
+      "hands_up",
+      "point",
+      "reach",
+      "kneel",
+      "stumble",
+      "jump",
+      "phone",
+      "drink",
+      "dodge",
+    ]);
+  });
+
+  test("each style belongs to exactly one existing action", () => {
+    expect(Object.keys(STYLE_ACTION).sort()).toEqual([...ACTION_STYLES].sort());
+    expect(STYLE_ACTION).toEqual({
+      sneak: "walk",
+      scared: "run",
+      forward: "fall",
+      outward: "open_door",
+      behind: "look",
+    });
+    for (const a of Object.values(STYLE_ACTION)) expect(ACTIONS).toContain(a);
+    expect(MAX_VERB_CHARS).toBe(40);
   });
 });

@@ -1,6 +1,7 @@
-import type { Actor, Event, EventGraph, Patch, PropInstance, SceneManifest } from "@rashomon/schema";
+import type { SceneGeom } from "@rashomon/engine";
+import { STYLE_ACTION, type Actor, type Event, type EventGraph, type Patch, type PropInstance, type SceneManifest } from "@rashomon/schema";
 import { storeScene } from "@rashomon/schema/fixtures";
-import { gatedSnapshot } from "./gatedSnapshot";
+import { gatedSnapshot, NO_GEOM } from "./gatedSnapshot";
 
 const MIN_OVERRIDE_REASON_LENGTH = 10;
 const EVENT_KEYS_PATCHES_CANNOT_WRITE: ReadonlySet<string> = new Set(["id", "status", "flags", "override", "sources"]);
@@ -65,9 +66,15 @@ function addEvent(graph: EventGraph, draft: Omit<Event, "id" | "status" | "flags
   return { ...graph, events: [...graph.events, event] };
 }
 
+function withFittingStyle(event: Event): Event {
+  if (event.style === undefined || STYLE_ACTION[event.style] === event.action) return event;
+  const { style: _style, ...rest } = event;
+  return rest;
+}
+
 function updateEvent(graph: EventGraph, id: string, changes: object, sources: readonly string[]): EventGraph {
   const events = replaceById(graph.events, id, "event", (event) => {
-    const merged = merge(event, changes, EVENT_KEYS_PATCHES_CANNOT_WRITE, EVENT_KEYS_REQUIRED);
+    const merged = withFittingStyle(merge(event, changes, EVENT_KEYS_PATCHES_CANNOT_WRITE, EVENT_KEYS_REQUIRED));
     return { ...merged, sources: appendSources(merged.sources, [...changedSources(changes), ...sources]) };
   });
   return { ...graph, events };
@@ -102,7 +109,7 @@ function addActor(graph: EventGraph, actor: Actor): EventGraph {
   return { ...graph, actors: [...graph.actors, { ...actor }] };
 }
 
-function override(graph: EventGraph, patch: OverridePatch, now: number, manifest: SceneManifest): EventGraph {
+function override(graph: EventGraph, patch: OverridePatch, now: number, manifest: SceneManifest, geom: SceneGeom): EventGraph {
   if (patch.reason.trim().length < MIN_OVERRIDE_REASON_LENGTH) {
     throw new Error(
       `override of ${patch.id} rejected: an override needs a reason of at least ${MIN_OVERRIDE_REASON_LENGTH} characters`,
@@ -111,7 +118,7 @@ function override(graph: EventGraph, patch: OverridePatch, now: number, manifest
   if (!graph.events.some((event) => event.id === patch.id)) {
     throw new Error(`override of ${patch.id} rejected: unknown event id ${patch.id}`);
   }
-  const gatedEvent = gatedSnapshot(graph, manifest).resolved?.events.find((event) => event.id === patch.id);
+  const gatedEvent = gatedSnapshot(graph, manifest, geom).resolved?.events.find((event) => event.id === patch.id);
   if (gatedEvent?.status !== "implausible") {
     throw new Error(
       `override of ${patch.id} rejected: only an event the gate marks implausible can be overridden (gate says ${gatedEvent?.status ?? "nothing"})`,
@@ -124,7 +131,7 @@ function override(graph: EventGraph, patch: OverridePatch, now: number, manifest
   return { ...graph, events };
 }
 
-function applyPatch(graph: EventGraph, patch: Patch, now: number, manifest: SceneManifest): EventGraph {
+function applyPatch(graph: EventGraph, patch: Patch, now: number, manifest: SceneManifest, geom: SceneGeom): EventGraph {
   switch (patch.op) {
     case "add_event":
       return addEvent(graph, patch.event);
@@ -139,7 +146,7 @@ function applyPatch(graph: EventGraph, patch: Patch, now: number, manifest: Scen
     case "add_actor":
       return addActor(graph, patch.actor);
     case "override":
-      return override(graph, patch, now, manifest);
+      return override(graph, patch, now, manifest, geom);
   }
 }
 
@@ -148,9 +155,10 @@ export function applyPatches(
   patches: readonly Patch[],
   now: number,
   manifest: SceneManifest = storeScene,
+  geom: SceneGeom = NO_GEOM,
 ): EventGraph {
   if (graph.sceneId !== manifest.sceneId) {
     throw new Error(`patch rejected: graph ${graph.sceneId} cannot be gated against manifest ${manifest.sceneId}`);
   }
-  return patches.reduce((current, patch) => applyPatch(current, patch, now, manifest), graph);
+  return patches.reduce((current, patch) => applyPatch(current, patch, now, manifest, geom), graph);
 }

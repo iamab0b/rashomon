@@ -9,6 +9,7 @@ import type {
 import { anchorToPoint } from "./anchors";
 import type { Box } from "./geometry";
 import { pathLength, shortestPath, straightLineClear } from "./portals";
+import { portalsFor } from "./walkable";
 import { hasInterval, resolveInterval } from "./time";
 
 const MOVEMENT = new Set(["walk", "run"]);
@@ -136,7 +137,7 @@ export function resolve(
   graph: EventGraph,
   manifest: SceneManifest,
 ): ResolvedGraph {
-  const portals = manifest.portals;
+  const portals = portalsFor(manifest);
   const obstacles = manifest.landmarks
     .filter((l) => l.occludes)
     .map((l) => l.bounds);
@@ -184,6 +185,9 @@ export function resolve(
       ...(facing ? { facing: roundVec(facing) } : {}),
       ...(e.target ? { target: e.target } : {}),
       ...(e.prop ? { prop: e.prop } : {}),
+      ...(e.style ? { style: e.style } : {}),
+      ...(e.actionApproximated ? { actionApproximated: true } : {}),
+      ...(e.verb ? { verb: e.verb } : {}),
       sources: e.sources,
       ...(e.override ? { override: { ...e.override, flagIds: [...e.override.flagIds] } } : {}),
       ...(e.supersededBy !== undefined ? { supersededBy: e.supersededBy } : {}),

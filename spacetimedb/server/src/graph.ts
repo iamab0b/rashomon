@@ -60,6 +60,9 @@ export function buildGraph(db: ReadDb, sessionId: string): GraphRow | undefined 
         })),
         override: o && e.status !== "superseded" ? { by: o.by, reason: o.reason, at: o.at, flagIds: o.flagIds } : undefined,
         supersededBy: e.supersededBy,
+        style: e.style,
+        actionApproximated: e.actionApproximated,
+        verb: e.verb,
       };
     }),
     props: [...db.props.sessionId.filter(sessionId)].sort(bySeq).map((p) => ({

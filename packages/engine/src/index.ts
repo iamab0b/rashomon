@@ -4,6 +4,8 @@ import type { ResolvedGraph } from "./types";
 
 export type * from "./types";
 export { gate } from "./gate";
+export { generatePortals } from "./resolve/walkable";
+export type { WalkableOptions } from "./resolve/walkable";
 
 export function resolve(
   graph: EventGraph,

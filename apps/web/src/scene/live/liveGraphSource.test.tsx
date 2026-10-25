@@ -8,7 +8,7 @@ import { useSceneStore } from "../store";
 import { robberyGatedSnapshot } from "../playback/graphSource";
 import { modeFromSearch, selectSource } from "../playback/selectSource";
 import type { Anchor as AnchorRow, Event as EventRow, Flag as FlagRow } from "./bindings/types";
-import type { LiveGraphRow } from "./convert";
+import { convertGraphRow, type LiveGraphRow } from "./convert";
 import { DEFAULT_LIVE_OPTIONS, graphQuery, liveOptionsFromSearch, type LiveConnector, type LiveHandlers } from "./liveConnection";
 import { liveGraphSource } from "./liveGraphSource";
 
@@ -50,6 +50,9 @@ function eventRow(event: Event, status: Status, flags: readonly Flag[]): EventRo
     flags: flags.map(flagRow),
     override: status === "overridden" ? { by: "investigator", reason: REASON, at: 1, flagIds: ["sightline:e5"] } : undefined,
     supersededBy: event.supersededBy,
+    style: event.style,
+    actionApproximated: event.actionApproximated,
+    verb: event.verb,
   };
 }
 
@@ -424,5 +427,22 @@ describe("live GraphSource applying patches", () => {
     source.subscribe(() => undefined);
     fake.current().onRow(robberyRow("implausible", 3));
     expect(() => source.apply([MOVE_E5])).not.toThrow();
+  });
+});
+
+describe("live rows carry the action vocabulary", () => {
+  it("style, actionApproximated and verb convert, and an unknown style is refused", () => {
+    const row = robberyRow("implausible", 1);
+    const e1 = row.events[0]!;
+    const styled: LiveGraphRow = {
+      ...row,
+      events: [{ ...e1, action: "dodge", style: undefined, actionApproximated: true, verb: "ducked" }, { ...e1, id: "e2", style: "sneak" }],
+    };
+    const graph = convertGraphRow(styled);
+    expect(graph.events[0]).toMatchObject({ action: "dodge", actionApproximated: true, verb: "ducked" });
+    expect(graph.events[0]).not.toHaveProperty("style");
+    expect(graph.events[1]).toMatchObject({ style: "sneak" });
+    expect(convertGraphRow(row).events.some((e) => "style" in e || "verb" in e || "actionApproximated" in e)).toBe(false);
+    expect(() => convertGraphRow({ ...row, events: [{ ...e1, style: "limping" }] })).toThrow(/style/);
   });
 });

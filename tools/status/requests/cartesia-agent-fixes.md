@@ -63,3 +63,14 @@ PR #34 merged as 2a5f972 at f8239cc over Greptile's 4/5, on Sahil's decision. Th
 6. the resend test's exact name.
 
 Greptile plus Opus and Sonnet review it.
+
+## Sat 5:35 PM: PR #41 round 2 (Greptile 3/5 holds; Opus and Sonnet both CLEAN)
+
+All six items are in and verified, and the bindings equal a fresh generate. webhook_statements is private and additive, so the publish is -c=never with no --break-clients. Greptile holds on two findings; both reviews confirm both. Push to cartesia-followups, no force-push.
+
+1. **MEDIUM (Greptile, both reviews, confirmed by a probe): the agent asks the same question twice** (apps/agent/src/instructions.ts lines 4-5 and 16, config.ts line 69). scene_context now only peeks, but the instructions still say "Use get_scene_context to get the next follow-up question", and config.ts says "Call it when you need the next question". The agent asks nextQuestion, the answer leaves the flag open, and record_statement hands back the same flag as askNext. Fix: follow-up questions come only from record_statement's askNext. Describe nextQuestion as context only (or drop it from the tool's response). Add an INSTRUCTIONS test named "follow-up questions come only from askNext" (the tracker greps for it).
+2. **MEDIUM (Opus): the 15 s window starts before a long extraction** (cartesia.ts line 104). If a 20 s extraction's response is lost, Cartesia's retry counts as a new statement and the events are extracted twice. Fix: measure the window from the segment's extractedAt, falling back to storedAt, with a faked-clock test.
+3. **LOW (Greptile, both reviews): a retry of a segment with no webhook_statements row gets a new question each time** (cartesia.ts lines 172 and 251). This covers segments stored before this publish or by another path. Fix: in the early return, insert the missing webhook_statements row with the flag chosen, so later retries return it.
+4. Say in the PR description that it also carries the 413 for over-cap text (cartesia.ts:164) and the snapshot cap (run.ts:129).
+
+The leader re-runs Greptile, Opus and Sonnet on the push.

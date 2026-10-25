@@ -16,6 +16,8 @@ import {
   inferredBlockPath,
   WAVE_AMPLITUDE,
   SELECTION,
+  borderFor,
+  APPROXIMATED_DASH,
   IMPLAUSIBLE_STROKE,
   SELECTED_IMPLAUSIBLE_STROKE,
   WAVE_INSET,
@@ -338,6 +340,12 @@ describe("event state styling (regression)", () => {
     expect(geometry(e5)).toBe(geometry(e9));
   });
 
+  test("an approximated action keeps its dashes when selected, in the selection color and width", () => {
+    expect(borderFor("plausible", WITNESS, false, false, true)).toMatchObject({ dash: APPROXIMATED_DASH, stroke: WITNESS, width: 1.5 });
+    expect(borderFor("plausible", WITNESS, false, true, true)).toMatchObject({ dash: APPROXIMATED_DASH, stroke: "#fff", width: SELECTION.width, halo: false });
+    expect(borderFor("plausible", WITNESS, false, true, false).dash).toBeUndefined();
+  });
+
   test("the selected implausible red is the default red, only lighter", () => {
     const hsl = (hex: string) => {
       const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [number, number, number];
@@ -586,5 +594,38 @@ describe("drag state machine", () => {
     expect(drag.move(1)).toBe(false);
     expect(drag.down(1, 2)).toBe(false);
     expect(drag.move(1)).toBe(false);
+  });
+});
+
+describe("approximated events", () => {
+  const ducked = {
+    ...robberyGraph,
+    events: robberyGraph.events.map((e) => (e.id === "e9" ? { ...e, actionApproximated: true, verb: "ducked" } : e)),
+  };
+  const block = (html: string, id: string) => html.match(new RegExp(`<g data-block="${id}"[^>]*>(.*?)</g>`))![0];
+  const border = (markup: string) => markup.match(/<rect [^>]*fill="none" stroke="[^"]*" stroke-opacity[^>]*>/)![0];
+
+  test("an approximated event draws a dashed block and carries its flag and verb; its status is the gate's", () => {
+    const { resolved, statuses } = gatedSnapshot(ducked, storeScene);
+    const html = renderWith({ resolved, statuses, duration: resolved!.durationS, t: 0 });
+    const e9 = block(html, "e9");
+    expect(e9).toContain('data-approximated="true"');
+    expect(e9).toContain('data-verb="ducked"');
+    expect(e9).toContain(`data-status="${statuses.e9}"`);
+    expect(statuses).toEqual(snap().statuses);
+    expect(border(e9)).toMatch(/stroke="#4f9dff" stroke-opacity="0.55" stroke-dasharray="2 3"/);
+    const e1 = block(html, "e1");
+    expect(e1).not.toContain("data-approximated");
+    expect(border(e1)).not.toContain("stroke-dasharray");
+    expect(resolved!.events.find((e) => e.id === "e9")).toMatchObject({ actionApproximated: true, verb: "ducked" });
+  });
+
+  test("buildRows copies the flag and verb onto the block, and strokeFor dashes it without changing its color", () => {
+    const { resolved, statuses } = gatedSnapshot(ducked, storeScene);
+    const blocks = buildRows(resolved!, statuses).flatMap((row) => row.blocks);
+    expect(blocks.find((b) => b.id === "e9")).toMatchObject({ actionApproximated: true, verb: "ducked" });
+    expect(blocks.find((b) => b.id === "e1")).not.toHaveProperty("actionApproximated");
+    expect(strokeFor("plausible", "#4f9dff", false, true)).toEqual({ dash: "2 3", stroke: "#4f9dff", opacity: 0.55 });
+    expect(strokeFor("implausible", "#4f9dff", false, true)).toMatchObject({ dash: "2 3", stroke: "#ff4d4f" });
   });
 });

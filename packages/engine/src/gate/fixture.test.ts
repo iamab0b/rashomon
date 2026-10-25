@@ -108,3 +108,36 @@ describe("floor plan sightline rows", () => {
     expect(ray("window_front", "counter")).toBeNull();
   });
 });
+
+describe("styles and approximated verbs never change the gate", () => {
+  const styleFor: Partial<Record<Event["action"], Event["style"]>> = {
+    walk: "sneak",
+    run: "scared",
+    fall: "forward",
+    open_door: "outward",
+    look: "behind",
+  };
+  const decorated: EventGraph = {
+    ...robbery,
+    events: robbery.events.map((e) => {
+      const style = styleFor[e.action];
+      return { ...e, ...(style ? { style } : {}), actionApproximated: true, verb: "ducked" };
+    }),
+  };
+  const plainResolved = resolve(robbery, store);
+  const styledResolved = resolve(decorated, store);
+  const plain = gate(plainResolved, store, geom);
+  const styled = gate(styledResolved, store, geom);
+
+  test("every status and flag matches the undecorated robbery", () => {
+    expect(styled.statuses).toEqual(plain.statuses);
+    expect(styled.flags).toEqual(plain.flags);
+  });
+
+  test("the resolved events keep style, flag and verb and change nothing else", () => {
+    const strip = ({ style: _s, actionApproximated: _a, verb: _v, ...rest }: (typeof styledResolved.events)[number]) => rest;
+    expect(styledResolved.events.map(strip)).toEqual(plainResolved.events);
+    expect(styledResolved.events.every((e) => e.actionApproximated === true && e.verb === "ducked")).toBe(true);
+    expect(styledResolved.events.filter((e) => e.style).length).toBeGreaterThan(0);
+  });
+});

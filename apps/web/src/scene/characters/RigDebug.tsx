@@ -4,9 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSceneStore } from "../store";
 import { AnimatedCharacter } from "./AnimatedCharacter";
 import type { CharacterHandle } from "./Character";
-import { loadClips } from "./clips";
+import { getClip, loadClips, loadOptionalClips } from "./clips";
 import { measureRig } from "./measureRig";
-import { RIG_DEBUG_ACTORS, RIG_DEBUG_GRAPH } from "./rigDebugGraph";
+import { RIG_DEBUG_ACTORS, RIG_DEBUG_GRAPH, rigDebugClipLines } from "./rigDebugGraph";
 import { useRigReportStore } from "./rigReportStore";
 
 const MEASURE_AFTER_FRAMES = 10;
@@ -49,6 +49,7 @@ export function RigDebug() {
   const [handles, setHandles] = useState<readonly CharacterHandle[]>([]);
   const frames = useRef(0);
   const addReport = useRigReportStore((state) => state.addReport);
+  const setClipLines = useRigReportStore((state) => state.setClipLines);
   const setStatus = useSceneStore((state) => state.setStatus);
   const setResolved = useSceneStore((state) => state.setResolved);
 
@@ -59,15 +60,17 @@ export function RigDebug() {
 
   useEffect(() => {
     let cancelled = false;
-    loadClips()
+    Promise.all([loadClips(), loadOptionalClips()])
       .then(() => {
-        if (!cancelled) setClipsLoaded(true);
+        if (cancelled) return;
+        setClipLines(rigDebugClipLines((name) => getClip(name) !== undefined));
+        setClipsLoaded(true);
       })
       .catch((error: unknown) => console.error("rig debug clip load failed", error));
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [setClipLines]);
 
   const onReady = useCallback((handle: CharacterHandle) => {
     setHandles((current) => [...current.filter((existing) => existing.rig !== handle.rig), handle]);

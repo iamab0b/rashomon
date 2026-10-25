@@ -207,7 +207,7 @@ export function Timeline({ onOpen }: TimelineProps) {
                 const selected = b.id !== null && b.id === selectedEventId;
                 const y = rowY + b.lane * LANE_H;
                 const playingNow = b.id !== null && b.tStart <= t && t < b.tEnd;
-                const s = borderFor(b.status, b.color, playingNow, selected);
+                const s = borderFor(b.status, b.color, playingNow, selected, b.actionApproximated === true);
                 const h = ROW_H - 10;
                 const wavy = b.inferred && w >= WAVY_MIN_W ? inferredBlockPath(x + WAVE_INSET, y + 5, w - 2 * WAVE_INSET, h) : null;
                 const g = SELECTION.gap;
@@ -221,6 +221,8 @@ export function Timeline({ onOpen }: TimelineProps) {
                     data-inferred={b.inferred ? "" : undefined}
                     data-event={b.id ? "" : undefined}
                     data-playback-active={playingNow ? "true" : undefined}
+                    data-approximated={b.actionApproximated ? "true" : undefined}
+                    data-verb={b.verb}
                     className="rtl-block"
                     style={{ cursor: b.id ? "pointer" : "default", ...(b.witnessId !== undefined && hiddenWitnesses.has(b.witnessId) ? { opacity: HIDDEN_BLOCK_OPACITY } : {}) }}
                     onClick={() => b.id && select(b.id)}
