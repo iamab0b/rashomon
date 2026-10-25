@@ -110,6 +110,18 @@
         "apps/agent",
         "spacetimedb/server/src"
       ]
+    },
+    {
+      "id": "extractor-speaker",
+      "from": "Sahil",
+      "due": "21-24",
+      "todo": "Extraction prompt gets the speaking witness's id, label and actorId; I/me/my resolve to that actor (the clerk's 'I' is never the customer); test on the clerk fixture; branch extractor-speaker after #48",
+      "doc": "tools/status/requests/extractor-speaker.md",
+      "grep": "The witness speaking is",
+      "paths": [
+        "packages/extractor",
+        "spacetimedb/server/src"
+      ]
     }
   ],
   "D": [
