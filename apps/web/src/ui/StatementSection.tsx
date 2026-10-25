@@ -1,5 +1,14 @@
 import { useEffect, useState, type KeyboardEvent } from "react";
-import { modeFromSearch, useGraphActions, useLiveIdentity, useStatementStatus, useWitnessLayers, type ResolvedEvent, type ResolvedGraph } from "../scene";
+import {
+  modeFromSearch,
+  useGraphActions,
+  useLiveIdentity,
+  useStatementStatus,
+  useStatementStatuses,
+  useWitnessLayers,
+  type ResolvedEvent,
+  type ResolvedGraph,
+} from "../scene";
 import { flagHeadline } from "./flagCopy";
 import { placeName } from "./places";
 import { actorLabel, StatusToken, words } from "./shared";
@@ -12,6 +21,7 @@ import {
   noteStatementRejection,
   witnessToSend,
   rememberResult,
+  sourceKey,
   resultOf,
   SLOW_AFTER_MS,
   statementView,
@@ -254,19 +264,13 @@ export function StatementSection({
   const [slow, setSlow] = useState(false);
   const [copyState, setCopyState] = useState<CopyState>("idle");
   const status = useStatementStatus(run?.segmentId ?? null);
+  const statuses = useStatementStatuses();
   const view = statementView(run, status, graph, identity, slow, live);
-
-  const firstStatus = run?.segmentId && run.resent === null ? status : null;
-  useEffect(() => {
-    if (!firstStatus || !run?.segmentId) return;
-    const resent = isResend(run.segmentId, firstStatus);
-    setRun((current) => (current && current.resent === null ? { ...current, resent } : current));
-  }, [firstStatus, run?.segmentId]);
 
   const ready = run && !run.result && !run.error && run.segmentId && run.resent === false ? resultOf(run.baseline, status, graph, live) : null;
   useEffect(() => {
     if (!ready || !run?.segmentId) return;
-    rememberResult(run.segmentId, ready);
+    rememberResult(run.source, run.segmentId, ready);
     setRun((current) => (current && !current.result && current.segmentId === run.segmentId ? { ...current, result: ready } : current));
   }, [ready, run?.segmentId]);
 
@@ -286,7 +290,9 @@ export function StatementSection({
   const onSubmit = () => {
     if (!text.trim() || extracting) return;
     const sent = text;
-    const fresh: StatementRun = { sent, baseline: baselineOf(graph), segmentId: null, error: null, result: null, resent: null };
+    const source = sourceKey(live ? "live" : "fixture", graph?.sceneId);
+    const before = statuses;
+    const fresh: StatementRun = { sent, baseline: baselineOf(graph), segmentId: null, error: null, result: null, resent: null, source };
     setRun(fresh);
     setCopyState("idle");
     const fail = (err: unknown) => {
@@ -296,10 +302,14 @@ export function StatementSection({
     };
     try {
       submit(sent, witnessToSend(witnesses, witness, witnesses.length > 0 ? newWitnessName : witness)).then(
-        ({ segmentId, baseVersion }) =>
+        ({ segmentId, baseVersion }) => {
+          const resent = isResend(source, segmentId, before[segmentId] ?? null);
           setRun((current) =>
-            current?.sent === sent && !current.error ? { ...current, segmentId, baseline: { ...current.baseline, version: baseVersion } } : current,
-          ),
+            current?.sent === sent && !current.error
+              ? { ...current, segmentId, resent, baseline: { ...current.baseline, version: baseVersion } }
+              : current,
+          );
+        },
         fail,
       );
     } catch (err) {
