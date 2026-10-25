@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { isCameraPreset, isLandmarkEditing, POV_CAM, Scene, Timeline, useCamera } from "./scene";
+import { isCameraPreset, isLandmarkEditing, POV_CAM, Scene, Timeline, useCamera, useGraph } from "./scene";
 import { RightPanel } from "./ui/RightPanel";
 import { TopBar } from "./ui/TopBar";
 import { ViewSwitcher } from "./ui/ViewSwitcher";
@@ -15,6 +15,7 @@ export function App() {
   const editing = isLandmarkEditing(window.location.search);
   const { setPreset, setFollowing } = useCamera();
   const focusActor = useActorFocus((s) => s.actor);
+  const drawerMounted = useGraph().resolved !== null;
 
   useEffect(() => {
     if (isCameraPreset(cam)) setPreset(cam);
@@ -27,7 +28,7 @@ export function App() {
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
           <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
-            <Scene fixture={fixture} debug={debug} t={t} sceneToolsHosted />
+            <Scene fixture={fixture} debug={debug} t={t} sceneToolsHosted={drawerMounted} />
             <ViewSwitcher />
           </div>
           {editing ? null : <Timeline focusActor={focusActor} />}
