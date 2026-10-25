@@ -63,7 +63,11 @@ export function RigDebug() {
         setResolved(buildRigDebugGraph(layout));
         setClipsLoaded(true);
       })
-      .catch((error: unknown) => console.error("rig debug clip load failed", error));
+      .catch((error: unknown) => {
+        console.error("rig debug clip load failed", error);
+        if (cancelled) return;
+        setResolved(buildRigDebugGraph(layoutRigDebugClips(() => undefined)));
+      });
     return () => {
       cancelled = true;
       setResolved(null);

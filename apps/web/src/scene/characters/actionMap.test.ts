@@ -82,8 +82,8 @@ describe("ACTION_MAP", () => {
     });
   });
 
-  test("only fall, kneel and drink hold their last frame", () => {
-    expect(ACTIONS.filter((action) => ACTION_MAP[action].holdLastFrame)).toEqual(["fall", "kneel", "drink"]);
+  test("only fall and kneel hold their last frame", () => {
+    expect(ACTIONS.filter((action) => ACTION_MAP[action].holdLastFrame)).toEqual(["fall", "kneel"]);
   });
 
   test("each style sits on its own action's spec and names an optional clip", () => {

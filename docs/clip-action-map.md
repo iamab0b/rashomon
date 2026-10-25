@@ -26,7 +26,7 @@ Clips are the Mixamo FBX downloads in `apps/web/public/clips/` (`clip_<name>.fbx
 | `stumble` | `clip_stumble_back`, else `clip_shoved` | no | none | 2 s | 0.1 / 0.2 | keep | |
 | `jump` | `clip_jump_over`, else `clip_idle` | no | none | 1.5 s | 0.1 / 0.2 | `facing` if set, else keep | at an anchor; not a movement, the resolver does not move the actor |
 | `phone` | `clip_phone`, else `clip_talk` | yes | none | 6 s | 0.3 / 0.3 | keep | |
-| `drink` | `clip_drink`, else `clip_idle` | no, hold last frame | none | 8.867 s | 0.3 / 0.3 | keep | the clip is 8.867 s; a longer event holds its last frame |
+| `drink` | `clip_drink`, else `clip_idle` | no, holds its last frame within the event | none | 8.867 s | 0.3 / 0.3 | keep | the clip is 8.867 s; a longer event shows its last frame until the event ends |
 | `dodge` | `clip_dodge`, else `clip_crouch_idle` | no | none | 1.5 s | 0.1 / 0.2 | keep | |
 
 Durations are the resolver's when the witness gave no time (`FIXED_DURATION_S` in `packages/engine/src/resolve/time.ts`). Every clip above that is not in the original twelve is optional: a missing file falls back to the clip after "else" through `chooseClip`, and the load logs it once without a warning.
