@@ -16,6 +16,8 @@ import {
   inferredBlockPath,
   WAVE_AMPLITUDE,
   SELECTION,
+  IMPLAUSIBLE_STROKE,
+  SELECTED_IMPLAUSIBLE_STROKE,
   WAVE_INSET,
   LANE_H,
   rowHeight,
@@ -307,7 +309,7 @@ describe("event state styling (regression)", () => {
 
   test("a selected estimated implausible event keeps its waves, outlined solid red at the selection width", () => {
     const e5 = block(selectedRender("e5", ["e5"]), "e5");
-    expect(border(e5)).toMatch(/<path d="M[^"]+" fill="none" stroke="#ff4d4f" stroke-opacity="1" stroke-linejoin="round" stroke-width="2"/);
+    expect(border(e5)).toMatch(/<path d="M[^"]+" fill="none" stroke="#ff999a" stroke-opacity="1" stroke-linejoin="round" stroke-width="2"/);
     expect(e5).not.toContain("stroke-dasharray");
     expect(e5).not.toContain("data-selection");
     expect(e5).not.toContain('stroke="#fff"');
@@ -328,12 +330,32 @@ describe("event state styling (regression)", () => {
   test("a selected stated implausible event gets a solid red outline with the same geometry as a selected stated one", () => {
     const e5 = block(selectedRender("e5"), "e5");
     const e9 = block(selectedRender("e9"), "e9");
-    expect(border(e5)).toMatch(/<rect [^>]*rx="3" fill="none" stroke="#ff4d4f" stroke-opacity="1" stroke-width="2"/);
+    expect(border(e5)).toMatch(/<rect [^>]*rx="3" fill="none" stroke="#ff999a" stroke-opacity="1" stroke-width="2"/);
     expect(e5).not.toContain("stroke-dasharray");
     expect(e5).not.toContain("data-selection");
     expect(e5).not.toContain('stroke="#fff"');
     const geometry = (m: string) => border(m).replace(/ (x|y|width|stroke)="[^"]*"/g, "");
     expect(geometry(e5)).toBe(geometry(e9));
+  });
+
+  test("the selected implausible red is the default red, only lighter", () => {
+    const hsl = (hex: string) => {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [number, number, number];
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const l = (max + min) / 2;
+      const d = max - min;
+      const s = d / (1 - Math.abs(2 * l - 1));
+      const h = max === r ? (((g - b) / d) % 6) * 60 : max === g ? ((b - r) / d + 2) * 60 : ((r - g) / d + 4) * 60;
+      return { h: (h + 360) % 360, s, l };
+    };
+    const base = hsl(IMPLAUSIBLE_STROKE);
+    const selected = hsl(SELECTED_IMPLAUSIBLE_STROKE);
+    expect(Math.abs(selected.h - base.h)).toBeLessThan(1);
+    expect(selected.s).toBeCloseTo(base.s, 2);
+    expect(selected.l).toBeCloseTo(0.8, 2);
+    expect(selected.l).toBeGreaterThan(base.l);
+    expect(strokeFor("implausible")).toMatchObject({ dash: "5 3", stroke: IMPLAUSIBLE_STROKE });
   });
 
   test("proposed keeps its white dashes when selected, with the thin white halo two units outside", () => {

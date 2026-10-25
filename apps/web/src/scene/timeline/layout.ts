@@ -191,6 +191,7 @@ export const SELECTION = { stroke: "#fff", width: 2, gap: 2, haloWidth: 1, haloO
 export const BORDER_W = 1.5;
 
 export const IMPLAUSIBLE_STROKE = "#ff4d4f";
+export const SELECTED_IMPLAUSIBLE_STROKE = "#ff999a";
 
 export function keepsStatusBorder(status?: Status): boolean {
   return status === "proposed";
@@ -206,7 +207,7 @@ export function borderFor(
   const fillOpacity = Number((fillOpacityFor(status, playing) + (selected ? SELECTION.tint : 0)).toFixed(2));
   if (!selected) return { ...s, width: BORDER_W, halo: false, fillOpacity };
   if (keepsStatusBorder(status)) return { ...s, width: SELECTION.width, halo: true, fillOpacity };
-  const stroke = status === "implausible" ? IMPLAUSIBLE_STROKE : SELECTION.stroke;
+  const stroke = status === "implausible" ? SELECTED_IMPLAUSIBLE_STROKE : SELECTION.stroke;
   return { stroke, opacity: 1, width: SELECTION.width, halo: false, fillOpacity };
 }
 export const WAVY_MIN_W = 14;
