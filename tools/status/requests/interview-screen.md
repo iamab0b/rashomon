@@ -37,7 +37,7 @@ PR #30 merged as ff77d58. `useGraphActions().submitStatement`, `useStatementStat
 
 ## PR #47 (two-witness-ui, Sat 9:30 PM): what blocks the merge
 
-Sahil is deciding whether the new panel structure is inside the freeze: the Witnesses strip, the Witnesses tab removed, the drawer's title, and "Where they disagree" in Flags. He is also looking at the scene/timeline edits the PR asks about. Separately, Greptile gives 975eed3 a 2/5 and holds the merge on three findings. Fix them on two-witness-ui with new commits; no force-push.
+Sat 9:50 PM: Sahil accepts the new panel structure as your call (the Witnesses strip at the top, the lower Witnesses tab removed). Once the three Greptile fixes below land, it merges. Separately, Greptile gives 975eed3 a 2/5 and holds the merge on three findings. Fix them on two-witness-ui with new commits; no force-push.
 
 1. **Statements enter the wrong account** (StatementSection.tsx:286). In Fixture mode, choosing Clerk or New witness still goes through `statementSegment`, which assigns every new event to w1, so another witness's statement lands under Customer. Disable the choices Fixture can't honour, or make the fixture source use the chosen witness. Test it.
 2. **Source links hide their destination** (TranscriptView.tsx:59). With Clerk focused in Events, opening a Flags source cited only by other actors opens Transcript, but the actor filter removes the requested line. Always keep an explicitly requested focusId visible. Test it.
