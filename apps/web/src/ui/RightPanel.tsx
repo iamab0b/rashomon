@@ -212,6 +212,7 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
             placeOf={context.placeOf}
             timeBasisOf={context.timeBasisOf}
             actorColorOf={context.actorColorOf}
+            showSelection={tab.id === "events"}
             onJump={jumpTo}
           />
 

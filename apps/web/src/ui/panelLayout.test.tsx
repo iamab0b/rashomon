@@ -5,6 +5,7 @@ import { actorColor, selectSource, type ResolvedEvent, type ResolvedGraph, type 
 import { ContextDrawer } from "./ContextDrawer";
 import { EventsTab } from "./EventsTab";
 import { FlagsTab, groupFlags } from "./FlagsTab";
+import { PanelHeader } from "./PanelHeader";
 import { flagEvidenceRows } from "./flagEvidence";
 import { anchorsFor, eventPlace } from "./places";
 import { robberyGraph } from "@rashomon/schema/fixtures";
@@ -236,5 +237,15 @@ describe("panel layout pass", () => {
     const rows = flagEvidenceRows(graph, e5, e5.flags[0]!, () => null);
     expect(rows[0]).toMatchObject({ label: "Sightline", raw: true });
     expect(rows[0]!.value).toMatch(/^From \(\d/);
+  });
+
+  test("the selected-event box shows on Events only", () => {
+    const graph = twoWitnesses();
+    const header = (showSelection: boolean) =>
+      renderToStaticMarkup(
+        <PanelHeader tabs={[]} activeTab="" onTab={() => {}} graph={graph} selectedEventId="e5" placeOf={() => null} onJump={() => {}} showSelection={showSelection} />,
+      );
+    expect(header(true)).toContain('aria-label="Selected event"');
+    expect(header(false)).not.toContain('aria-label="Selected event"');
   });
 });
