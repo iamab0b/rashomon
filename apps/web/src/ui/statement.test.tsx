@@ -169,6 +169,22 @@ describe("statement section", () => {
     expect(on).toContain("Voice interview coming soon");
   });
 
+  test("the live voice control says Talk to the interviewer above the text box, with a status pill", () => {
+    const voice = { status: "idle", error: null, active: false, toggle: () => {} };
+    const idle = renderToStaticMarkup(<StatementSectionView {...props({ kind: "idle" }, { voiceEnabled: true, voice })} />);
+    expect(idle).toContain("Talk to the interviewer");
+    expect(idle).toMatch(/button--primary voice-control__button/);
+    expect(idle.indexOf("Talk to the interviewer")).toBeLessThan(idle.indexOf("<textarea"));
+    expect(idle).not.toContain("voice-control__pill");
+    expect(idle).not.toContain("coming soon");
+    const live = renderToStaticMarkup(<StatementSectionView {...props({ kind: "idle" }, { voiceEnabled: true, voice: { ...voice, status: "listening", active: true } })} />);
+    expect(live).toMatch(/voice-control__pill">listening</);
+    expect(live).toContain("Stop talking");
+    const failed = renderToStaticMarkup(<StatementSectionView {...props({ kind: "idle" }, { voiceEnabled: true, voice: { ...voice, status: "error", error: "Token server returned 502" } })} />);
+    expect(failed).toMatch(/voice-control__pill is-error">error</);
+    expect(failed).toContain("Token server returned 502");
+  });
+
   test("Submit is disabled while the text is empty", () => {
     expect(renderToStaticMarkup(<StatementSectionView {...props({ kind: "idle" })} />)).toMatch(/disabled=""[^>]*>Submit/);
     expect(renderToStaticMarkup(<StatementSectionView {...props({ kind: "idle" }, { text: "x" })} />)).not.toMatch(/disabled=""[^>]*>Submit/);

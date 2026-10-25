@@ -143,6 +143,26 @@ export function StatementSectionView({
         </label>
       )}
 
+      {voiceEnabled && voice && (
+        <div className="voice-control">
+          <div className="voice-control__row">
+            <button type="button" className="button button--primary voice-control__button" aria-pressed={voice.active} onClick={voice.toggle}>
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <rect x="7.5" y="2.5" width="5" height="9" rx="2.5" />
+                <path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v2.5" />
+              </svg>
+              {voice.active ? "Stop talking" : "Talk to the interviewer"}
+            </button>
+            <span aria-live="polite">
+              {voice.status !== "idle" && (
+                <span className={`check-chip voice-control__pill${voice.status === "error" ? " is-error" : ""}`}>{voice.status}</span>
+              )}
+            </span>
+          </div>
+          {voice.error && <p className="statement-error" role="alert">{voice.error}</p>}
+        </div>
+      )}
+
       <label className="statement-field">
         <span className="field-label">Statement</span>
         <textarea
@@ -161,21 +181,10 @@ export function StatementSectionView({
       </label>
 
       <div className="statement-actions">
-        {voiceEnabled && (
-          voice ? (
-            <>
-              <span className="statement-note" aria-live="polite" title={voice.error ?? undefined}>
-                {voice.error ? `error: ${voice.error}` : voice.status}
-              </span>
-              <button type="button" className="button button--quiet" onClick={voice.toggle}>
-                {voice.active ? "Stop voice interview" : "Start voice interview"}
-              </button>
-            </>
-          ) : (
-            <button type="button" className="button button--quiet" title="Voice interview coming soon" aria-disabled="true">
-              Start voice interview
-            </button>
-          )
+        {voiceEnabled && !voice && (
+          <button type="button" className="button button--quiet" title="Voice interview coming soon" aria-disabled="true">
+            Start voice interview
+          </button>
         )}
         <button type="button" className="button button--primary" disabled={!canSubmit} onClick={onSubmit} aria-keyshortcuts="Control+Enter Meta+Enter">
           Submit
