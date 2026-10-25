@@ -16,6 +16,8 @@ import {
   inferredBlockPath,
   WAVE_AMPLITUDE,
   SELECTION,
+  LABEL_W,
+  W,
   PLAYBACK_TINT,
   FOCUS_DIM_OPACITY,
   borderFor,
@@ -646,5 +648,17 @@ describe("approximated events", () => {
     expect(blocks.find((b) => b.id === "e1")).not.toHaveProperty("actionApproximated");
     expect(strokeFor("plausible", "#4f9dff", false, true)).toEqual({ dash: "2 3", stroke: "#4f9dff", opacity: 0.55 });
     expect(strokeFor("implausible", "#4f9dff", false, true)).toMatchObject({ dash: "2 3", stroke: "#ff4d4f" });
+  });
+
+  test("actor labels sit in a fixed column outside the scrolling track, at the track's scale", () => {
+    const { resolved, statuses } = snap();
+    const html = renderWith({ graph: robberyGraph, resolved, statuses, duration: resolved!.durationS, t: 0 });
+    const scroll = html.slice(html.indexOf('class="rtl-scroll"'), html.indexOf('class="rtl-labels"'));
+    const labels = html.slice(html.indexOf('class="rtl-labels"'));
+    expect(scroll).toContain("data-block=");
+    expect(scroll).not.toContain("data-row-label");
+    expect(labels).toMatch(/data-row-label="suspect"[^>]*>Suspect</);
+    expect(labels).toContain(`viewBox="0 0 ${LABEL_W} `);
+    expect(labels).toContain(`width:calc(max(100%, var(--rtl-min-width, 0px)) * ${LABEL_W / W})`);
   });
 });
