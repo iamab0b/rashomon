@@ -1,4 +1,4 @@
-import { CENTIMETRES, METRES } from "./alignment";
+import { CENTIMETRES, METRES, type Alignment } from "./alignment";
 import type { LoadedScan } from "./scan";
 import { useScanAlignStore } from "./scanAlignStore";
 import { triangleCount } from "./scanGeom";
@@ -15,6 +15,17 @@ const panelStyle = {
 } as const;
 
 const rowStyle = { display: "flex", alignItems: "center", gap: 6, marginTop: 6 } as const;
+
+export function alignmentJson(alignment: Alignment): string {
+  const { rotation, translation, scale } = alignment;
+  return `${JSON.stringify({ rotation, translation, scale, metresPerUnit: scale }, null, 2)}\n`;
+}
+
+function copyAlignment(alignment: Alignment): void {
+  navigator.clipboard.writeText(alignmentJson(alignment)).catch((error: unknown) => {
+    console.error("the alignment could not be copied", error);
+  });
+}
 
 export function ScanPanel({ scan }: { scan: LoadedScan }) {
   const { aligning, metresPerUnit, origin, setAligning, setMetresPerUnit, setOrigin } = useScanAlignStore();
@@ -51,6 +62,11 @@ export function ScanPanel({ scan }: { scan: LoadedScan }) {
           {aligning ? "Cancel" : "Align"}
         </button>
         {aligning ? <span>Click a point on the floor</span> : null}
+        {import.meta.env.DEV && scan.aligned ? (
+          <button type="button" data-copy-alignment="" onClick={() => copyAlignment(scan.alignment)}>
+            Copy alignment
+          </button>
+        ) : null}
       </div>
     </div>
   );

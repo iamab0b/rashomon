@@ -12,3 +12,4 @@ prep/
 .coordination
 apps/agent/.cartesia-ids.json
 __pycache__/
+apps/web/public/scans/
