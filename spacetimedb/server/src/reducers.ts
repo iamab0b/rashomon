@@ -4,6 +4,7 @@ import type { SceneManifest } from "@rashomon/schema";
 import { ScheduleAt, t } from "spacetimedb/server";
 import type { ReducerCtx } from "spacetimedb/server";
 import {
+  actorLookFrom,
   MIN_OVERRIDE_REASON_CHARS,
   SEGMENT_SOURCES,
   SPEAKERS,
@@ -232,6 +233,7 @@ function applyPatch(ctx: Ctx, sessionId: string, patch: unknown): string[] {
         label: nonEmptyString(a.label, "actor.label"),
         role: oneOf(a.role, ROLES, "actor.role"),
         rig: oneOf(a.rig, RIGS, "actor.rig"),
+        ...actorLookFrom(a),
       });
       return [];
     }

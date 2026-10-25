@@ -18,4 +18,7 @@ export default __t.row({
   label: __t.string(),
   role: __t.string(),
   rig: __t.string(),
+  body: __t.option(__t.string()),
+  heightM: __t.option(__t.f64()).name("height_m"),
+  tint: __t.option(__t.string()),
 });

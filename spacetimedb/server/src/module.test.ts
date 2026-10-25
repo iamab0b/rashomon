@@ -911,3 +911,41 @@ describe("the module judges its own writes", () => {
     expect(h.db.sessions.id.find("s9")).toBeNull();
   });
 });
+
+describe("actor bodies", () => {
+  const look = { body: "heavy_tall", heightM: 1.88, tint: "#b22222" } as const;
+  const lookout = (over: Record<string, unknown> = {}): Patch => ({
+    op: "add_actor",
+    actor: { id: "lookout", label: "Lookout", role: "other", rig: "mixamo_ybot", ...look, ...over } as never,
+  });
+
+  test("body, heightM and tint round-trip through the actors table and graphForScene", () => {
+    apply(eventPatches(), 0);
+    apply([lookout()], 1);
+    expect(h.db.actors.rowKey.find(`${SESSION}/lookout`)).toMatchObject(look);
+    expect(graph().actors.find((a) => a.id === "lookout")).toEqual({
+      id: "lookout",
+      label: "Lookout",
+      role: "other",
+      rig: "mixamo_ybot",
+      ...look,
+    });
+  });
+
+  test("actors without them keep exactly the four fields", () => {
+    apply(eventPatches(), 0);
+    expect(graph().actors).toEqual(robberyGraph.actors);
+    for (const a of graph().actors) expect(Object.keys(a).sort()).toEqual(["id", "label", "rig", "role"]);
+    expect(h.db.actors.rowKey.find(`${SESSION}/suspect`)).toMatchObject({ body: undefined, heightM: undefined, tint: undefined });
+  });
+
+  test("an unknown body, an out-of-range height and a malformed tint are refused", () => {
+    apply(eventPatches(), 0);
+    expect(() => apply([lookout({ body: "muscular_tall" })], 1)).toThrow(/actor.body/);
+    expect(() => apply([lookout({ heightM: 2.4 })], 1)).toThrow(/actor.heightM/);
+    expect(() => apply([lookout({ heightM: "tall" })], 1)).toThrow(/actor.heightM/);
+    expect(() => apply([lookout({ tint: "red" })], 1)).toThrow(/actor.tint/);
+    expect(() => apply([lookout({ tint: "#B22222" })], 1)).toThrow(/actor.tint/);
+    expect(h.db.actors.rowKey.find(`${SESSION}/lookout`)).toBeNull();
+  });
+});
