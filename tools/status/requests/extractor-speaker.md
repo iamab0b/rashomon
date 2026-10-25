@@ -60,3 +60,12 @@ Coordinate with the strict-schema fix in #48 (extractor-union-limit). Branch fro
      - Say in the PR exactly what live mode now resolves.
    - Test: a module-built graph whose w1 events use the `witness` actor gives w1 actorId `witness` and its label, plus the speaker sentence. A statement typed under another name, for example "Maria", then still resolves "I" to `witness`. A graph with no witness-role actor gives no "no actor yet" wording, and the prompt equals main's for that case.
 6. **MEDIUM, a revert check that doesn't fail.** Deleting run.ts:140, the `graph.witnesses` pass-through, leaves all server tests passing, because procedure.test.ts:168 matches the fallback text. Assert a case where the witness has a label or actorId, so the pass-through is tested.
+
+
+## #60 (stacked on #58): the one fix that decides the merge, by 1:30 AM
+
+#60's relocation code (1ed9a42) is right: the trigger needs both a first-person move phrase and a moved own event, the false-positive probes are clean, the robbery e5-only reply gives 4 patches with all events plausible and no flags, and the revert checks fail. **It can't merge while the inherited live HIGH stands** (Sonnet review). Push to extractor-relocation; no force-push.
+
+1. **HIGH, live duplicate actor** (prompt.ts:88 with graph.ts:29). Live witnesses have no actorId, so the prompt says "w1 … has no actor yet … Otherwise call add_actor … role witness". The existing actor is "Witness (customer)", which doesn't match "w1", so the model can add a duplicate witness actor. **Smallest fix (do this one):** when the speaking witness has no actorId, don't emit the speaker sentence at all; keep main's rule 3 wording ("I is the witness actor"). Test that a module-built graph (witness w1, label "w1", no actorId) gives a prompt with no "no actor yet" text, and that the robbery correction still yields 4 patches. The buildGraph actorId derivation (item 5) is optional after that.
+2. **MEDIUM, if time allows:** the walk can come out shorter than 2 s, even zero-length, when the moved event starts near 0 (relocation.ts:84-94). When `arrive - floor < 2`, use `max(0, arrive - 2)`, or skip the walk.
+3. **MEDIUM, if time allows:** clamp the walk start to the latest own-event end before arrival, so it doesn't overlap the speaker's other events (relocation.ts:66-78).
