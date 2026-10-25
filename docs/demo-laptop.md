@@ -92,15 +92,17 @@ If the browser's site data is cleared, the identity changes. Repeat these steps 
 
 ## 6. Publish (Sahil only, in his own terminal)
 
-Every module env value is stored on Maincloud: ANTHROPIC_API_KEY, CARTESIA_WEBHOOK_SECRET, EDITOR_IDENTITIES, UTHANA_API_KEY and UTHANA_CHARACTER_ID. So a code publish carries no env values:
+ANTHROPIC_API_KEY, CARTESIA_WEBHOOK_SECRET and EDITOR_IDENTITIES are stored on Maincloud, so a code publish leaves them off the command line. The first publish of a module that declares a new env value has to carry it. The generated-motion module (B3) declares UTHANA_API_KEY and UTHANA_CHARACTER_ID, so the freeze publish is:
 
 ```
 cd spacetimedb/server
-spacetime publish rashomon --server maincloud -c=never -y
+UTHANA_API_KEY=… UTHANA_CHARACTER_ID=… spacetime publish rashomon --server maincloud -c=never -y
 ```
 
+After that publish the Uthana values are stored too, and later code publishes are just `spacetime publish rashomon --server maincloud -c=never -y`.
+
 - Add `--break-clients` only when the publish changes a row type the browser decodes (#31 multi-witness, #40 action vocabulary and #45 bodies did). After such a publish, every open browser must `git pull`, `pnpm install` and hard-reload (section 4).
-- To set or change env values, use an env-only publish. It updates only the values on its command line and keeps every other stored value, for example:
+- To set or change env values the deployed module already declares, use an env-only publish. It updates only the values on its command line and keeps every other stored value. A value the deployed module doesn't declare yet is skipped, which is why the Uthana values go on the freeze publish instead. For example:
 
 ```
 UTHANA_API_KEY=… UTHANA_CHARACTER_ID=… spacetime publish rashomon --server maincloud --env-only -y
