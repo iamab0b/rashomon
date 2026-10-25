@@ -50,3 +50,13 @@ Coordinate with the strict-schema fix in #48 (extractor-union-limit). Branch fro
 2. **Recorded tool-use test:** a recorded correction tool-use set without the walk or the e3 update is flagged as incomplete by a validator check: a relocation update with no connecting movement for the same actor. It should be a soft warning in `unparsed` or a returned note, not a drop.
 3. **The full recorded set:** add_event walk, e3 shortened, e5 moved and e9 moved. It validates to the fixture's 4 patches, and after applying them e3 and e5 carry no contradiction flag.
 4. Live check (Hazel and Sahil, after the publish): the correction on two fresh scratch sessions, twice each, gives the walk and the shortened e3 every time.
+
+### Round 2 also (Sonnet review of 49007df): live witnesses have no actor, so the new wording can make live worse than main
+
+5. **HIGH, live regression risk.** The module builds live witnesses as `{ id, label: id, actorId: undefined }` (spacetimedb/server/src/graph.ts:29). So on every live session the prompt says "w1 … has no actor yet", and the model may call add_actor "w1" (role witness) when the `witness` actor already exists. That's a duplicate actor, with the customer's "I" events split across two actors. The validator check (validate.ts:157) never fires live, because it needs actor ids.
+   - Fix, smallest safe version:
+     - When a witness has no actorId, keep main's behaviour: rule 3's plain "I is the witness actor", and no "no actor yet" sentence. Add the speaker sentence only when an actorId is known.
+     - In spacetimedb/server/src/graph.ts (Sahil's area; he approves this in review), derive `actorId` for a witness only when it's unambiguous: the single actor with role "witness" for the session's first witness. Otherwise leave it undefined.
+     - Say in the PR exactly what live mode now resolves.
+   - Test: a module-built graph with one witness-role actor gives w1 that actorId and the speaker sentence. A graph with no witness-role actor gives no "no actor yet" wording, and the prompt equals main's for that case.
+6. **MEDIUM, a revert check that doesn't fail.** Deleting run.ts:140, the `graph.witnesses` pass-through, leaves all server tests passing, because procedure.test.ts:168 matches the fallback text. Assert a case where the witness has a label or actorId, so the pass-through is tested.
