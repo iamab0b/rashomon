@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import type { ResolvedEvent, ResolvedGraph } from "../scene";
 import { eventNeighbors } from "./history";
 import { Icon } from "./Icon";
-import { actorLabel, eventTime, words } from "./shared";
+import { actorLabel, eventTime, TimeBasisLabel, words, type TimeBasis } from "./shared";
 
 export type HeaderTab = { id: string; label: string; count?: number };
 
@@ -13,10 +13,11 @@ export type PanelHeaderProps = {
   graph: ResolvedGraph;
   selectedEventId: string | null;
   placeOf: (event: ResolvedEvent) => string | null;
+  timeBasisOf?: (event: ResolvedEvent) => TimeBasis;
   onJump: (eventId: string) => void;
 };
 
-export function PanelHeader({ tabs, activeTab, onTab, graph, selectedEventId, placeOf, onJump }: PanelHeaderProps) {
+export function PanelHeader({ tabs, activeTab, onTab, graph, selectedEventId, placeOf, timeBasisOf, onJump }: PanelHeaderProps) {
   const tabIndex = Math.max(
     0,
     tabs.findIndex((t) => t.id === activeTab),
@@ -74,6 +75,7 @@ export function PanelHeader({ tabs, activeTab, onTab, graph, selectedEventId, pl
               </strong>
               <span className="selection-meta">
                 <span className="mono">{eventTime(selectedEvent)}</span>
+                {timeBasisOf && <TimeBasisLabel basis={timeBasisOf(selectedEvent)} />}
                 {place && <> · {place}</>}
               </span>
             </>

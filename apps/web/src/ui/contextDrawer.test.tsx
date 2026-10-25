@@ -18,6 +18,7 @@ function context(): PanelContext {
     selectedEventId: "e5",
     playbackActive: new Set(),
     placeOf: () => null,
+    timeBasisOf: () => "stated",
     playing: false,
     jumpTo: () => {},
     openOverride: () => {},

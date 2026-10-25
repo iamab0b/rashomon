@@ -1,4 +1,4 @@
-import type { Override } from "@rashomon/schema";
+import type { EventGraph, Override } from "@rashomon/schema";
 import { Fragment, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import type { Flag, ResolvedEvent, ResolvedGraph, Status } from "../scene";
 import { BASIS_LABELS, checkBasis, flagHeadline } from "./flagCopy";
@@ -22,6 +22,7 @@ export type PanelContext = {
   selectedEventId: string | null;
   playbackActive: ReadonlySet<string>;
   placeOf: (event: ResolvedEvent) => string | null;
+  timeBasisOf: (event: ResolvedEvent) => TimeBasis;
   playing: boolean;
   jumpTo: (eventId: string) => void;
   openOverride: (eventId: string) => void;
@@ -41,6 +42,26 @@ export function actorLabel(graph: ResolvedGraph, actorId: string): string {
 
 export function eventTitle(event: ResolvedEvent): string {
   return `${event.actor} · ${words(event.action)}`;
+}
+
+export type TimeBasis = "stated" | "inferred";
+
+export function timeBasis(graph: Pick<EventGraph, "events"> | null, event: Pick<ResolvedEvent, "id" | "tInferred">): TimeBasis {
+  if (event.tInferred) return "inferred";
+  return graph?.events.find((raw) => raw.id === event.id)?.tConfidence === "inferred" ? "inferred" : "stated";
+}
+
+const TIME_BASIS_TITLES: Record<TimeBasis, string> = {
+  stated: "The witness gave this time",
+  inferred: "The witness gave no time; it was estimated from the order of the statement",
+};
+
+export function TimeBasisLabel({ basis }: { basis: TimeBasis }) {
+  return (
+    <small className={`time-basis time-basis--${basis}`} title={TIME_BASIS_TITLES[basis]}>
+      {basis === "stated" ? "Time stated" : "Time inferred"}
+    </small>
+  );
 }
 
 export function eventTime(event: ResolvedEvent): string {
@@ -71,7 +92,6 @@ export function eventDetail(graph: ResolvedGraph, event: ResolvedEvent): string 
     event.target && `target ${words(event.target)}`,
     event.prop && `with ${propLabel(graph, event.prop)}`,
   ];
-  if (event.tInferred) parts.push("time inferred");
   return parts.filter(Boolean).join(" · ") || "no target or prop";
 }
 

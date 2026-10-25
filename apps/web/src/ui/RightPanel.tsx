@@ -18,7 +18,7 @@ import { anchorsFor, eventPlace } from "./places";
 import { playbackActiveIds } from "./playback";
 import { usePlaybackKeys } from "./usePlaybackKeys";
 import { PanelHeader } from "./PanelHeader";
-import type { PanelContext } from "./shared";
+import { timeBasis, type PanelContext } from "./shared";
 import { transcriptFor } from "./transcript";
 import { useGraphMode } from "./useGraphMode";
 import { WitnessesTab } from "./WitnessesTab";
@@ -152,6 +152,7 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
     playbackActive: playbackActiveIds(resolved.events, t, statusOf),
     playing,
     placeOf: (event) => eventPlace(resolved.sceneId, event.action, anchorsFor(graph, event)),
+    timeBasisOf: (event) => timeBasis(graph, event),
     jumpTo,
     openOverride: setDialogEventId,
     openSource: (id) => {
@@ -186,6 +187,7 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
             graph={resolved}
             selectedEventId={selectedEventId}
             placeOf={context.placeOf}
+            timeBasisOf={context.timeBasisOf}
             onJump={jumpTo}
           />
 
