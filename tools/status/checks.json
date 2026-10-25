@@ -205,7 +205,7 @@
       "id": "interview-screen",
       "from": "Sahil",
       "due": "16-19",
-      "todo": "PR #35 round 4: resent only from the status saved at Submit (or a saved result); saved results keyed by graph source plus segmentId; then merge",
+      "todo": "#35 merged 89b644e. Follow-up on a new branch statement-followups: resent only from the status saved at Submit (or a saved result); saved results keyed by graph source plus segmentId (both LOW)",
       "doc": "tools/status/requests/interview-screen.md",
       "grep": "submitStatement",
       "paths": [
