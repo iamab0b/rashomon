@@ -8,6 +8,7 @@ import {
   SYSTEM_PROMPT,
   TRUNCATED,
   buildRequest,
+  completeRelocation,
   validateToolUses,
 } from "@rashomon/extractor";
 import type { ExtractContext, ModelMessage, ModelResponse, ToolUseBlock } from "@rashomon/extractor";
@@ -254,7 +255,8 @@ export function runExtraction(io: Io, sessionId: string, segmentId: string): Ext
   const gathered = gather(io, apiKey, snap.segment, snap.context);
   if ("code" in gathered) return recordError(io, sessionId, segmentId, gathered.code, gathered.detail);
   const { unparsed } = gathered;
-  const patches = mintPropIds(gathered.patches, snap.context);
+  const completed = completeRelocation(gathered.patches, snap.segment, snap.context);
+  const patches = mintPropIds(completed.patches, snap.context);
   const truncated = unparsed.includes(TRUNCATED);
   if (patches.length === 0 && truncated)
     return recordError(io, sessionId, segmentId, TRUNCATED, "the reply reached max_tokens before it finished");

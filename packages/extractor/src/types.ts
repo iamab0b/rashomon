@@ -69,6 +69,7 @@ export type ExtractResult = {
   segmentId: string;
   patches: Patch[];
   unparsed: string[];
+  notes?: string[];
   attempts: number;
   skipped?: string;
 };

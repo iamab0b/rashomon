@@ -1051,5 +1051,69 @@ describe("a corrected place carries forward", () => {
     expect(after.events.find((e) => e.id === "e9")?.at).toEqual({ kind: "at", landmark: "window_front" });
     expect(after.events.find((e) => e.id === "e5")?.at).toEqual({ kind: "at", landmark: "window_front" });
     expect(after.events).toHaveLength(11);
+    expect(r.notes).toBeUndefined();
+  });
+
+  const replyWith = (...ids: string[]): CallModel => async () => ({
+    content: recorded.filter((b) => ids.includes(b.id)),
+    stop_reason: "tool_use",
+  });
+  const run = (model: CallModel, segment = utt("utt_12")) => extractSegment(segment, ctx(), model);
+  const byId = (patches: Patch[], id: string) =>
+    patches.find((p): p is Extract<Patch, { op: "update_event" }> => p.op === "update_event" && p.id === id);
+  const walks = (patches: Patch[]) =>
+    patches.flatMap((p) => (p.op === "add_event" && p.event.action === "walk" ? [p.event] : []));
+
+  test("a reply that only moves e5 still gets the walk, e3 ended where the walk starts, and e9 carried forward", async () => {
+    const r = await run(replyWith("c1"));
+    expect(r.unparsed).toEqual([]);
+    expect(walks(r.patches)).toEqual([
+      {
+        witnessId: "w1",
+        actor: "witness",
+        action: "walk",
+        from: { kind: "at", landmark: "aisle_chips" },
+        to: { kind: "at", landmark: "window_front" },
+        t: [6, 10],
+        tConfidence: "inferred",
+        confidence: 0.6,
+        sources: ["utt_12"],
+      },
+    ]);
+    expect(byId(r.patches, "e3")?.changes).toEqual({ t: [0, 6] });
+    expect(byId(r.patches, "e9")?.changes).toEqual({ at: { kind: "at", landmark: "window_front" } });
+    expect(r.patches).toHaveLength(4);
+    expect(r.notes).toHaveLength(3);
+    const after = applyPatchesLocal(robberyGraph, r.patches);
+    expect(after.events.find((e) => e.id === "e3")?.t).toEqual([0, 6]);
+    expect(after.events.find((e) => e.id === "e11")).toMatchObject({ action: "walk", t: [6, 10] });
+  });
+
+  test("a reply with the walk but no e3 change ends e3 where the model's walk starts", async () => {
+    const r = await run(replyWith("c1", "c3", "c4"));
+    expect(walks(r.patches).map((w) => w.t)).toEqual([[8, 11]]);
+    expect(byId(r.patches, "e3")?.changes).toEqual({ t: [0, 8] });
+    expect(r.patches).toHaveLength(4);
+  });
+
+  test("a reply with e3 shortened but no walk gets the walk, and keeps the model's e3 times", async () => {
+    const r = await run(replyWith("c1", "c2", "c4"));
+    expect(walks(r.patches).map((w) => [w.from, w.to, w.t])).toEqual([
+      [{ kind: "at", landmark: "aisle_chips" }, { kind: "at", landmark: "window_front" }, [6, 10]],
+    ]);
+    expect(byId(r.patches, "e3")?.changes).toEqual({ t: [0, 9] });
+    expect(r.patches).toHaveLength(4);
+  });
+
+  test("no walk is added when the witness describes no move, and other actors' moves are left alone", async () => {
+    const still = { ...utt("utt_12"), text: "No, I was by the window the whole time. I saw him from there." };
+    const r = await run(replyWith("c1"), still);
+    expect(r.patches.map((p) => p.op)).toEqual(["update_event"]);
+    expect(r.notes).toBeUndefined();
+    const suspect = await run(async () => ({
+      content: [use("update_event", { ...none, id: "e4", at: at("cooler"), sources: [] }, "s1")],
+      stop_reason: "tool_use",
+    }));
+    expect(suspect.patches.map((p) => p.op)).toEqual(["update_event"]);
   });
 });

@@ -419,6 +419,57 @@ describe("extractSegment", () => {
   });
 });
 
+describe("a relocation the model reply leaves incomplete", () => {
+  const CORRECTION = "Oh. No, you're right, I'd stepped out. I came to the front by the window to see what was going on. I saw him from there.";
+  const none = { action: null, from: null, to: null, at: null, facing: null, target: null, prop: null, t_start: null, t_end: null };
+  const moveE5 = toolUse("tu_e5", "update_event", { ...none, id: "e5", at: at("window_front"), sources: [] });
+
+  const seedAndCorrect = () => {
+    call((ctx) =>
+      mod.applyPatches(ctx, {
+        sessionId: SESSION,
+        baseVersion: 1,
+        patchesJson: JSON.stringify([
+          ...robberyGraph.props.map((prop) => ({ op: "add_prop", prop })),
+          ...robberyGraph.events.map(({ status: _s, flags: _f, ...event }) => ({ op: "add_event", event })),
+        ]),
+      }),
+    );
+    call((ctx) =>
+      mod.insertSegment(ctx, {
+        id: "utt_12",
+        sessionId: SESSION,
+        witnessId: "w1",
+        speaker: "witness",
+        text: CORRECTION,
+        tStart: 81,
+        tEnd: 87,
+        source: "live",
+        supersedes: undefined,
+        utterances: [{ id: "utt_12_a", text: CORRECTION, tStart: 81, tEnd: 87 }],
+      }),
+    );
+  };
+
+  test("a reply that only moves e5 still gets the walk and the shortened e3, and e3 and e5 carry no contradiction", () => {
+    seedAndCorrect();
+    const result = runExtraction(ioFor(ok([moveE5])), SESSION, "utt_12");
+    expect(result.error).toBeUndefined();
+    expect(result.patchCount).toBe(4);
+    const g = graph();
+    const byId = (id: string) => g.events.find((e) => e.id === id)!;
+    expect(byId("e5").at).toEqual({ kind: "at", landmark: "window_front" });
+    expect(byId("e3").t).toEqual([0, 6]);
+    expect(byId("e9").at).toEqual({ kind: "at", landmark: "window_front" });
+    expect(byId("e11")).toMatchObject({ actor: "witness", action: "walk", from: { kind: "at", landmark: "aisle_chips" }, to: { kind: "at", landmark: "window_front" }, t: [6, 10] });
+    for (const id of ["e3", "e5", "e9", "e11"]) {
+      expect(byId(id).flags, id).toEqual([]);
+      expect(byId(id).status, id).toBe("plausible");
+    }
+    expect(segmentRow("utt_12").extractError).toBeUndefined();
+  });
+});
+
 describe("the Cartesia webhook", () => {
   const webhookIo = (responder: TestHttpResponder<never>, secret: string | undefined = HOOK) => ({
     ...ioFor(responder),
