@@ -38,3 +38,12 @@ Sat 6:50 PM: PR #35 merged at 6dce3f9 as 89b644e over Greptile's 3/5, on Sahil's
 3. **LOW, optional:** one mounted test of StatementSection's wiring, if happy-dom is already set up for the web tests. Skip it otherwise.
 
 Greptile reviews the new PR; the leader reviews and merges.
+
+## PR #56 (statement-followups): merge main, then it merges
+
+8bb7e02: the leader's Opus review is clean. The resend read happens at Submit with the segment id matching the module's formula, saved results are keyed by mode, scene and segment, and the revert checks fail. But #47 has now merged into main, and #56 conflicts with it in StatementSection.tsx in three mechanical hunks:
+- the `../scene` import line (`useWitnessLayers` and `useStatementStatuses`: keep both);
+- the `statuses` and `live` declarations;
+- the `submit(...).then` call (#47's `witnessToSend(...)` and #56's `resent` block: keep both).
+
+Run `git fetch origin && git merge origin/main` on statement-followups, keep both sides, run the web tests, and push; no force-push. Optional LOW: clear the saved results when the graph source object changes. Dropping the same scan file again today reuses `scan:<hash>` and shows the old "Already added".

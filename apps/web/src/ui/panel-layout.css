@@ -17,3 +17,5 @@
 .rui button.event-override-note { width: fit-content; border: 0; background: transparent; font-family: inherit; cursor: pointer; text-decoration: underline dotted transparent; text-underline-offset: 3px; transition: text-decoration-color .15s; }
 .rui button.event-override-note:hover { text-decoration-color: currentColor; }
 .rui button.event-override-note:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+.rui .panel-head--tabs-only { padding-bottom: 0; }
+.rui .panel-head--tabs-only .tabs { margin-bottom: 0; border-bottom: 0; }

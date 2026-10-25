@@ -31,6 +31,7 @@ export type { SceneStatusView } from "./useSceneStatus";
 export { useSelection } from "./playback/useSelection";
 export type { SelectionApi } from "./playback/useSelection";
 export { Timeline } from "./timeline";
+export { actorColor } from "./timeline/layout";
 export type { TimelineProps } from "./timeline";
 export { isGraphlessSearch, isLandmarkEditing } from "./labeling/storage";
 export { useSceneSource } from "./loaders/useSceneSource";
