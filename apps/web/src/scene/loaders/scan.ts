@@ -29,6 +29,7 @@ import {
   type ScanRequest,
 } from "./scanRequest";
 import { makeScanUnlit, scanLitFromSearch } from "./scanUnlit";
+import { specGlossPlugin } from "./specGlossPlugin";
 import { patchScan, putScanBytes, readScan } from "./scanStore";
 
 export const SCAN_ROOT = "scan_root";
@@ -77,7 +78,8 @@ export function alignmentFromClick(
 }
 
 export async function parseGlb(bytes: ArrayBuffer): Promise<Object3D> {
-  const gltf = await new GLTFLoader().parseAsync(bytes, "");
+  const loader = new GLTFLoader().register((parser) => specGlossPlugin(parser));
+  const gltf = await loader.parseAsync(bytes, "");
   return gltf.scene;
 }
 
