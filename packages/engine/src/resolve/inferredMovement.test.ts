@@ -146,17 +146,39 @@ describe("inferred movement", () => {
     expect(verdict.statuses.c1).toBe("implausible");
   });
 
-  test("the lengthened end leaves walking time to the next stated event when it fits", () => {
+  test("the lengthened end stops early enough to walk to a close next event", () => {
     const events = [
       walk({ t: [8, 9] }),
-      { ...robberyGraph.events.find((e) => e.id === "e9")!, id: "c1", t: [30, 40] as [number, number], at: at("counter") },
+      { ...robberyGraph.events.find((e) => e.id === "e9")!, id: "c1", t: [14, 20] as [number, number], at: at("counter") },
     ];
-    const { byId } = run({ ...robberyGraph, events } as EventGraph);
+    const { byId, flagsOf } = run({ ...robberyGraph, events } as EventGraph);
     const e11 = byId("e11");
     const c1 = byId("c1");
     const travel = Math.hypot(e11.to![0] - c1.at![0], e11.to![2] - c1.at![2]);
-    expect(e11.tEnd - e11.tStart).toBeGreaterThanOrEqual(e11.pathLengthM / 1.4 - 1e-6);
+    expect(travel / 1.4).toBeGreaterThan(14 - (8 + e11.pathLengthM / 1.4));
     expect(c1.tStart - e11.tEnd).toBeGreaterThanOrEqual(travel / 1.4 - 1e-6);
+    expect(flagsOf("c1").filter((f) => f.check === "time_distance")).toEqual([]);
+  });
+
+  test("an estimated run cannot swallow the estimated event after it", () => {
+    const spot = (id: string, over: Partial<Event>): Event =>
+      ({ ...robberyGraph.events.find((e) => e.id === "e3")!, id, actor: "witness", ...over }) as Event;
+    const events = [
+      spot("s0", { at: at("front_door"), t: [0, 10], tConfidence: "stated" }),
+      walk({ id: "x1", action: "run", from: at("front_door"), to: at("back_door"), t: [10, 11] }),
+      spot("x2", { action: "crouch", at: at("back_door"), t: [11, 13], tConfidence: "inferred" }),
+    ];
+    const { verdict, byId, flagsOf } = run({ ...robberyGraph, events } as EventGraph);
+    const run1 = byId("x1");
+    const crouch = byId("x2");
+    expect(run1.tEnd).toBeLessThanOrEqual(crouch.tStart);
+    expect(run1.tStart).toBeGreaterThanOrEqual(10);
+    expect([crouch.tStart, crouch.tEnd]).toEqual([11, 13]);
+    expect(verdict.statuses.x2).not.toBe("implausible");
+    expect(flagsOf("x2").filter((f) => f.severity === "hard")).toEqual([]);
+    expect(run1.tInferred).toBe(true);
+    expect(flagsOf("x1").filter((f) => f.severity === "hard")).toEqual([]);
+    expect(verdict.statuses.x1).not.toBe("implausible");
   });
 
   test("a stated event that starts when the walk does bounds the start, and one ending at the walk's end bounds the end", () => {

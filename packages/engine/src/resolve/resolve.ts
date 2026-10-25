@@ -15,10 +15,9 @@ import { WALK_SPEED_MS, hasInterval, realisticMovement, resolveInterval } from "
 const MOVEMENT = new Set(["walk", "run"]);
 const TIME_EPS = 1e-9;
 
-const isStated = (e: Event): e is Event & { t: [number, number] } =>
-  e.tConfidence === "stated" && hasInterval(e.t) && !isRetracted(e);
+const isDated = (e: Event): e is Event & { t: [number, number] } => hasInterval(e.t) && !isRetracted(e);
 
-function statedNeighbours(
+function datedNeighbours(
   events: readonly Event[],
   self: Event,
   t: [number, number],
@@ -27,7 +26,7 @@ function statedNeighbours(
   let ceiling = Number.POSITIVE_INFINITY;
   let next: Event | undefined;
   for (const other of events) {
-    if (other === self || other.actor !== self.actor || !isStated(other)) continue;
+    if (other === self || other.actor !== self.actor || !isDated(other)) continue;
     if (other.t[0] <= t[0]) floor = Math.max(floor, other.t[1]);
     else if (other.t[0] < ceiling) {
       ceiling = other.t[0];
@@ -167,11 +166,11 @@ export function resolve(
     a ? roundVec(anchorToPoint(a, manifest)) : undefined;
   const tracker = createTracker();
 
-  const boundsFor = (e: Event, t: [number, number], arrival: Vec3 | undefined) => {
-    const { floor, ceiling, next } = statedNeighbours(graph.events, e, t);
+  const boundsFor = (e: Event, t: [number, number], arrival: Vec3 | undefined, previousEnd: number) => {
+    const { floor, ceiling, next } = datedNeighbours(graph.events, e, t);
     const target = next ? (MOVEMENT.has(next.action) ? point(next.from) : (point(next.at) ?? point(next.from))) : undefined;
     const reserveS = arrival && target ? Math.hypot(...arrival.map((v, i) => v - target[i]!) as Vec3) / WALK_SPEED_MS : 0;
-    return { floor, ceiling, reserveS };
+    return { floor: Math.max(floor, previousEnd), ceiling, reserveS };
   };
 
   const previousEndByActor = new Map<string, number>();
@@ -190,7 +189,7 @@ export function resolve(
     const given = resolveInterval(e.t, e.action, route.travelM, previousEnd);
     const t =
       isMove && e.tConfidence === "inferred" && hasInterval(e.t)
-        ? realisticMovement(given, e.action, pathLength(route.path), boundsFor(e, e.t, route.reachable ? to : from))
+        ? realisticMovement(given, e.action, pathLength(route.path), boundsFor(e, e.t, route.reachable ? to : from, previousEnd))
         : given;
     previousEndByActor.set(e.actor, t.tEnd);
     const arrivedAt = isMove ? (route.reachable ? to : from) : at;
