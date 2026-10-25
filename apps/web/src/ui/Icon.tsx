@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export type IconName = "eye" | "eyeOff" | "warning" | "x" | "chevron" | "chevronUp" | "copy" | "history" | "transcript" | "statement" | "plus";
+export type IconName = "eye" | "eyeOff" | "warning" | "x" | "chevron" | "chevronUp" | "copy" | "history" | "transcript" | "statement" | "plus" | "scene";
 
 const icons: Record<IconName, ReactNode> = {
   eye: (
@@ -27,6 +27,12 @@ const icons: Record<IconName, ReactNode> = {
   chevronUp: <path d="m6 12 4-4 4 4" />,
   statement: <path d="M4 4.5h12v8H9.5L6 15.5v-3H4z" />,
   plus: <path d="M10 4.5v11M4.5 10h11" />,
+  scene: (
+    <>
+      <path d="M10 3 16.5 6.5v7L10 17l-6.5-3.5v-7Z" />
+      <path d="M3.5 6.5 10 10l6.5-3.5M10 10v7" />
+    </>
+  ),
   transcript: (
     <>
       <path d="M4 4.5h12M4 8.5h12M4 12.5h7" />

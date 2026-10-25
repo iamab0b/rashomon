@@ -15,7 +15,8 @@
 .rui .context-rail { position: absolute; z-index: 2; inset: 0 0 0 auto; width: var(--rail-w); display: flex; flex-direction: column; background: var(--surface); }
 .rui.context-column[data-open] .context-rail { border-left: 1px solid var(--border); }
 .rui .context-rail__group { display: flex; flex-direction: column; }
-.rui .context-rail__group--input { margin-top: auto; border-top: 1px solid var(--border); }
+.rui .context-rail__group--input { border-top: 1px solid var(--border); }
+.rui .context-rail__group--first-bottom { margin-top: auto; }
 .rui .context-rail__group--input .context-rail__button { border-bottom: 0; }
 .rui .context-rail__button[aria-expanded="true"] { color: var(--text-primary); background: var(--surface-raised); box-shadow: inset 2px 0 0 var(--text-primary); }
 .rui .context-rail__button { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 0; color: var(--text-secondary); border: 0; border-bottom: 1px solid var(--border); background: transparent; font: 500 var(--fs-sm) Inter, system-ui, sans-serif; letter-spacing: .04em; cursor: pointer; transition: color .15s, background-color .15s; }
