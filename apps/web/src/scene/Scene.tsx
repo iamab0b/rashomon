@@ -21,7 +21,8 @@ import { LabelProjector } from "./landmarks/LabelProjector";
 import { LandmarkMarkers } from "./landmarks/LandmarkMarkers";
 import { EditorLayer } from "./labeling/EditorLayer";
 import { interiorFromBounds } from "./labeling/interior";
-import { sessionAction, useLabelingStore, type MeshSwitch } from "./labeling/labelingStore";
+import { sessionAction, useLabelingStore } from "./labeling/labelingStore";
+import { createMeshSwitcher } from "./labeling/meshSwitcher";
 import {
   isEditorOpen,
   isGraphlessSearch,
@@ -35,7 +36,7 @@ import { loadScan, storeDroppedScan, type LoadedScan } from "./loaders/scan";
 import { useScanAlignStore } from "./loaders/scanAlignStore";
 import { ScanDropHint } from "./loaders/ScanDropHint";
 import { useScanToolsStore } from "./loaders/scanToolsStore";
-import { scanFailure, scanLocation, scanRequestFromSearch, searchWithScan, type ScanRequest } from "./loaders/scanRequest";
+import { idbUrl, scanFailure, scanRequestFromSearch, type ScanRequest } from "./loaders/scanRequest";
 import type { SceneSource } from "./loaders/sceneSource";
 import { failScan, scanErrorMessage, useScanScene } from "./loaders/useScanScene";
 import { fixtureGraphSource, NO_GEOM, scenarioFromSearch, type GateScene } from "./playback/graphSource";
@@ -45,7 +46,8 @@ import { Props } from "./props/Props";
 import { selectSource } from "./playback/selectSource";
 import { useGraphSource } from "./playback/useGraph";
 import { SceneErrorCard } from "./SceneErrorCard";
-import { sceneFailure, scanSceneFailure, shouldSignalReady } from "./sceneFailure";
+import { SceneTools, useSceneToolsAvailable } from "./SceneTools";
+import { failureSkipped, sceneFailure, scanSceneFailure, shouldSignalReady } from "./sceneFailure";
 import { useSceneStore } from "./store";
 import { useSceneKeys } from "./useSceneKeys";
 
@@ -62,7 +64,18 @@ export type SceneProps = {
   fixture?: string;
   debug?: string;
   t?: number;
+  sceneToolsHosted?: boolean;
 };
+
+const toolsOverlayStyle = {
+  position: "absolute",
+  top: 8,
+  right: 8,
+  width: 280,
+  maxHeight: "calc(100% - 16px)",
+  overflowY: "auto",
+  zIndex: 21,
+} as const;
 
 const RIG_DEBUG = "rig";
 const STORE_FIXTURE = "store";
@@ -108,7 +121,7 @@ function useEditorBounds(loaded: LoadedScene | null, editing: boolean): void {
   }, [loaded, editing, setInterior]);
 }
 
-function useSceneFailure(
+export function useSceneFailure(
   fixture: string | undefined,
   skip: boolean,
   hasGraphSource: boolean,
@@ -188,7 +201,7 @@ type ScanRequestApi = {
 
 const DISCARD_PROMPT = "Discard unsaved landmark edits?";
 
-function useScanRequest(editing: boolean): ScanRequestApi {
+export function useScanRequest(editing: boolean): ScanRequestApi {
   const [request, setRequest] = useState<ScanRequest | null>(() => scanRequestFromSearch(window.location.search));
   const latestDrop = useRef(0);
   const drop = useCallback(
@@ -198,7 +211,7 @@ function useScanRequest(editing: boolean): ScanRequestApi {
       storeDroppedScan(file)
         .then((hash) => {
           if (serial !== latestDrop.current) return;
-          const search = searchWithScan(window.location.search, hash);
+          const search = searchWithMesh(window.location.search, idbUrl(hash));
           window.history.replaceState(window.history.state, "", search);
           setRequest(scanRequestFromSearch(search));
         })
@@ -234,7 +247,7 @@ function useEditorSession(editing: boolean, startManifest: SceneManifest | null,
   }, [editing, startManifest, sessionKey]);
 }
 
-function useMeshSwitcher(
+export function useMeshSwitcher(
   editing: boolean,
   scan: LoadedScan | null,
   replace: ScanRequestApi["replace"],
@@ -244,25 +257,16 @@ function useMeshSwitcher(
   const setMeshSwitcher = useLabelingStore((state) => state.setMeshSwitcher);
   useEffect(() => {
     if (!editing) return;
-    setMeshSwitcher(async (manifest): Promise<MeshSwitch> => {
-      const shown = latestScan.current;
-      if (shown && manifest.meshUrl === shown.meshUrl) {
-        const scene = useSceneStore.getState();
-        if (scene.status === "error") scene.setStatus("ready");
-        return { ok: true, key: `scan:${shown.meshUrl}` };
-      }
-      if (!shown && !manifest.meshUrl.startsWith("idb:")) return { ok: true, key: null };
-      const request: ScanRequest = { scan: scanLocation(manifest.meshUrl), manifest: null };
-      try {
-        const preview = await loadScan(request);
-        replace(request, manifest.meshUrl);
-        return { ok: true, key: `scan:${preview.meshUrl}` };
-      } catch (error) {
-        console.error("import mesh failed", error);
-        useSceneStore.getState().setStatus("error", scanErrorMessage(error));
-        return { ok: false, error: error instanceof Error ? error.message : String(error) };
-      }
-    });
+    setMeshSwitcher(
+      createMeshSwitcher({
+        getScan: () => latestScan.current,
+        replace,
+        load: (request) => loadScan(request),
+        getStatus: () => useSceneStore.getState().status,
+        setStatus: (status, error) => useSceneStore.getState().setStatus(status, error),
+        describe: scanErrorMessage,
+      }),
+    );
     return () => setMeshSwitcher(null);
   }, [editing, replace, setMeshSwitcher]);
 }
@@ -308,7 +312,7 @@ function useDropZone(onFile: (file: File) => void) {
   };
 }
 
-export function Scene({ fixture, debug, t }: SceneProps) {
+export function Scene({ fixture, debug, t, sceneToolsHosted = false }: SceneProps) {
   useSceneKeys();
   useDebugPreset(debug);
   useInitialTime(t, debug);
@@ -361,7 +365,7 @@ export function Scene({ fixture, debug, t }: SceneProps) {
   }, [isRigDebug, graphless, fixture, scanRequest, gateScene, liveScan]);
   useGraphSource(graphSource);
   useSceneSourcePublisher(loaded, scan);
-  const failure = useSceneFailure(fixture, isRigDebug || graphless, graphSource !== null, { request: scanRequest, loaded: scan !== null });
+  const failure = useSceneFailure(fixture, failureSkipped({ isRigDebug, graphless, liveScan }), graphSource !== null, { request: scanRequest, loaded: scan !== null });
   const shownLandmarks = editing ? editLandmarks : (loaded?.manifest.landmarks ?? []);
   const aligning = useScanAlignStore((state) => state.aligning);
   const onAlignClick = useCallback(
@@ -378,6 +382,7 @@ export function Scene({ fixture, debug, t }: SceneProps) {
     [alignAt],
   );
   const drop = useDropZone(dropScan);
+  const toolsAvailable = useSceneToolsAvailable();
   const hasGraph = useSceneStore((state) => state.resolved !== null);
   const actorsReady = useSceneStore((state) => state.actorsReady);
   const status = useSceneStore((state) => state.status);
@@ -422,6 +427,11 @@ export function Scene({ fixture, debug, t }: SceneProps) {
       </Canvas>
       {loaded ? <LabelLayer landmarks={shownLandmarks} /> : null}
       {isRigDebug ? <RigReportPanel /> : null}
+      {!sceneToolsHosted && toolsAvailable ? (
+        <div style={toolsOverlayStyle} data-scene-tools-overlay="">
+          <SceneTools />
+        </div>
+      ) : null}
       {drop.dragging ? <ScanDropHint /> : null}
       <SceneErrorCard />
       <DebugOverlay />

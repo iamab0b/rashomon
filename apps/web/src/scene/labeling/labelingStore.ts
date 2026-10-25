@@ -111,11 +111,12 @@ export const useLabelingStore = create<LabelingState>((set, get) => ({
   load: (manifest, key) =>
     set((state) => {
       const entries = entriesOf(manifest.landmarks, state.nextKey);
+      const interior = manifest.interior ?? (sameMesh(state.base, manifest) ? state.interior : undefined);
       return {
-        base: manifest,
+        base: interior && !manifest.interior ? { ...manifest, interior } : manifest,
         sessionKey: key === undefined ? state.sessionKey : key,
         snapshot: snapshotOf(entries.map((entry) => entry.landmark)),
-        interior: manifest.interior ?? (sameMesh(state.base, manifest) ? state.interior : undefined),
+        interior,
         entries,
         nextKey: state.nextKey + manifest.landmarks.length,
         selectedKey: null,
