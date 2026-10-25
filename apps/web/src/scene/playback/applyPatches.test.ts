@@ -248,3 +248,21 @@ describe("purity and notification", () => {
     expect(storeSource().getSnapshot().statuses.e5).toBe("implausible");
   });
 });
+
+describe("styles through the fixture source's patches", () => {
+  const e1 = (graph: EventGraph) => graph.events.find((event) => event.id === "e1")!;
+  const styled = applyPatches(robberyGraph, [{ op: "update_event", id: "e1", changes: { style: "sneak" }, sources: ["utt_2"] }], NOW, undefined);
+
+  it("a changed action drops a style that no longer fits, as the module does", () => {
+    expect(e1(styled).style).toBe("sneak");
+    const run = applyPatches(styled, [{ op: "update_event", id: "e1", changes: { action: "run" }, sources: ["utt_2"] }], NOW, undefined);
+    expect(e1(run).action).toBe("run");
+    expect(e1(run)).not.toHaveProperty("style");
+  });
+
+  it("null clears a style without changing the action", () => {
+    const plain = applyPatches(styled, [{ op: "update_event", id: "e1", changes: { style: null } as never, sources: ["utt_2"] }], NOW, undefined);
+    expect(e1(plain)).not.toHaveProperty("style");
+    expect(e1(plain).action).toBe("walk");
+  });
+});

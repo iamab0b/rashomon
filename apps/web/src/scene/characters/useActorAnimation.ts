@@ -6,7 +6,7 @@ import { useSceneStore } from "../store";
 import { applySamples } from "./applySamples";
 import { buildClipWindows, createClipSampler, EMPTY_WINDOW_SET } from "./blend";
 import type { CharacterHandle } from "./Character";
-import { getClip, loadClips } from "./clips";
+import { getClip, loadClips, loadOptionalClips } from "./clips";
 
 function useClipsLoaded(): boolean {
   const [loaded, setLoaded] = useState(false);
@@ -24,6 +24,20 @@ function useClipsLoaded(): boolean {
   return loaded;
 }
 
+function useOptionalClipsSettled(): boolean {
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void loadOptionalClips().then(() => {
+      if (!cancelled) setSettled(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return settled;
+}
+
 function hasClip(name: string): boolean {
   return getClip(name) !== undefined;
 }
@@ -36,6 +50,7 @@ export function useActorAnimation(actorId: string, character: CharacterHandle | 
   const events = useSceneStore((state) => state.resolved?.events);
   const statuses = useSceneStore((state) => state.statuses);
   const clipsLoaded = useClipsLoaded();
+  const optionalSettled = useOptionalClipsSettled();
   const touched = useRef(new Map<string, AnimationAction>());
   const sampler = useMemo(createClipSampler, []);
 
@@ -44,7 +59,7 @@ export function useActorAnimation(actorId: string, character: CharacterHandle | 
       clipsLoaded && events
         ? buildClipWindows(actorId, events, hasClip, (event) => statusOf(statuses, event))
         : EMPTY_WINDOW_SET,
-    [actorId, events, statuses, clipsLoaded],
+    [actorId, events, statuses, clipsLoaded, optionalSettled],
   );
 
   useEffect(() => {

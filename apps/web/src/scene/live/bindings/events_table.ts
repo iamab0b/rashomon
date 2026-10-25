@@ -41,4 +41,7 @@ export default __t.row({
   sources: __t.array(__t.string()),
   status: __t.string(),
   supersededBy: __t.option(__t.string()).name("superseded_by"),
+  style: __t.option(__t.string()),
+  actionApproximated: __t.option(__t.bool()).name("action_approximated"),
+  verb: __t.option(__t.string()),
 });
