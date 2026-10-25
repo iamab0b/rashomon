@@ -297,12 +297,22 @@ describe("resolve edge cases", () => {
     expect(r.events[1]).toMatchObject({ reachable: true, at: [1.5, 0, 5.5] });
   });
 
-  test("without portals a straight walk through an obstacle is unreachable", () => {
-    const blocked = resolve(
+  test("without portals a walk through an obstacle routes around it on the generated graph", () => {
+    const around = resolve(
       graphOf([ev({ id: "a", actor: "suspect", action: "walk", from: { kind: "xyz", position: [3, 0, 5] }, to: { kind: "xyz", position: [7, 0, 5] }, t: [0, 3] })]),
       synth,
     );
-    expect(blocked.events[0]).toMatchObject({ reachable: false, path: [] });
+    const a = around.events[0]!;
+    expect(a.reachable).toBe(true);
+    expect(a.path.length).toBeGreaterThan(2);
+    expect(a.pathLengthM).toBeGreaterThan(4);
+    const mid = synth.landmarks.find((l) => l.id === "mid")!.bounds;
+    expect(a.path.every((p) => !(p[0] > mid.min[0] && p[0] < mid.max[0] && p[2] > mid.min[2] && p[2] < mid.max[2]))).toBe(true);
+    const sealed = resolve(
+      graphOf([ev({ id: "a", actor: "suspect", action: "walk", from: { kind: "xyz", position: [3, 0, 5] }, to: { kind: "xyz", position: [7, 0, 5] }, t: [0, 3] })]),
+      { ...synth, portals: { waypoints: [], edges: [] } },
+    );
+    expect(sealed.events[0]).toMatchObject({ reachable: false, path: [] });
     const clear = resolve(
       graphOf([ev({ id: "a", actor: "suspect", action: "walk", from: { kind: "xyz", position: [3, 0, 8] }, to: { kind: "xyz", position: [7, 0, 8] }, t: [0, 3] })]),
       synth,
