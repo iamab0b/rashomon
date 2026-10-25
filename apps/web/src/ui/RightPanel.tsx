@@ -189,7 +189,11 @@ export function RightPanel({ by = "investigator" }: { by?: string }) {
       setContextView("history");
     },
     notify: setToast,
-    transcript: transcriptFor(mode, resolved.sceneId),
+    transcript: transcriptFor(
+      mode,
+      resolved.sceneId,
+      layers.map((layer) => layer.id),
+    ),
   };
 
   const tabIndex = Math.max(

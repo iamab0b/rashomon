@@ -8,8 +8,9 @@ import { chosenWitness, fixtureWitness, NEW_WITNESS, witnessToSend } from "./sta
 import { StatementSectionView, type StatementSectionViewProps } from "./StatementSection";
 import type { PanelContext } from "./shared";
 import { witnessColor, witnessTagOf } from "./witnesses";
+import { transcriptFor } from "./transcript";
 import { WitnessStrip } from "./WitnessStrip";
-import { NO_ACTOR_FOCUS, NO_WITNESS_FILTER } from "./witnessFilter";
+import { NO_ACTOR_FOCUS, NO_WITNESS_FILTER, utteranceSpeaker, visibleUtterances } from "./witnessFilter";
 
 function twoWitnesses(): ResolvedGraph {
   return selectSource("?scenario=two-witnesses")!.getSnapshot().resolved!;
@@ -178,5 +179,21 @@ describe("two-witness UI", () => {
     const live = view(null);
     expect(live).not.toMatch(/<option[^>]*disabled/);
     expect(live).not.toContain("Fixture data adds");
+  });
+
+  test("the Clerk's statement lines join the fixture transcript when the Clerk is a witness, tagged with their witness", () => {
+    const graph = twoWitnesses();
+    const layers = layersOf(graph);
+    const one = transcriptFor("fixture", graph.sceneId, ["w1"])!;
+    expect(one.some((u) => u.id.startsWith("utt_w2_"))).toBe(false);
+    const both = transcriptFor("fixture", graph.sceneId, ["w1", "w2"])!;
+    const clerk = both.filter((u) => u.witnessId === "w2");
+    expect(clerk.map((u) => u.id)).toEqual(["utt_w2_1", "utt_w2_2", "utt_w2_3", "utt_w2_4"]);
+    expect(clerk[0]!.text).toBe("He wasn't at the counter when he grabbed it.");
+    expect(utteranceSpeaker(clerk[0]!, graph.events, layers)).toBe("Clerk");
+    expect(utteranceSpeaker(both.find((u) => u.id === "utt_1")!, graph.events, layers)).toBe("Customer");
+    expect(visibleUtterances(both, graph.events, new Set(["w2"])).some((u) => u.witnessId === "w2")).toBe(false);
+    expect(visibleUtterances(both, graph.events, new Set(["w1"])).map((u) => u.id)).toEqual(expect.arrayContaining(["utt_w2_1", "utt_w2_4"]));
+    expect(transcriptFor("live", graph.sceneId, ["w1", "w2"])).toBeNull();
   });
 });

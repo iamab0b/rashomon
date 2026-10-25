@@ -62,6 +62,7 @@ export function visibleUtterances(
   if (hidden.size === 0 && actor === null) return [...transcript];
   return transcript.filter((utterance) => {
     if (utterance.id === keep) return true;
+    if (utterance.witnessId !== undefined && hidden.has(utterance.witnessId)) return false;
     const citing = events.filter((event) => event.sources.includes(utterance.id));
     if (actor !== null) return citing.some((event) => event.actor === actor && !hidden.has(event.witnessId));
     return citing.length === 0 || citing.some((event) => !hidden.has(event.witnessId));
@@ -73,6 +74,8 @@ export function utteranceSpeaker(
   events: readonly Pick<ResolvedEvent, "witnessId" | "sources">[],
   layers: readonly Pick<WitnessLayer, "id" | "label">[],
 ): string {
+  const own = utterance.witnessId !== undefined ? layers.find((layer) => layer.id === utterance.witnessId) : undefined;
+  if (own) return own.label;
   const witnesses = new Set(events.filter((event) => event.sources.includes(utterance.id)).map((event) => event.witnessId));
   const only = witnesses.size === 1 ? layers.find((layer) => layer.id === [...witnesses][0]) : undefined;
   return only ? only.label : speakerLabel(utterance.speaker);
