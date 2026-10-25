@@ -5,6 +5,7 @@ import { useTimeline } from "../playback/useTimeline";
 import { useSceneStore } from "../store";
 import { createDrag, makeJump, makeKeyHandler } from "./handlers";
 import {
+  LABEL_COLUMN_W,
   LABEL_W,
   LANE_H,
   ROW_H,
@@ -314,16 +315,16 @@ export function Timeline({ onOpen, focusActor = null }: TimelineProps) {
         </div>
         <svg
           className="rtl-labels"
-          viewBox={`0 0 ${LABEL_W} ${height}`}
+          viewBox={`0 0 ${LABEL_COLUMN_W} ${height}`}
           style={{
             position: "absolute",
             top: 0,
             left: 0,
             display: "block",
-            width: `calc(max(100%, var(--rtl-min-width, 0px)) * ${LABEL_W / W})`,
+            width: `calc(max(100%, var(--rtl-min-width, 0px)) * ${LABEL_COLUMN_W / W})`,
           }}
         >
-          <rect x={0} y={0} width={LABEL_W} height={height} fill="#0e121a" />
+          <rect x={0} y={0} width={LABEL_COLUMN_W} height={height} fill="#0e121a" />
           {rows.map((row, i) => {
             const dimmed = focusActor !== null && rows.some((r) => r.id === focusActor) && row.id !== focusActor;
             return (

@@ -16,6 +16,7 @@ import {
   inferredBlockPath,
   WAVE_AMPLITUDE,
   SELECTION,
+  LABEL_COLUMN_W,
   LABEL_W,
   W,
   PLAYBACK_TINT,
@@ -658,7 +659,8 @@ describe("approximated events", () => {
     expect(scroll).toContain("data-block=");
     expect(scroll).not.toContain("data-row-label");
     expect(labels).toMatch(/data-row-label="suspect"[^>]*>Suspect</);
-    expect(labels).toContain(`viewBox="0 0 ${LABEL_W} `);
-    expect(labels).toContain(`width:calc(max(100%, var(--rtl-min-width, 0px)) * ${LABEL_W / W})`);
+    expect(labels).toContain(`viewBox="0 0 ${LABEL_COLUMN_W} `);
+    expect(labels).toContain(`width:calc(max(100%, var(--rtl-min-width, 0px)) * ${LABEL_COLUMN_W / W})`);
+    expect(LABEL_COLUMN_W).toBeLessThanOrEqual(xOf(0, resolved!.durationS) - 7);
   });
 });
