@@ -1,6 +1,6 @@
 # Rashomon
 
-Rashomon turns witness testimony into an event graph in which every event cites the words it came from, then into an editable 3D reconstruction inside a measured model of a convenience store. A deterministic plausibility gate checks each claim against the store's geometry: sightlines, walkable routes and travel times, plus contradictions between statements. Testimony arrives typed or through a Cartesia voice interviewer. Built in 36 hours at Cal Hacks 13.0 (Oct 23 to 25, 2026) by a team of three.
+Rashomon turns witness testimony into an event graph in which every event cites the words it came from, then into an editable 3D reconstruction inside a measured model of a convenience store. A deterministic plausibility gate checks each claim against the store's geometry: sightlines, walkable routes and travel times, plus contradictions between statements. Testimony arrives typed or through a Cartesia voice interviewer. Built in 36 hours at Cal Hacks 13.0 (Oct 23 to 25, 2026) by a Sahil, Eric, and Hyeonseo.
 
 ## The core idea
 
